@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>FFIRE Pricing | Enterprise Fintech Intelligence</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@500&amp;family=Hanken+Grotesk:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-bright": "#2f3a4c",
+                    "background": "#081425",
+                    "surface-dim": "#081425",
+                    "primary": "#bec6e0",
+                    "on-tertiary-container": "#728299",
+                    "on-secondary": "#4d2600",
+                    "surface-tint": "#bec6e0",
+                    "on-primary-container": "#798098",
+                    "on-secondary-container": "#432100",
+                    "error-container": "#93000a",
+                    "surface-container-low": "#111c2d",
+                    "tertiary-container": "#06182b",
+                    "on-primary-fixed-variant": "#3f465c",
+                    "on-error": "#690005",
+                    "secondary-container": "#d97707",
+                    "surface-container-high": "#1f2a3c",
+                    "on-surface": "#d8e3fb",
+                    "on-primary-fixed": "#131b2e",
+                    "inverse-on-surface": "#263143",
+                    "surface-variant": "#2a3548",
+                    "surface-container-highest": "#2a3548",
+                    "graph-edge": "#475569",
+                    "tertiary-fixed-dim": "#b7c8e1",
+                    "on-secondary-fixed": "#2f1500",
+                    "inverse-primary": "#565e74",
+                    "investigation-gold": "#FCD34D",
+                    "surface": "#081425",
+                    "risk-low": "#10B981",
+                    "graph-node-bg": "#334155",
+                    "inverse-surface": "#d8e3fb",
+                    "on-tertiary": "#213145",
+                    "tertiary": "#b7c8e1",
+                    "secondary": "#ffb77d",
+                    "tertiary-fixed": "#d3e4fe",
+                    "surface-container": "#152031",
+                    "secondary-fixed-dim": "#ffb77d",
+                    "outline-variant": "#45464d",
+                    "on-primary": "#283044",
+                    "on-tertiary-fixed": "#0b1c30",
+                    "secondary-fixed": "#ffdcc3",
+                    "on-secondary-fixed-variant": "#6e3900",
+                    "error": "#ffb4ab",
+                    "outline": "#909097",
+                    "on-error-container": "#ffdad6",
+                    "on-tertiary-fixed-variant": "#38485d",
+                    "primary-fixed": "#dae2fd",
+                    "on-background": "#d8e3fb",
+                    "primary-fixed-dim": "#bec6e0",
+                    "risk-medium": "#F59E0B",
+                    "on-surface-variant": "#c6c6cd",
+                    "risk-high": "#EF4444",
+                    "surface-container-lowest": "#040e1f",
+                    "primary-container": "#0f172a"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "stack-lg": "32px",
+                    "gutter": "24px",
+                    "stack-md": "16px",
+                    "container-max": "1440px",
+                    "unit": "4px",
+                    "stack-sm": "8px",
+                    "margin": "32px"
+            },
+            "fontFamily": {
+                    "body-md": ["Inter"],
+                    "label-md": ["JetBrains Mono"],
+                    "label-sm": ["JetBrains Mono"],
+                    "body-sm": ["Inter"],
+                    "headline-md": ["Hanken Grotesk"],
+                    "headline-lg": ["Hanken Grotesk"],
+                    "display-lg": ["Hanken Grotesk"],
+                    "headline-lg-mobile": ["Hanken Grotesk"],
+                    "body-lg": ["Inter"]
+            },
+            "fontSize": {
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                    "label-sm": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                    "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "600"}],
+                    "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "headline-lg-mobile": ["28px", {"lineHeight": "36px", "fontWeight": "600"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { background-color: #081425; color: #d8e3fb; -webkit-font-smoothing: antialiased; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .tonal-glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid #475569; }
+        .pricing-card-shadow { box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5); }
+        .gradient-border-gold { position: relative; border-radius: 0.125rem; }
+        .gradient-border-gold::before { content: ""; position: absolute; inset: -1px; border-radius: 0.125rem; padding: 1px; background: linear-gradient(135deg, #FCD34D, #B45309); -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none; }
+        .bento-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 1rem; }
+        .glow-soft { box-shadow: 0 0 15px rgba(252, 211, 77, 0.15); }
+        .nav-link-active { color: #bec6e0; border-bottom: 2px solid #bec6e0; font-weight: bold; }
+    </style>
+</head>
+<body class="font-body-md text-body-md overflow-x-hidden">
+<!-- TopNavBar -->
+<nav class="bg-surface dark:bg-surface flex justify-between items-center h-16 w-full px-margin border-b border-outline-variant fixed top-0 z-50">
+<div class="flex items-center gap-stack-md">
+<span class="font-headline-md text-headline-md font-bold text-investigation-gold tracking-tight">FFIRE</span>
+<div class="hidden md:flex ml-stack-lg gap-gutter h-full items-center">
+<a class="text-on-surface-variant hover:text-on-surface transition-colors font-body-md text-body-md h-full flex items-center" href="#">Dashboard</a>
+<a class="text-on-surface-variant hover:text-on-surface transition-colors font-body-md text-body-md h-full flex items-center" href="#">Investigation Queue</a>
+<a class="text-on-surface-variant hover:text-on-surface transition-colors font-body-md text-body-md h-full flex items-center" href="#">Audit Logs</a>
+<a class="text-on-surface-variant hover:text-on-surface transition-colors font-body-md text-body-md h-full flex items-center" href="#">Reports</a>
+</div>
+</div>
+<div class="flex items-center gap-gutter">
+<div class="hidden lg:flex items-center bg-surface-container rounded px-stack-sm py-1 border border-outline-variant">
+<span class="material-symbols-outlined text-on-surface-variant text-sm">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm text-on-surface w-48" placeholder="Quick Search..." type="text"/>
+</div>
+<div class="flex items-center gap-stack-md">
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-on-surface transition-colors">notifications</span>
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-on-surface transition-colors">settings</span>
+<div class="w-8 h-8 rounded-full bg-surface-container-high border border-outline-variant overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A professional close-up headshot of a financial investigator wearing a dark suit and glasses. The background is a clean, minimalist fintech office with soft lighting and subtle blue accents, creating a high-trust, authoritative atmosphere consistent with a corporate command center." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDKIxZa8zJirQ3la4Q-glQ421tQFu45j7V-Pq4ITfLM206l_XBz76Ssu9qtz3UGQj-eYzTkWa4GfM8vPGMphyCBs-H6y8mPYycWs7inghVmU5aDpDTJ1UwhM-syl6P2qWXwDANstEN8dM8WkADRlg2isEuzbVPsWHq1dU35nqIPypUEWvGvZ47GO8tipY_Mw2eQgk2fVsSIdqsQvaAGfRDKzRtHGcY9XnhGTaUIFZf0ZL6GZYhNLb92rSEOuqfDbEyPOBUu2klejVw"/>
+</div>
+</div>
+</div>
+</nav>
+<!-- Main Content -->
+<main class="pt-24 pb-20 px-margin max-w-container-max mx-auto">
+<!-- Hero Section -->
+<header class="text-center mb-16 relative">
+
+<h1 class="font-display-lg text-display-lg text-on-surface mb-stack-sm">FFIRE Pricing</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl mx-auto">
+                Deterministic Intelligence for Fintech. Scale your fraud investigations with auditable reasoning and custom AI guardrails.
+            </p>
+</header>
+<!-- Pricing Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-gutter mb-24">
+<!-- Starter -->
+<div class="bg-surface-container-low border border-outline-variant rounded-xl p-8 flex flex-col hover:border-on-surface-variant transition-all duration-300">
+<div class="mb-stack-lg">
+<span class="font-label-md text-label-md text-on-primary-container uppercase tracking-widest mb-2 block">For Emerging Fintechs</span>
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Starter</h2>
+<div class="flex items-baseline gap-1 mt-4">
+<span class="font-headline-md text-headline-md text-on-surface">$</span>
+<span class="font-display-lg text-display-lg text-on-surface">499</span>
+<span class="text-on-surface-variant font-body-sm">/mo</span>
+</div>
+</div>
+<ul class="space-y-stack-md flex-grow mb-stack-lg">
+<li class="flex items-start gap-stack-sm">
+<span class="material-symbols-outlined text-risk-low text-sm mt-1">check_circle</span>
+<span class="text-on-surface-variant">Standard Fraud Monitoring</span>
+</li>
+<li class="flex items-start gap-stack-sm">
+<span class="material-symbols-outlined text-risk-low text-sm mt-1">check_circle</span>
+<span class="text-on-surface-variant">10,000 Monthly Transactions</span>
+</li>
+<li class="flex items-start gap-stack-sm">
+<span class="material-symbols-outlined text-risk-low text-sm mt-1">check_circle</span>
+<span class="text-on-surface-variant">Core Explainability Logs</span>
+</li>
+<li class="flex items-start gap-stack-sm">
+<span class="material-symbols-outlined text-risk-low text-sm mt-1">check_circle</span>
+<span class="text-on-surface-variant">Email Support</span>
+</li>
+</ul>
+<button class="w-full py-stack-md border border-outline text-on-surface hover:bg-surface-container-high transition-colors font-bold uppercase tracking-wider text-label-md">
+                    Start Free Trial
+                </button>
+</div>
+<!-- Professional -->
+<div class="bg-surface-container-high border border-investigation-gold rounded-xl p-8 flex flex-col relative pricing-card-shadow glow-soft transform lg:-translate-y-4">
+<div class="absolute -top-4 left-1/2 -translate-x-1/2 bg-investigation-gold text-surface px-4 py-1 rounded-full text-label-sm font-bold uppercase">
+                    Most Popular
+                </div>
+<div class="mb-stack-lg">
+<span class="font-label-md text-label-md text-investigation-gold uppercase tracking-widest mb-2 block">Advanced Reasoning</span>
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Professional</h2>
+<div class="flex items-baseline gap-1 mt-4">
+<span class="font-headline-md text-headline-md text-on-surface">$</span>
+<span class="font-display-lg text-display-lg text-on-surface">2,499</span>
+<span class="text-on-surface-variant font-body-sm">/mo</span>
+</div>
+</div>
+<ul class="space-y-stack-md flex-grow mb-stack-lg">
+<li class="flex items-start gap-stack-sm">
+<span class="material-symbols-outlined text-investigation-gold text-sm mt-1">check_circle</span>
+<span class="text-on-surface">LangGraph Custom Logic</span>
+</li>
+<li class="flex items-start gap-stack-sm">
+<span class="material-symbols-outlined text-investigation-gold text-sm mt-1">check_circle</span>
+<span class="text-on-surface">Execution Trace Visualization</span>
+</li>
+<li class="flex items-start gap-stack-sm">
+<span class="material-symbols-outlined text-investigation-gold text-sm mt-1">check_circle</span>
+<span class="text-on-surface">100,000 Monthly Transactions</span>
+</li>
+<li class="flex items-start gap-stack-sm">
+<span class="material-symbols-outlined text-investigation-gold text-sm mt-1">check_circle</span>
+<span class="text-on-surface">Real-time Risk Alerts</span>
+</li>
+<li class="flex items-start gap-stack-sm">
+<span class="material-symbols-outlined text-investigation-gold text-sm mt-1">check_circle</span>
+<span class="text-on-surface">Priority Support</span>
+</li>
+</ul>
+<button class="w-full py-stack-md bg-investigation-gold text-surface hover:bg-opacity-90 transition-all font-bold uppercase tracking-wider text-label-md active:scale-95">
+                    Start Free Trial
+                </button>
+</div>
+<!-- Enterprise -->
+<div class="bg-surface-container-low border border-outline-variant rounded-xl p-8 flex flex-col hover:border-on-surface-variant transition-all duration-300">
+<div class="mb-stack-lg">
+<span class="font-label-md text-label-md text-on-primary-container uppercase tracking-widest mb-2 block">Full Compliance Control</span>
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Enterprise</h2>
+<div class="flex items-baseline gap-1 mt-4">
+<span class="font-headline-lg text-headline-lg text-on-surface">Custom Pricing</span>
+</div>
+</div>
+<ul class="space-y-stack-md flex-grow mb-stack-lg">
+<li class="flex items-start gap-stack-sm">
+<span class="material-symbols-outlined text-on-surface text-sm mt-1" style="font-variation-settings: 'FILL' 1;">security</span>
+<span class="text-on-surface">Full RBAC Controls</span>
+</li>
+<li class="flex items-start gap-stack-sm">
+<span class="material-symbols-outlined text-on-surface text-sm mt-1" style="font-variation-settings: 'FILL' 1;">lock</span>
+<span class="text-on-surface">Custom AI Guardrails</span>
+</li>
+<li class="flex items-start gap-stack-sm">
+<span class="material-symbols-outlined text-on-surface text-sm mt-1" style="font-variation-settings: 'FILL' 1;">lan</span>
+<span class="text-on-surface">Unlimited Transactions</span>
+</li>
+<li class="flex items-start gap-stack-sm">
+<span class="material-symbols-outlined text-on-surface text-sm mt-1" style="font-variation-settings: 'FILL' 1;">cloud_sync</span>
+<span class="text-on-surface">Self-hosted Deployments</span>
+</li>
+<li class="flex items-start gap-stack-sm">
+<span class="material-symbols-outlined text-on-surface text-sm mt-1" style="font-variation-settings: 'FILL' 1;">support_agent</span>
+<span class="text-on-surface">Dedicated Account Manager</span>
+</li>
+</ul>
+<button class="w-full py-stack-md bg-on-surface text-background hover:bg-primary transition-colors font-bold uppercase tracking-wider text-label-md">
+                    Contact Sales
+                </button>
+</div>
+</div>
+<!-- Detailed Comparison -->
+<section class="mt-stack-lg">
+<h2 class="font-headline-lg text-headline-lg text-on-surface text-center mb-stack-lg">Explainability Features</h2>
+<div class="bg-surface-container-low rounded-lg border border-outline-variant overflow-hidden">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-high">
+<th class="p-6 font-label-md text-label-md text-on-surface">Feature</th>
+<th class="p-6 font-label-md text-label-md text-on-surface text-center">Starter</th>
+<th class="p-6 font-label-md text-label-md text-on-surface text-center">Professional</th>
+<th class="p-6 font-label-md text-label-md text-on-surface text-center">Enterprise</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant">
+<tr>
+<td class="p-6">
+<p class="font-body-md font-bold text-on-surface">Reasoning Graph</p>
+<p class="text-sm text-on-surface-variant">Visual trace of AI decision nodes</p>
+</td>
+<td class="p-6 text-center text-on-surface-variant">Basic logs</td>
+<td class="p-6 text-center text-investigation-gold">
+<span class="material-symbols-outlined">account_tree</span>
+</td>
+<td class="p-6 text-center text-investigation-gold">
+<span class="material-symbols-outlined">account_tree</span>
+</td>
+</tr>
+<tr>
+<td class="p-6">
+<p class="font-body-md font-bold text-on-surface">Audit Evidence</p>
+<p class="text-sm text-on-surface-variant">Direct source linking for every score</p>
+</td>
+<td class="p-6 text-center text-on-surface-variant">
+<span class="material-symbols-outlined">check</span>
+</td>
+<td class="p-6 text-center text-on-surface">
+<span class="material-symbols-outlined">check</span>
+</td>
+<td class="p-6 text-center text-on-surface">
+<span class="material-symbols-outlined">check</span>
+</td>
+</tr>
+<tr>
+<td class="p-6">
+<p class="font-body-md font-bold text-on-surface">Custom Guardrails</p>
+<p class="text-sm text-on-surface-variant">Define strict logic bounds for AI</p>
+</td>
+<td class="p-6 text-center">—</td>
+<td class="p-6 text-center text-on-surface-variant">Manual override</td>
+<td class="p-6 text-center text-risk-low">
+<span class="material-symbols-outlined">gpp_maybe</span>
+</td>
+</tr>
+<tr>
+<td class="p-6">
+<p class="font-body-md font-bold text-on-surface">Historical Correlation</p>
+<p class="text-sm text-on-surface-variant">Pattern matching across past 24 months</p>
+</td>
+<td class="p-6 text-center">3 months</td>
+<td class="p-6 text-center text-on-surface">12 months</td>
+<td class="p-6 text-center text-on-surface">Unlimited</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<!-- Bento Grid Proof Points -->
+<section class="mt-24 grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="md:col-span-2 bg-surface-container-high border border-outline-variant p-stack-lg rounded-xl flex items-center gap-stack-lg">
+<div class="w-1/3">
+
+</div>
+<div class="w-2/3">
+<h3 class="font-headline-md text-headline-md text-on-surface mb-2">Deterministic Reasoning</h3>
+<p class="text-on-surface-variant">Every risk score generated by FFIRE is backed by an auditable execution trace. Move beyond black-box AI with our unique reasoning graph architecture.</p>
+</div>
+</div>
+<div class="bg-surface-container-low border border-outline-variant p-stack-lg rounded-xl flex flex-col justify-center">
+<div class="text-display-lg font-display-lg text-investigation-gold mb-2">99.8%</div>
+<p class="font-label-md text-label-md text-on-surface uppercase mb-1">Investigation Accuracy</p>
+<p class="text-sm text-on-surface-variant">Validated by Top 5 global neo-banks.</p>
+</div>
+</section>
+<!-- Final CTA -->
+<section class="mt-24 text-center bg-primary-container p-16 rounded-2xl border border-primary/20 relative overflow-hidden">
+<div class="absolute inset-0 opacity-10">
+
+</div>
+<div class="relative z-10">
+<h2 class="font-headline-lg text-headline-lg text-on-surface mb-stack-md">Ready to secure your fintech?</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant mb-stack-lg max-w-xl mx-auto">
+                    Join hundreds of financial institutions using FFIRE to detect fraud with absolute transparency.
+                </p>
+<div class="flex flex-col sm:flex-row gap-gutter justify-center">
+<button class="px-8 py-4 bg-investigation-gold text-surface font-bold rounded hover:opacity-90 transition-all active:scale-95 shadow-lg">
+                        START FREE TRIAL
+                    </button>
+<button class="px-8 py-4 border border-on-surface text-on-surface font-bold rounded hover:bg-surface-container-high transition-all">
+                        TALK TO AN EXPERT
+                    </button>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="border-t border-outline-variant bg-surface py-12 px-margin mt-12">
+<div class="max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-start gap-stack-lg">
+<div class="max-w-sm">
+<span class="font-headline-md text-headline-md font-bold text-investigation-gold mb-4 block">FFIRE</span>
+<p class="text-on-surface-variant text-sm">
+                    Deterministic Intelligence for the modern financial infrastructure. Precision auditing, human-centered explainability.
+                </p>
+</div>
+<div class="grid grid-cols-2 sm:grid-cols-3 gap-stack-lg">
+<div>
+<h4 class="font-label-md text-label-md text-on-surface mb-4 uppercase">Product</h4>
+<ul class="space-y-2 text-sm text-on-surface-variant">
+<li><a class="hover:text-primary" href="#">Features</a></li>
+<li><a class="hover:text-primary" href="#">LangGraph Docs</a></li>
+<li><a class="hover:text-primary" href="#">Integrations</a></li>
+<li><a class="hover:text-primary" href="#">Pricing</a></li>
+</ul>
+</div>
+<div>
+<h4 class="font-label-md text-label-md text-on-surface mb-4 uppercase">Resources</h4>
+<ul class="space-y-2 text-sm text-on-surface-variant">
+<li><a class="hover:text-primary" href="#">Whitepapers</a></li>
+<li><a class="hover:text-primary" href="#">API Reference</a></li>
+<li><a class="hover:text-primary" href="#">Compliance Guide</a></li>
+</ul>
+</div>
+<div class="col-span-2 sm:col-span-1">
+<h4 class="font-label-md text-label-md text-on-surface mb-4 uppercase">Status</h4>
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-risk-low animate-pulse"></div>
+<span class="text-sm text-on-surface-variant font-label-sm">FFIRE Engine v2.4 Active</span>
+</div>
+</div>
+</div>
+</div>
+<div class="max-w-container-max mx-auto mt-12 pt-8 border-t border-outline-variant flex justify-between items-center text-xs text-on-surface-variant opacity-60">
+<p>© 2024 FFIRE Intelligence Systems. All rights reserved.</p>
+<div class="flex gap-stack-md">
+<a href="#">Privacy</a>
+<a href="#">Terms</a>
+<a href="#">Security</a>
+</div>
+</div>
+</footer>
+<script>
+        // Smooth scrolling for navigation links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+
+        // Hover effects for pricing cards
+        const cards = document.querySelectorAll('.bg-surface-container-low, .bg-surface-container-high');
+        cards.forEach(card => {
+            card.addEventListener('mouseenter', () => {
+                card.style.transform = card.classList.contains('lg:-translate-y-4') 
+                    ? 'translateY(-20px) scale(1.02)' 
+                    : 'translateY(-10px)';
+            });
+            card.addEventListener('mouseleave', () => {
+                card.style.transform = card.classList.contains('lg:-translate-y-4') 
+                    ? 'translateY(-16px)' 
+                    : 'translateY(0)';
+            });
+        });
+    </script>
+</body></html>

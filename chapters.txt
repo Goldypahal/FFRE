@@ -1,0 +1,80 @@
+detailed, but the Frontend (Chapter 23) is only briefly described (about
+Chapter 1 — Executive Summary
+Chapter 2 — Product Vision
+1.  Chapter 3 – Business Goals
+2.  Chapter 4 – Problem Statement
+3.  Chapter 5 – Success Metrics & KPIs
+4.  Chapter 6 – Stakeholders
+5.  Chapter 7 – User Personas
+Chapter 6 — Stakeholders
+Chapter 7 — User Personas
+Chapter 8 — User Stories
+Chapter 9 — Functional Requirements (Part 1)
+- Chapter 10 – Non-Functional Requirements
+- Chapter 11 – Information Architecture
+- Chapter 12 – Navigation Architecture
+- Chapter 13 – Design Principles
+- Chapter 14 – Design System (Colors, Typography, Components)
+Chapter 10 – Non-Functional Requirements (NFR)
+Chapter 11 — Information Architecture
+Chapter 12 — Navigation Architecture
+Chapter 13 — UX Design Principles
+- Chapter 14 – Enterprise Design System
+- Chapter 15 – Color Palette & Theme Specification
+- Chapter 16 – Typography System
+- Chapter 17 – Grid & Layout System
+- Chapter 18 – Component Library (Buttons, Cards, Tables, Forms, Modals,
+Chapter 14 — Enterprise Design System
+Chapter 15 — Color System
+Chapter 16 — Typography System
+Chapter 17 — Layout & Grid System
+Chapter 18 — Buttons
+Chapter 19 — Cards
+Chapter 20 — Tables
+Chapter 21 — Forms
+Chapter 22 — Search Components
+Chapter 23 — Modal Dialogs
+Chapter 24 — Login & Authentication
+Chapter 25 — Dashboard
+Next Chapter (Enterprise Level)
+Chapter 26 – Investigation Workspace (≈40–50 pages in the full
+Chapter 27 — Transaction Search & Investigation Queue
+The next chapter, Chapter 28 – Evidence Explorer, will be one of the
+Chapter 29 — Investigation Timeline & Event Viewer
+Next Chapter (Major Architecture)
+Chapter 30 – LangGraph Execution Monitor & AI Pipeline
+Chapter 31 — AI Reasoning Explorer & Explainability Center
+- Chapter 32 — Investigation Report Builder & Report Viewer
+- Chapter 33 — Audit Logs & Compliance Center
+- Chapter 34 — Analytics & Executive Dashboard
+- Chapter 35 — Administration Console
+- Chapter 36 — AI Configuration & Prompt Management
+- Chapter 37 — System Monitoring & Observability
+- Chapter 38 — Notification Center
+- Chapter 39 — User Profile & Preferences
+- Chapter 40 — Help Center & Knowledge Base
+Chapter 33 — Audit Logs & Compliance Center
+Chapter 34 — Analytics & Executive Dashboard
+Chapter 35 — Administration Console
+Chapter 36 — AI Configuration, Prompt Studio & Model Governance
+Chapter 37 — System Monitoring, Observability & Infrastructure
+Chapter 38 — Notification Center, Communication Hub & Workflow
+Chapter 39 — User Profile, Preferences & Personal Workspace
+Chapter 40 — Help Center, Knowledge Base & AI Assistant
+Chapter 41 — Global Search & Universal Command Palette
+Chapter 42 — Enterprise Design System, UI Components & UX Standards
+Chapter 44 — Domain-Driven Design (DDD), Bounded Contexts & Microservice
+Chapter 45 — Enterprise Microservice Architecture & Service Contracts
+Chapter 47 — Authentication, Authorization, Identity & Access Management
+Chapter 48 — Database Architecture, PostgreSQL Schema Strategy & Data
+Chapter 51 — Object Storage, File Management, Evidence Storage & Digital
+Chapter 52 — Enterprise Search Architecture, Elasticsearch, Vector
+Chapter 54 — AI Agents, Tool Calling Framework, Memory Architecture &
+Chapter 55 — Prompt Engineering Platform, Prompt Registry, Versioning &
+Chapter 56 — AI Evaluation Framework, Guardrails, Safety, Hallucination
+Chapter 57 — Enterprise Security Architecture, Zero Trust, Identity
+Chapter 57 — Enterprise Security Architecture, Zero Trust, Identity
+Chapter 58 — Enterprise Observability, Monitoring, Logging, Tracing &
+Chapter 59 — Enterprise DevSecOps, CI/CD, GitOps & Release Management
+Chapter 60 — Enterprise Infrastructure Architecture, Kubernetes Platform
+Chapter 60 — Enterprise Infrastructure Architecture, Kubernetes Platform

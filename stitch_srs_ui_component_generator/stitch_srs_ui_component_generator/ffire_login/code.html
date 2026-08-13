@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>FFIRE | Secure Authentication</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@500&amp;family=Hanken+Grotesk:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                "surface-bright": "#2f3a4c",
+                "background": "#081425",
+                "surface-dim": "#081425",
+                "primary": "#bec6e0",
+                "on-tertiary-container": "#728299",
+                "on-secondary": "#4d2600",
+                "surface-tint": "#bec6e0",
+                "on-primary-container": "#798098",
+                "on-secondary-container": "#432100",
+                "error-container": "#93000a",
+                "surface-container-low": "#111c2d",
+                "tertiary-container": "#06182b",
+                "on-primary-fixed-variant": "#3f465c",
+                "on-error": "#690005",
+                "secondary-container": "#d97707",
+                "surface-container-high": "#1f2a3c",
+                "on-surface": "#d8e3fb",
+                "on-primary-fixed": "#131b2e",
+                "inverse-on-surface": "#263143",
+                "surface-variant": "#2a3548",
+                "surface-container-highest": "#2a3548",
+                "graph-edge": "#475569",
+                "tertiary-fixed-dim": "#b7c8e1",
+                "on-secondary-fixed": "#2f1500",
+                "inverse-primary": "#565e74",
+                "investigation-gold": "#FCD34D",
+                "surface": "#081425",
+                "risk-low": "#10B981",
+                "graph-node-bg": "#334155",
+                "inverse-surface": "#d8e3fb",
+                "on-tertiary": "#213145",
+                "tertiary": "#b7c8e1",
+                "secondary": "#ffb77d",
+                "tertiary-fixed": "#d3e4fe",
+                "surface-container": "#152031",
+                "secondary-fixed-dim": "#ffb77d",
+                "outline-variant": "#45464d",
+                "on-primary": "#283044",
+                "on-tertiary-fixed": "#0b1c30",
+                "secondary-fixed": "#ffdcc3",
+                "on-secondary-fixed-variant": "#6e3900",
+                "error": "#ffb4ab",
+                "outline": "#909097",
+                "on-error-container": "#ffdad6",
+                "on-tertiary-fixed-variant": "#38485d",
+                "primary-fixed": "#dae2fd",
+                "on-background": "#d8e3fb",
+                "primary-fixed-dim": "#bec6e0",
+                "risk-medium": "#F59E0B",
+                "on-surface-variant": "#c6c6cd",
+                "risk-high": "#EF4444",
+                "surface-container-lowest": "#040e1f",
+                "primary-container": "#0f172a"
+            },
+            "borderRadius": {
+                "DEFAULT": "0.125rem",
+                "lg": "0.25rem",
+                "xl": "0.5rem",
+                "full": "0.75rem"
+            },
+            "spacing": {
+                "stack-lg": "32px",
+                "gutter": "24px",
+                "stack-md": "16px",
+                "container-max": "1440px",
+                "unit": "4px",
+                "stack-sm": "8px",
+                "margin": "32px"
+            },
+            "fontFamily": {
+                "body-md": ["Inter"],
+                "label-md": ["JetBrains Mono"],
+                "label-sm": ["JetBrains Mono"],
+                "body-sm": ["Inter"],
+                "headline-md": ["Hanken Grotesk"],
+                "headline-lg": ["Hanken Grotesk"],
+                "display-lg": ["Hanken Grotesk"],
+                "body-lg": ["Inter"]
+            }
+          }
+        }
+      }
+    </script>
+<style>
+        body {
+            background-color: #081425;
+            color: #d8e3fb;
+            -webkit-font-smoothing: antialiased;
+        }
+        .login-card {
+            background: linear-gradient(145deg, #111c2d 0%, #040e1f 100%);
+        }
+        .input-focus-ring:focus {
+            box-shadow: 0 0 0 1px #FCD34D;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="font-body-md text-body-md min-h-screen flex flex-col items-center justify-center p-gutter relative overflow-hidden">
+<!-- Atmospheric Background Animation -->
+
+<!-- Top Glow / Identity -->
+<div class="absolute top-0 left-1/2 -translate-x-1/2 w-full h-px bg-gradient-to-r from-transparent via-investigation-gold/30 to-transparent"></div>
+<main class="w-full max-w-md relative z-10">
+<!-- Logo & Branding -->
+<div class="flex flex-col items-center mb-stack-lg">
+<div class="mb-stack-sm p-3 bg-surface-container-high rounded-xl border border-outline-variant shadow-lg">
+<span class="material-symbols-outlined text-investigation-gold text-4xl" style="font-variation-settings: 'FILL' 1;">security</span>
+</div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface tracking-tight">FFIRE Login</h1>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1">Financial Fraud Intelligence &amp; Real-time Evaluation</p>
+</div>
+<!-- Auth Card -->
+<div class="login-card p-8 border border-outline-variant rounded-xl shadow-2xl backdrop-blur-sm">
+<form class="space-y-stack-md" onsubmit="return false">
+<!-- SSO Section (Enterprise Mandate) -->
+<button class="w-full flex items-center justify-center gap-stack-sm bg-surface-container-highest hover:bg-surface-bright text-on-surface border border-outline font-label-md text-label-md py-3 rounded-lg transition-all active:scale-95" type="button">
+<span class="material-symbols-outlined text-investigation-gold">fingerprint</span>
+                    CONTINUE WITH SSO
+                </button>
+<div class="relative flex items-center py-stack-sm">
+<div class="flex-grow border-t border-outline-variant"></div>
+<span class="flex-shrink mx-4 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">OR</span>
+<div class="flex-grow border-t border-outline-variant"></div>
+</div>
+<!-- Manual Credentials -->
+<div class="space-y-stack-sm">
+<div>
+<label class="block font-label-sm text-label-sm text-on-surface-variant mb-1 uppercase tracking-tight">Investigator Email</label>
+<div class="relative">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-lg">alternate_email</span>
+<input class="w-full pl-10 pr-4 py-2.5 bg-surface-dim border border-outline rounded-lg text-on-surface font-body-sm placeholder:text-outline/50 focus:ring-0 focus:border-investigation-gold input-focus-ring transition-all outline-none" placeholder="name@ffire.internal" type="email"/>
+</div>
+</div>
+<div>
+<div class="flex justify-between items-end mb-1">
+<label class="block font-label-sm text-label-sm text-on-surface-variant uppercase tracking-tight">Secure Token / Password</label>
+<a class="font-label-sm text-label-sm text-tertiary hover:text-investigation-gold transition-colors" href="#">Forgot?</a>
+</div>
+<div class="relative">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-lg">lock</span>
+<input class="w-full pl-10 pr-4 py-2.5 bg-surface-dim border border-outline rounded-lg text-on-surface font-body-sm placeholder:text-outline/50 focus:ring-0 focus:border-investigation-gold input-focus-ring transition-all outline-none" placeholder="••••••••••••" type="password"/>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<input class="w-4 h-4 rounded border-outline bg-surface-dim text-investigation-gold focus:ring-investigation-gold" id="remember" type="checkbox"/>
+<label class="font-body-sm text-body-sm text-on-surface-variant cursor-pointer" for="remember">Stay authenticated for this session</label>
+</div>
+<button class="w-full py-3 bg-tertiary hover:bg-tertiary-fixed-dim text-on-tertiary font-headline-md text-headline-md rounded-lg transition-all shadow-[0_0_20px_rgba(252,211,77,0.1)] active:opacity-90" type="submit">
+                    AUTHORIZE ACCESS
+                </button>
+</form>
+<div class="mt-stack-lg pt-stack-md border-t border-outline-variant flex items-start gap-stack-sm">
+<span class="material-symbols-outlined text-risk-medium text-sm">info</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant/80 italic leading-snug">
+                    Access restricted to authorized personnel only. All interactions within this terminal are logged and audited in compliance with FINRA 2024 standards.
+                </p>
+</div>
+</div>
+<!-- System Architecture Graphics (Subtle) -->
+<div class="mt-gutter flex justify-between gap-stack-md opacity-40 grayscale hover:grayscale-0 transition-all duration-700">
+<div class="flex-1 h-32 rounded-lg border border-outline-variant overflow-hidden bg-surface-container">
+<img class="w-full h-full object-cover" data-alt="A highly technical abstract visualization of a neural network reasoning graph, with glowing nodes and interconnecting lines in shades of gold and deep slate blue. The aesthetic is clean, professional, and deterministic, reflecting a secure financial auditing system's internal logic flow." src="https://lh3.googleusercontent.com/aida-public/AB6AXuANa_4hQV9WpmVGEyAvuLJJ-Ly4ZJ9b8dKLNt1eUdOsppRccmegY02-vnK-buEq_VnvXvA1AdLz_nWKhEA4NS-x_MmEQgMFOu6RBQYEPv0Xm3CSgB45x7JDp6PIbSyGy7MOWLai_79MQAH8gxr0c6Q4AG4mkPj5721gJ9sATUqD0AJreVm-cbTOj18ElyiVSpOKyyR_NieQkAYoduY9-VmnTeMlAaps3bhSzFIoLY9vYIiG_UAHQvT3X8HhNsZeZ5wenHtnCTlH7ng"/>
+</div>
+<div class="flex-1 h-32 rounded-lg border border-outline-variant overflow-hidden bg-surface-container">
+<img class="w-full h-full object-cover" data-alt="A close-up shot of a high-resolution data grid displaying encrypted strings and cryptographic hashes. The lighting is low and moody with accents of amber gold reflecting off the glass-like interface. The overall style is a futuristic command center with a focus on data integrity and security." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBfHi_U_rUzjP-J915pJjR6pgoqcZxTDoCzW76lA_IUJ6PzkQqYlXos5NpSSW8lI3u3gBPDWgiyIz1HJePMDJwiP86ZSlFH88QPGWkZODZrmZQj8KcMiHGrN4gtPsQB1kEx8JYFcYOruaFiF-Ze56LtF5KxkSaailzovoAPOGIM-aC2YKXiwzVkFXTrcpTI4r_9H2rt9znoUZwkvOGUCn05Mpy1xTE75fGIBC94VTSe5BnAzwwPPdpJyZ0V81DQXQ-H48NLWGImv4s"/>
+</div>
+</div>
+</main>
+<!-- Footer Links -->
+<footer class="mt-auto py-stack-lg flex flex-col items-center gap-stack-sm relative z-10">
+<div class="flex gap-stack-lg font-label-sm text-label-sm text-outline">
+<a class="hover:text-on-surface transition-colors flex items-center gap-1" href="#">
+<span class="material-symbols-outlined text-[16px]">gavel</span>
+                Terms of Service
+            </a>
+<a class="hover:text-on-surface transition-colors flex items-center gap-1" href="#">
+<span class="material-symbols-outlined text-[16px]">hub</span>
+                Security Architecture
+            </a>
+<a class="hover:text-on-surface transition-colors flex items-center gap-1" href="#">
+<span class="material-symbols-outlined text-[16px]">help_center</span>
+                System Status
+            </a>
+</div>
+<p class="font-label-sm text-label-sm text-on-surface-variant/40 mt-2 uppercase tracking-[0.2em]">
+            FFIRE CORE ENGINE v2.4.82-SECURE
+        </p>
+</footer>
+<!-- Interactive Micro-interaction Script -->
+<script>
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('mouseenter', () => {
+                const icon = btn.querySelector('.material-symbols-outlined');
+                if (icon) icon.style.transform = 'scale(1.1)';
+            });
+            btn.addEventListener('mouseleave', () => {
+                const icon = btn.querySelector('.material-symbols-outlined');
+                if (icon) icon.style.transform = 'scale(1)';
+            });
+        });
+
+        // Subtle parallax on card
+        document.addEventListener('mousemove', (e) => {
+            const card = document.querySelector('.login-card');
+            const x = (window.innerWidth / 2 - e.pageX) / 100;
+            const y = (window.innerHeight / 2 - e.pageY) / 100;
+            card.style.transform = `translate(${x}px, ${y}px)`;
+        });
+    </script>
+</body></html>

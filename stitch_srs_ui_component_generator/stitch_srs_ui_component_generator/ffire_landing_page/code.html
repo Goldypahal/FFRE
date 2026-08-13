@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>FFIRE | Financial Fraud Investigation Reasoning Engine</title>
+<!-- Google Fonts: Hanken Grotesk -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS CDN with Plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Hanken Grotesk', 'sans-serif'],
+          },
+          colors: {
+            surface: {
+              DEFAULT: '#081425',
+              dim: '#081425',
+              bright: '#2f3a4c',
+              container: {
+                lowest: '#040e1f',
+                low: '#111c2d',
+              }
+            },
+            accent: {
+              gold: '#fbbf24', // Investigation highlights
+              primary: '#3b82f6', // Fintech Blue
+              success: '#10b981',
+              danger: '#ef4444'
+            }
+          },
+          borderRadius: {
+            'none': '0',
+            'sm': '0.125rem',
+            DEFAULT: '4px', // ROUND_FOUR
+            'md': '0.375rem',
+            'lg': '0.5rem',
+            'full': '9999px',
+          }
+        }
+      }
+    }
+  </script>
+<style data-purpose="custom-gradients">
+    .hero-glow {
+      background: radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.15) 0%, rgba(8, 20, 37, 0) 70%);
+    }
+    .grid-bg {
+      background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+      background-size: 30px 30px;
+    }
+    .text-gradient {
+      background: linear-gradient(to right, #ffffff, #94a3b8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+  </style>
+</head>
+<body class="bg-surface text-slate-200 font-sans selection:bg-accent-primary/30">
+<!-- BEGIN: MainHeader -->
+<header class="sticky top-0 z-50 bg-surface/80 backdrop-blur-md border-b border-white/10" data-purpose="navigation">
+<nav class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+<div class="flex items-center gap-8">
+<!-- Logo -->
+<div class="flex items-center gap-2 group cursor-pointer">
+<div class="w-8 h-8 bg-accent-primary flex items-center justify-center rounded">
+<span class="text-white font-bold italic">F</span>
+</div>
+<span class="text-xl font-bold tracking-tight text-white">FFIRE</span>
+</div>
+<!-- Desktop Nav Links -->
+<div class="hidden md:flex items-center gap-6 text-sm font-medium text-slate-400">
+<a class="hover:text-white transition-colors" href="#">Platform</a>
+<a class="hover:text-white transition-colors" href="#">Solutions</a>
+<a class="hover:text-white transition-colors" href="#">Compliance</a>
+<a class="hover:text-white transition-colors" href="#">API Docs</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="px-4 py-2 text-sm font-medium hover:text-white transition-colors">Sign in</button>
+<button class="bg-white text-surface px-5 py-2 rounded font-semibold text-sm hover:bg-slate-200 transition-all">
+          Request a Demo
+        </button>
+</div>
+</nav>
+</header>
+<!-- END: MainHeader -->
+<main>
+<!-- BEGIN: HeroSection -->
+<section class="relative pt-20 pb-32 overflow-hidden" data-purpose="hero-section">
+<div class="absolute inset-0 hero-glow pointer-events-none"></div>
+<div class="max-w-7xl mx-auto px-6 relative z-10 text-center">
+<!-- Badge -->
+<div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent-primary/10 border border-accent-primary/20 text-accent-primary text-xs font-bold uppercase tracking-widest mb-8">
+<span class="relative flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent-primary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-accent-primary"></span>
+</span>
+          Next-Gen Fraud Intelligence
+        </div>
+<h1 class="text-5xl md:text-7xl font-bold leading-tight tracking-tight mb-6 text-gradient">
+          Explainable Multi-Step Reasoning<br/>for Enterprise Fraud
+        </h1>
+<p class="max-w-2xl mx-auto text-lg md:text-xl text-slate-400 mb-10">
+          Move beyond opaque risk scores with a deterministic LangGraph-powered investigation engine. Trace every decision to verifiable evidence.
+        </p>
+<div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+<button class="w-full sm:w-auto px-8 py-4 bg-accent-primary hover:bg-blue-600 text-white rounded font-bold text-base transition-all shadow-lg shadow-accent-primary/20">
+            Request a Demo
+          </button>
+<button class="w-full sm:w-auto px-8 py-4 border border-white/10 hover:bg-white/5 text-white rounded font-bold text-base transition-all">
+            View Sample Report
+          </button>
+</div>
+<!-- Product Preview Mockup -->
+<div class="mt-20 relative mx-auto max-w-5xl group" data-purpose="product-preview">
+<div class="absolute -inset-1 bg-gradient-to-r from-accent-primary/20 to-accent-gold/20 rounded-lg blur opacity-30 group-hover:opacity-50 transition duration-1000"></div>
+<div class="relative bg-surface-container-low border border-white/10 rounded-lg shadow-2xl overflow-hidden aspect-video">
+<!-- Mock Dashboard Content -->
+<img alt="FFIRE Investigation Dashboard" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC98GaAFltZ3kbRJvz_q-xqVVTh0VCoDZ00Djv7JMUsO9N7sPtpWQRw4WObG9XcITrMVFKBfuHYcKq0o_fo1jrX_pAZS0_tRXsSaXcAAJPHcBL76EAV3ccUR4lsE3WneIrtPqBnJkICbBTq11YXvUyBUoydM4iSsP7_YAiiURhX9xEElc-NdSbru8IN0n_Y-H9eSbiRe2Ut5n2qP9ohcfr12QSZEs5E9WtbKUXXZ4oZe7FxJvQh2heAA1mbGL-LrotMvkxvE2zZFvY"/>
+</div>
+</div>
+</div>
+</section>
+<!-- END: HeroSection -->
+<!-- BEGIN: SocialProof -->
+<section class="py-12 border-y border-white/5 bg-surface-container-lowest/50" data-purpose="brand-logos">
+<div class="max-w-7xl mx-auto px-6">
+<p class="text-center text-xs font-bold uppercase tracking-[0.2em] text-slate-500 mb-8">Trusted by Global Financial Institutions</p>
+<div class="flex flex-wrap justify-center items-center gap-12 md:gap-20 opacity-50 grayscale hover:grayscale-0 transition-all duration-500">
+<!-- Placeholder Fintech Brands -->
+<div class="text-2xl font-bold tracking-tighter text-white">VORTEX BANK</div>
+<div class="text-2xl font-bold tracking-tighter text-white">SECURELEDGER</div>
+<div class="text-2xl font-bold tracking-tighter text-white">APEX CAPITAL</div>
+<div class="text-2xl font-bold tracking-tighter text-white">NOVA PAY</div>
+<div class="text-2xl font-bold tracking-tighter text-white">QUANTUM TRUST</div>
+</div>
+</div>
+</section>
+<!-- END: SocialProof -->
+<!-- BEGIN: FeaturesGrid -->
+<section class="py-32 relative" data-purpose="features">
+<div class="max-w-7xl mx-auto px-6">
+<div class="flex flex-col md:flex-row justify-between items-end mb-16 gap-6">
+<div class="max-w-2xl">
+<h2 class="text-accent-gold text-sm font-bold uppercase tracking-widest mb-4">The FFIRE Advantage</h2>
+<h3 class="text-3xl md:text-4xl font-bold text-white">Audit-ready investigations for high-stakes compliance.</h3>
+</div>
+<div class="text-slate-400 max-w-sm text-sm">
+            Our multi-agent orchestration ensures that no stone is left unturned and no decision remains unexplained.
+          </div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+<!-- Feature 1 -->
+<div class="p-8 bg-surface-container-low border border-white/5 rounded-lg hover:border-accent-primary/50 transition-all group" data-purpose="feature-card">
+<div class="w-12 h-12 bg-accent-primary/10 rounded flex items-center justify-center mb-6 group-hover:bg-accent-primary/20 transition-colors">
+<svg class="w-6 h-6 text-accent-primary" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</div>
+<h4 class="text-xl font-bold text-white mb-3">Deterministic Execution</h4>
+<p class="text-slate-400 text-sm leading-relaxed">
+              LangGraph-based pipelines ensure repeatable execution and a 100% auditable history for every case.
+            </p>
+</div>
+<!-- Feature 2 -->
+<div class="p-8 bg-surface-container-low border border-white/5 rounded-lg hover:border-accent-gold/50 transition-all group" data-purpose="feature-card">
+<div class="w-12 h-12 bg-accent-gold/10 rounded flex items-center justify-center mb-6 group-hover:bg-accent-gold/20 transition-colors">
+<svg class="w-6 h-6 text-accent-gold" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</div>
+<h4 class="text-xl font-bold text-white mb-3">Grounded Reasoning</h4>
+<p class="text-slate-400 text-sm leading-relaxed">
+              Every LLM claim is verified against source data. No hallucinations, only evidence-backed conclusions.
+            </p>
+</div>
+<!-- Feature 3 -->
+<div class="p-8 bg-surface-container-low border border-white/5 rounded-lg hover:border-accent-primary/50 transition-all group" data-purpose="feature-card">
+<div class="w-12 h-12 bg-accent-primary/10 rounded flex items-center justify-center mb-6 group-hover:bg-accent-primary/20 transition-colors">
+<svg class="w-6 h-6 text-accent-primary" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</div>
+<h4 class="text-xl font-bold text-white mb-3">Human-in-the-Loop</h4>
+<p class="text-slate-400 text-sm leading-relaxed">
+              Intelligent escalation triggers for high-risk or low-confidence cases, ensuring expert oversight.
+            </p>
+</div>
+<!-- Feature 4 -->
+<div class="p-8 bg-surface-container-low border border-white/5 rounded-lg hover:border-accent-gold/50 transition-all group" data-purpose="feature-card">
+<div class="w-12 h-12 bg-accent-gold/10 rounded flex items-center justify-center mb-6 group-hover:bg-accent-gold/20 transition-colors">
+<svg class="w-6 h-6 text-accent-gold" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</div>
+<h4 class="text-xl font-bold text-white mb-3">Composite Scoring</h4>
+<p class="text-slate-400 text-sm leading-relaxed">
+              Combines heuristic rules, vector similarity, and LLM reasoning into one transparent risk signal.
+            </p>
+</div>
+</div>
+</div>
+</section>
+<!-- END: FeaturesGrid -->
+<!-- BEGIN: ShowcaseSection -->
+<section class="py-32 bg-surface-container-lowest grid-bg" data-purpose="product-deep-dive">
+<div class="max-w-7xl mx-auto px-6">
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+<div>
+<h2 class="text-accent-primary text-sm font-bold uppercase tracking-widest mb-4">Precision Reasoning</h2>
+<h3 class="text-4xl font-bold text-white mb-6 leading-tight">From Opaque Scores to Verified Insights</h3>
+<p class="text-slate-400 mb-8 leading-relaxed">
+              Traditional fraud systems give you a number. FFIRE gives you a report. Our engine decomposes investigations into parallel tasks: customer history, geolocation analysis, and merchant reputation checks—then weaves them into a grounded narrative.
+            </p>
+<ul class="space-y-4 mb-10">
+<li class="flex items-start gap-3">
+<div class="mt-1 flex-shrink-0 w-5 h-5 rounded-full bg-accent-success/20 flex items-center justify-center">
+<svg class="w-3 h-3 text-accent-success" fill="currentColor" viewbox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"></path></svg>
+</div>
+<span class="text-slate-300">P95 investigation latency &lt; 8 seconds</span>
+</li>
+<li class="flex items-start gap-3">
+<div class="mt-1 flex-shrink-0 w-5 h-5 rounded-full bg-accent-success/20 flex items-center justify-center">
+<svg class="w-3 h-3 text-accent-success" fill="currentColor" viewbox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"></path></svg>
+</div>
+<span class="text-slate-300">80% reduction in manual investigation time</span>
+</li>
+<li class="flex items-start gap-3">
+<div class="mt-1 flex-shrink-0 w-5 h-5 rounded-full bg-accent-success/20 flex items-center justify-center">
+<svg class="w-3 h-3 text-accent-success" fill="currentColor" viewbox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"></path></svg>
+</div>
+<span class="text-slate-300">Full RBAC and encryption compliance</span>
+</li>
+</ul>
+<button class="px-6 py-3 border border-accent-primary text-accent-primary hover:bg-accent-primary/10 rounded font-bold transition-all">
+              Explore Architecture
+            </button>
+</div>
+<div class="relative">
+<!-- Graphical Representation of LangGraph Trace -->
+<div class="bg-surface border border-white/10 rounded-xl p-8 shadow-2xl overflow-hidden relative" data-purpose="graph-visualization">
+<div class="flex items-center justify-between mb-8">
+<span class="text-xs font-bold text-slate-500 uppercase tracking-widest">Active Execution Trace</span>
+<span class="flex items-center gap-2 text-[10px] bg-accent-primary/10 text-accent-primary px-2 py-0.5 rounded-full border border-accent-primary/20">
+<span class="w-1.5 h-1.5 rounded-full bg-accent-primary animate-pulse"></span>
+                  Processing
+                </span>
+</div>
+<!-- Visualization Nodes (Abstracted CSS representation) -->
+<div class="space-y-6">
+<div class="flex items-center gap-4">
+<div class="w-3 h-3 rounded-full bg-accent-success"></div>
+<div class="h-10 px-4 flex items-center bg-surface-container-bright rounded border border-white/10 text-xs font-mono">Planner::Task_Decomposition</div>
+</div>
+<div class="ml-8 border-l-2 border-white/5 pl-8 space-y-4">
+<div class="flex items-center gap-4">
+<div class="w-3 h-3 rounded-full bg-accent-success"></div>
+<div class="h-10 px-4 flex items-center bg-surface-container-bright rounded border border-white/10 text-xs font-mono">Retriever::Transaction_History</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="w-3 h-3 rounded-full bg-accent-success"></div>
+<div class="h-10 px-4 flex items-center bg-surface-container-bright rounded border border-white/10 text-xs font-mono">Retriever::Device_Fingerprint</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="w-3 h-3 rounded-full bg-accent-primary animate-pulse"></div>
+<div class="h-10 px-4 flex items-center bg-accent-primary/10 rounded border border-accent-primary/30 text-xs font-mono text-accent-primary">Reasoner::Explainable_Report</div>
+</div>
+</div>
+<div class="flex items-center gap-4 opacity-30">
+<div class="w-3 h-3 rounded-full bg-slate-600"></div>
+<div class="h-10 px-4 flex items-center bg-surface-container-bright rounded border border-white/5 text-xs font-mono">Validator::Grounding_Check</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- END: ShowcaseSection -->
+<!-- BEGIN: CTAFooterSection -->
+<section class="py-24" data-purpose="cta-banner">
+<div class="max-w-7xl mx-auto px-6">
+<div class="bg-gradient-to-b from-surface-container-low to-surface rounded-2xl p-12 text-center border border-white/5 relative overflow-hidden">
+<div class="absolute inset-0 grid-bg opacity-10"></div>
+<div class="relative z-10">
+<h2 class="text-4xl font-bold text-white mb-6">Ready to upgrade your fraud defense?</h2>
+<p class="text-slate-400 max-w-xl mx-auto mb-10">
+              Join leading fintechs reducing false positives and manual overhead with FFIRE's reasoning engine.
+            </p>
+<div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+<button class="w-full sm:w-auto px-10 py-4 bg-white text-surface hover:bg-slate-200 font-bold rounded transition-all">
+                Book a Technical Demo
+              </button>
+<button class="w-full sm:w-auto px-10 py-4 border border-white/10 hover:bg-white/5 text-white font-bold rounded transition-all">
+                Download SRS PDF
+              </button>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- END: CTAFooterSection -->
+</main>
+<!-- BEGIN: MainFooter -->
+<footer class="bg-surface-container-lowest pt-20 pb-10 border-t border-white/5" data-purpose="footer">
+<div class="max-w-7xl mx-auto px-6">
+<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-12 mb-20">
+<div class="col-span-2">
+<div class="flex items-center gap-2 mb-6">
+<div class="w-8 h-8 bg-accent-primary flex items-center justify-center rounded">
+<span class="text-white font-bold italic">F</span>
+</div>
+<span class="text-xl font-bold tracking-tight text-white">FFIRE</span>
+</div>
+<p class="text-slate-500 text-sm max-w-xs leading-relaxed">
+            Financial Fraud Investigation Reasoning Engine. Enterprise-grade AI for transparent, auditable fraud detection.
+          </p>
+</div>
+<div>
+<h5 class="text-white font-bold mb-6 text-sm uppercase tracking-widest">Platform</h5>
+<ul class="space-y-4 text-sm text-slate-500">
+<li><a class="hover:text-accent-primary transition-colors" href="#">How it works</a></li>
+<li><a class="hover:text-accent-primary transition-colors" href="#">LangGraph Engine</a></li>
+<li><a class="hover:text-accent-primary transition-colors" href="#">Security</a></li>
+<li><a class="hover:text-accent-primary transition-colors" href="#">Roadmap</a></li>
+</ul>
+</div>
+<div>
+<h5 class="text-white font-bold mb-6 text-sm uppercase tracking-widest">Resources</h5>
+<ul class="space-y-4 text-sm text-slate-500">
+<li><a class="hover:text-accent-primary transition-colors" href="#">Documentation</a></li>
+<li><a class="hover:text-accent-primary transition-colors" href="#">API Reference</a></li>
+<li><a class="hover:text-accent-primary transition-colors" href="#">Compliance Guide</a></li>
+<li><a class="hover:text-accent-primary transition-colors" href="#">Case Studies</a></li>
+</ul>
+</div>
+<div>
+<h5 class="text-white font-bold mb-6 text-sm uppercase tracking-widest">Company</h5>
+<ul class="space-y-4 text-sm text-slate-500">
+<li><a class="hover:text-accent-primary transition-colors" href="#">About Us</a></li>
+<li><a class="hover:text-accent-primary transition-colors" href="#">Careers</a></li>
+<li><a class="hover:text-accent-primary transition-colors" href="#">Contact</a></li>
+<li><a class="hover:text-accent-primary transition-colors" href="#">Legal</a></li>
+</ul>
+</div>
+</div>
+<div class="pt-10 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6">
+<div class="text-slate-600 text-xs">
+          © 2026 FFIRE Engine V2.4. All rights reserved. Confidential - Internal Engineering.
+        </div>
+<div class="flex gap-6 text-xs text-slate-600">
+<a class="hover:text-white transition-colors" href="#">Privacy Policy</a>
+<a class="hover:text-white transition-colors" href="#">Terms of Service</a>
+<a class="hover:text-white transition-colors" href="#">Cookie Policy</a>
+</div>
+</div>
+</div>
+</footer>
+<!-- END: MainFooter -->
+</body></html>

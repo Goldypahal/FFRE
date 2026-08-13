@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>FFIRE | Investigation Case INV-20260630-0091</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&amp;family=Hanken+Grotesk:wght@600;700&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "primary-container": "#0f172a",
+                    "inverse-on-surface": "#263143",
+                    "primary": "#bec6e0",
+                    "on-primary-fixed": "#131b2e",
+                    "background": "#081425",
+                    "surface-dim": "#081425",
+                    "inverse-surface": "#d8e3fb",
+                    "inverse-primary": "#565e74",
+                    "on-primary-container": "#798098",
+                    "on-error": "#690005",
+                    "on-surface-variant": "#c6c6cd",
+                    "surface-variant": "#2a3548",
+                    "tertiary-container": "#06182b",
+                    "risk-medium": "#F59E0B",
+                    "on-secondary-fixed-variant": "#6e3900",
+                    "investigation-gold": "#FCD34D",
+                    "tertiary-fixed-dim": "#b7c8e1",
+                    "error-container": "#93000a",
+                    "secondary-fixed-dim": "#ffb77d",
+                    "on-tertiary-fixed": "#0b1c30",
+                    "surface-tint": "#bec6e0",
+                    "on-surface": "#d8e3fb",
+                    "risk-low": "#10B981",
+                    "on-primary-fixed-variant": "#3f465c",
+                    "outline": "#909097",
+                    "surface-bright": "#2f3a4c",
+                    "tertiary": "#b7c8e1",
+                    "surface-container-highest": "#2a3548",
+                    "surface-container-lowest": "#040e1f",
+                    "risk-high": "#EF4444",
+                    "on-surface": "#d8e3fb",
+                    "surface-container-low": "#111c2d",
+                    "secondary-container": "#d97707",
+                    "on-primary": "#283044",
+                    "on-secondary": "#4d2600",
+                    "on-tertiary-fixed-variant": "#38485d",
+                    "secondary-fixed": "#ffdcc3",
+                    "on-tertiary": "#213145",
+                    "outline-variant": "#45464d",
+                    "on-background": "#d8e3fb",
+                    "surface-container": "#152031",
+                    "on-error-container": "#ffdad6",
+                    "primary-fixed-dim": "#bec6e0",
+                    "primary-fixed": "#dae2fd",
+                    "secondary": "#ffb77d",
+                    "tertiary-fixed": "#d3e4fe",
+                    "surface-container-high": "#1f2a3c",
+                    "graph-edge": "#475569",
+                    "on-secondary-container": "#432100",
+                    "on-tertiary-container": "#728299",
+                    "error": "#ffb4ab",
+                    "graph-node-bg": "#334155",
+                    "on-secondary-fixed": "#2f1500",
+                    "surface": "#081425"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "stack-lg": "32px",
+                    "stack-sm": "8px",
+                    "stack-md": "16px",
+                    "container-max": "1440px",
+                    "margin": "32px",
+                    "unit": "4px",
+                    "gutter": "24px"
+            },
+            "fontFamily": {
+                    "label-sm": ["JetBrains Mono"],
+                    "headline-lg": ["Hanken Grotesk"],
+                    "label-md": ["JetBrains Mono"],
+                    "body-md": ["Inter"],
+                    "headline-md": ["Hanken Grotesk"],
+                    "body-sm": ["Inter"],
+                    "display-lg": ["Hanken Grotesk"],
+                    "headline-lg-mobile": ["Hanken Grotesk"],
+                    "body-lg": ["Inter"]
+            },
+            "fontSize": {
+                    "label-sm": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "600"}],
+                    "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "headline-lg-mobile": ["28px", {"lineHeight": "36px", "fontWeight": "600"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { background-color: #081425; color: #d8e3fb; -webkit-font-smoothing: antialiased; }
+        .graph-line { stroke: #475569; stroke-width: 1; fill: none; stroke-dasharray: 4; animation: flow 20s linear infinite; }
+        @keyframes flow { to { stroke-dashoffset: -100; } }
+        .node-active { outline: 1px solid #FCD34D; box-shadow: 0 0 15px rgba(252, 211, 77, 0.2); }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #040e1f; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #45464d; border-radius: 10px; }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden font-body-md text-body-md">
+<!-- Side Navigation Shell -->
+<aside class="hidden md:flex flex-col h-full w-64 bg-surface-container-lowest border-r border-outline-variant py-stack-md shrink-0">
+<div class="px-6 mb-8">
+<h1 class="font-headline-md text-headline-md text-on-surface">FFIRE Engine</h1>
+<p class="font-label-sm text-label-sm text-on-tertiary-container mt-1">V2.4 Active</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center px-6 py-3 bg-primary-container text-primary border-r-4 border-primary group" href="#">
+<span class="material-symbols-outlined mr-3">assignment</span>
+<span class="font-label-md text-label-md uppercase tracking-wider">Cases</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-low transition-all group" href="#">
+<span class="material-symbols-outlined mr-3">account_tree</span>
+<span class="font-label-md text-label-md uppercase tracking-wider">Reasoning Graph</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-low transition-all group" href="#">
+<span class="material-symbols-outlined mr-3">folder_shared</span>
+<span class="font-label-md text-label-md uppercase tracking-wider">Evidence Vault</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-low transition-all group" href="#">
+<span class="material-symbols-outlined mr-3">history</span>
+<span class="font-label-md text-label-md uppercase tracking-wider">Historical Patterns</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-low transition-all group" href="#">
+<span class="material-symbols-outlined mr-3">analytics</span>
+<span class="font-label-md text-label-md uppercase tracking-wider">System Health</span>
+</a>
+</nav>
+<div class="px-4 mb-4">
+<button class="w-full py-3 bg-tertiary text-on-tertiary font-label-md text-label-md tracking-widest active:scale-95 transition-all">
+                NEW INVESTIGATION
+            </button>
+</div>
+<div class="mt-auto border-t border-outline-variant/30 pt-4">
+<a class="flex items-center px-6 py-2 text-on-surface-variant hover:text-on-surface transition-colors" href="#">
+<span class="material-symbols-outlined mr-3">help</span>
+<span class="font-label-md text-label-md">Documentation</span>
+</a>
+<a class="flex items-center px-6 py-2 text-on-surface-variant hover:text-on-surface transition-colors" href="#">
+<span class="material-symbols-outlined mr-3">contact_support</span>
+<span class="font-label-md text-label-md">Support</span>
+</a>
+</div>
+</aside>
+<!-- Main Workspace -->
+<main class="flex-1 flex flex-col min-w-0 bg-background relative">
+<!-- Top Bar Shell -->
+<header class="h-16 flex items-center justify-between px-margin bg-surface border-b border-outline-variant shrink-0">
+<div class="flex items-center space-x-gutter">
+<span class="font-headline-md text-headline-md font-bold text-investigation-gold">FFIRE</span>
+<div class="hidden lg:flex items-center bg-surface-container-low border border-outline-variant px-3 py-1.5 w-80">
+<span class="material-symbols-outlined text-on-surface-variant text-sm mr-2">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm text-on-surface w-full placeholder:text-outline" placeholder="Search signals, cases, or tools..." type="text"/>
+</div>
+</div>
+<div class="flex items-center space-x-6">
+<div class="flex items-center space-x-4 border-r border-outline-variant pr-6">
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-primary transition-colors">notifications</span>
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-primary transition-colors">settings</span>
+</div>
+<div class="flex items-center space-x-3 cursor-pointer group">
+<div class="text-right">
+<p class="font-label-md text-label-md text-on-surface">Alex Chen</p>
+<p class="font-label-sm text-[10px] text-on-tertiary-container uppercase tracking-tighter">Sr. Investigator</p>
+</div>
+<img class="w-10 h-10 rounded-full border border-outline-variant" data-alt="Close-up professional portrait of a senior financial fraud investigator with a focused expression, set against a dark architectural background with subtle blue and gold accent lighting, matching a technical command center aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAhDTymEcF2vgsFK46smx5yqlFzP0qqGBPlKgegkbCNyUVEKQk-tsQTc9vjgUB5yay_lHFNEjV3IjhxRMJyxeBXEFLKOT_Omrnjot-JUJxGI3utNFdnwx72fMpwdvlQ29q8sl_I1ekk5XV8_rOmHimPDKj1lm5BsHsv2J5G7dOUbccaXA1OtMc3FmmQCZgenaDWx6WI9QQ79_YNW_2vTsYlNoxUkxMt2CF428EYmWkysXlhrnijGMAmIfe-kfDQfIbcydkAoGSb_j0"/>
+</div>
+</div>
+</header>
+<!-- Content Area -->
+<div class="flex-1 overflow-y-auto custom-scrollbar p-gutter space-y-gutter pb-24">
+<!-- Case Header -->
+<div class="bg-surface-container p-6 border border-outline-variant flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+<div>
+<div class="flex items-center space-x-3 mb-1">
+<span class="font-label-sm text-label-sm text-investigation-gold bg-investigation-gold/10 px-2 py-0.5">CASE INV-20260630-0091</span>
+<span class="w-1.5 h-1.5 rounded-full bg-outline-variant"></span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Transaction T-78491</span>
+</div>
+<h2 class="font-headline-lg text-headline-lg text-on-surface">$12,450.00 <span class="font-body-md text-body-md text-on-surface-variant font-normal ml-2">USD</span></h2>
+</div>
+<div class="flex space-x-8 items-center">
+<div class="text-center">
+<p class="font-label-sm text-label-sm text-on-tertiary-container uppercase mb-1">Risk Score</p>
+<div class="flex items-baseline space-x-1">
+<span class="font-headline-lg text-headline-lg text-risk-high">82</span>
+<span class="font-label-md text-label-md text-on-surface-variant">/100</span>
+</div>
+</div>
+<div class="w-px h-10 bg-outline-variant"></div>
+<div class="text-center">
+<p class="font-label-sm text-label-sm text-on-tertiary-container uppercase mb-1">AI Confidence</p>
+<div class="flex items-baseline space-x-1">
+<span class="font-headline-lg text-headline-lg text-investigation-gold">91</span>
+<span class="font-label-md text-label-md text-on-surface-variant">%</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Bento Grid Main -->
+<div class="grid grid-cols-12 gap-gutter">
+<!-- Reasoning Column -->
+<section class="col-span-12 lg:col-span-4 flex flex-col space-y-gutter">
+<div class="bg-surface-container border border-outline-variant p-6 flex-1">
+<div class="flex items-center justify-between mb-6">
+<h3 class="font-label-md text-label-md text-on-surface uppercase tracking-widest flex items-center">
+<span class="material-symbols-outlined text-sm mr-2 text-investigation-gold">description</span>
+                                Explainable Report
+                            </h3>
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-on-surface">open_in_new</span>
+</div>
+<div class="space-y-4 font-body-sm text-body-sm text-on-surface-variant leading-relaxed">
+<p>
+                                The transaction has been flagged as <span class="text-risk-high font-medium">Critical Risk</span> due to a sequence of anomalous signals. The session originated from an <span class="text-on-surface font-medium underline decoration-investigation-gold/50 cursor-help">unrecognized iPhone 15</span> [device.first_seen] which has no historical binding to the customer account.
+                            </p>
+<p>
+                                Furthermore, a <span class="text-on-surface font-medium underline decoration-investigation-gold/50 cursor-help">location mismatch</span> was detected; the request IP originates from London, UK, while the user's primary residence and recent activity are centralized in New York, NY [loc.dist_3400mi].
+                            </p>
+<p>
+                                High velocity patterns were also observed, with three failed authentication attempts [auth.fail_3] followed by a successful login via a legacy recovery bypass protocol.
+                            </p>
+<div class="mt-8 p-4 bg-surface-container-low border-l-2 border-investigation-gold">
+<p class="text-[11px] font-label-sm text-investigation-gold uppercase mb-2">Automated Conclusion</p>
+<p class="italic">"The alignment of device spoofing markers and geolocation hopping suggests a high-probability account takeover (ATO) scenario."</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Execution Graph Column -->
+<section class="col-span-12 lg:col-span-5">
+<div class="bg-surface-container border border-outline-variant h-full flex flex-col">
+<div class="p-6 border-b border-outline-variant flex items-center justify-between">
+<h3 class="font-label-md text-label-md text-on-surface uppercase tracking-widest flex items-center">
+<span class="material-symbols-outlined text-sm mr-2 text-primary">account_tree</span>
+                                LangGraph Trace
+                            </h3>
+<div class="flex items-center space-x-2">
+<span class="w-2 h-2 rounded-full bg-risk-low animate-pulse"></span>
+<span class="font-label-sm text-[10px] text-on-tertiary-container uppercase">Processing Step 5/6</span>
+</div>
+</div>
+<div class="flex-1 relative flex items-center justify-center p-8 bg-surface-container-lowest">
+<!-- Visualizing Graph Nodes -->
+<svg class="absolute inset-0 w-full h-full pointer-events-none opacity-40">
+<path class="graph-line" d="M 100 100 L 200 100 M 200 100 L 300 50 M 200 100 L 300 150 M 300 50 L 450 100 M 300 150 L 450 100 M 450 100 L 550 100"></path>
+</svg>
+<div class="grid grid-cols-3 gap-x-12 gap-y-16 items-center relative z-10">
+<!-- Start -->
+<div class="col-start-1 bg-graph-node-bg border border-outline-variant p-3 flex flex-col items-center justify-center w-28 h-16">
+<span class="font-label-sm text-[10px] text-on-tertiary-container">START</span>
+<span class="font-label-md text-xs text-on-surface">Trigger</span>
+</div>
+<!-- Planner -->
+<div class="col-start-2 bg-graph-node-bg border border-outline-variant p-3 flex flex-col items-center justify-center w-28 h-16">
+<span class="font-label-sm text-[10px] text-on-tertiary-container">PLANNER</span>
+<span class="font-label-md text-xs text-on-surface">Strategy</span>
+</div>
+<!-- Retrieval & Risk -->
+<div class="col-start-3 flex flex-col space-y-8">
+<div class="bg-graph-node-bg border border-outline-variant p-3 flex flex-col items-center justify-center w-28 h-16">
+<span class="font-label-sm text-[10px] text-on-tertiary-container">RETRIEVAL</span>
+<span class="font-label-md text-xs text-on-surface">Evidence</span>
+</div>
+<div class="bg-graph-node-bg border border-outline-variant p-3 flex flex-col items-center justify-center w-28 h-16">
+<span class="font-label-sm text-[10px] text-on-tertiary-container">ANALYSIS</span>
+<span class="font-label-md text-xs text-on-surface">Scoring</span>
+</div>
+</div>
+<!-- Validator (ACTIVE) -->
+<div class="col-start-2 row-start-2 bg-graph-node-bg node-active border border-investigation-gold p-4 flex flex-col items-center justify-center w-36 h-20 -mt-10">
+<span class="font-label-sm text-[10px] text-investigation-gold">ACTIVE</span>
+<span class="font-label-md text-sm text-on-surface font-bold">VALIDATOR</span>
+<div class="mt-2 w-full bg-surface-container-lowest h-1">
+<div class="bg-investigation-gold h-full w-[70%]"></div>
+</div>
+</div>
+<!-- Report -->
+<div class="col-start-3 row-start-2 opacity-30 bg-graph-node-bg border border-outline-variant p-3 flex flex-col items-center justify-center w-28 h-16 -mt-10">
+<span class="font-label-sm text-[10px] text-on-tertiary-container">FINAL</span>
+<span class="font-label-md text-xs text-on-surface">Report</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Evidence Column -->
+<section class="col-span-12 lg:col-span-3 space-y-4">
+<div class="bg-surface-container border border-outline-variant p-5">
+<div class="flex items-center space-x-3 mb-4">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">stars</span>
+<h4 class="font-label-sm text-label-sm text-on-surface uppercase">Customer Context</h4>
+</div>
+<div class="p-3 bg-surface-container-low border border-outline-variant/30">
+<div class="flex justify-between items-center">
+<span class="font-body-sm text-body-sm text-on-surface-variant">Tier</span>
+<span class="font-label-md text-label-md text-investigation-gold">GOLD</span>
+</div>
+</div>
+</div>
+<div class="bg-surface-container border border-outline-variant p-5">
+<div class="flex items-center space-x-3 mb-4">
+<span class="material-symbols-outlined text-primary">smartphone</span>
+<h4 class="font-label-sm text-label-sm text-on-surface uppercase">Device Audit</h4>
+</div>
+<div class="p-3 bg-surface-container-low border border-outline-variant/30 space-y-2">
+<p class="font-label-md text-label-md text-on-surface">iPhone 15 Pro</p>
+<div class="flex items-center text-risk-high">
+<span class="material-symbols-outlined text-sm mr-1">warning</span>
+<span class="font-label-sm text-[11px] uppercase">Unrecognized hardware</span>
+</div>
+</div>
+</div>
+<div class="bg-surface-container border border-outline-variant p-5">
+<div class="flex items-center space-x-3 mb-4">
+<span class="material-symbols-outlined text-primary">distance</span>
+<h4 class="font-label-sm text-label-sm text-on-surface uppercase">Geo-Velocity</h4>
+</div>
+<div class="p-3 bg-surface-container-low border border-outline-variant/30 space-y-3">
+<div class="flex items-center justify-between">
+<div class="text-[10px] text-on-tertiary-container uppercase">Origin</div>
+<div class="text-[10px] text-on-tertiary-container uppercase">Home</div>
+</div>
+<div class="flex items-center justify-between font-label-md text-label-md">
+<span>London, UK</span>
+<span class="material-symbols-outlined text-on-tertiary-container">arrow_forward</span>
+<span>New York, NY</span>
+</div>
+<p class="text-[11px] text-risk-high text-center">3,470 mi in 24 mins (IMPOSSIBLE)</p>
+</div>
+</div>
+</section>
+</div>
+</div>
+<!-- Bottom Action Bar -->
+<footer class="absolute bottom-0 left-0 right-0 h-20 bg-surface-container-highest border-t border-outline-variant px-margin flex items-center justify-between z-20">
+<div class="flex items-center space-x-4">
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-on-surface">bookmark</span>
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-on-surface">share</span>
+</div>
+<div class="flex items-center space-x-4">
+<button class="px-6 py-2.5 bg-surface-variant border border-outline-variant text-on-surface font-label-md text-label-md hover:bg-surface-container-high transition-colors active:scale-95">
+                    REQUEST HUMAN REVIEW
+                </button>
+<button class="px-6 py-2.5 bg-transparent border border-error text-error font-label-md text-label-md hover:bg-error/10 transition-colors active:scale-95">
+                    REJECT TRANSACTION
+                </button>
+<button class="px-8 py-2.5 bg-risk-low text-on-primary font-label-md text-label-md font-bold hover:brightness-110 transition-colors active:scale-95 flex items-center">
+<span class="material-symbols-outlined mr-2">check_circle</span>
+                    APPROVE
+                </button>
+</div>
+</footer>
+</main>
+<!-- Micro-interaction Script -->
+<script>
+        // Simple hover effects and UI state management
+        document.querySelectorAll('.underline').forEach(el => {
+            el.addEventListener('mouseenter', () => {
+                const tooltip = document.createElement('div');
+                tooltip.className = 'absolute bg-surface-container-high border border-outline-variant p-2 text-[10px] z-50 rounded shadow-xl max-w-xs';
+                tooltip.innerText = 'Confidence: 0.98. Source: Auth-Session-Manager. Trace ID: a8f7-92bc.';
+                tooltip.id = 'temp-tooltip';
+                document.body.appendChild(tooltip);
+                
+                const rect = el.getBoundingClientRect();
+                tooltip.style.top = (rect.top - 40) + 'px';
+                tooltip.style.left = rect.left + 'px';
+            });
+            el.addEventListener('mouseleave', () => {
+                const t = document.getElementById('temp-tooltip');
+                if(t) t.remove();
+            });
+        });
+    </script>
+</body></html>

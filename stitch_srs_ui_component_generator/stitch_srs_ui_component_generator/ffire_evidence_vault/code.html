@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>FFIRE Evidence Vault</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@500&amp;family=Hanken+Grotesk:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .evidence-card-gradient {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 1) 0%, rgba(15, 23, 42, 1) 100%);
+        }
+        .investigation-border {
+            border: 1px solid #475569;
+        }
+        .investigation-border:hover {
+            border-color: #FCD34D;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #081425;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 10px;
+        }
+    </style>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-bright": "#2f3a4c",
+                    "background": "#081425",
+                    "surface-dim": "#081425",
+                    "primary": "#bec6e0",
+                    "on-tertiary-container": "#728299",
+                    "on-secondary": "#4d2600",
+                    "surface-tint": "#bec6e0",
+                    "on-primary-container": "#798098",
+                    "on-secondary-container": "#432100",
+                    "error-container": "#93000a",
+                    "surface-container-low": "#111c2d",
+                    "tertiary-container": "#06182b",
+                    "on-primary-fixed-variant": "#3f465c",
+                    "on-error": "#690005",
+                    "secondary-container": "#d97707",
+                    "surface-container-high": "#1f2a3c",
+                    "on-surface": "#d8e3fb",
+                    "on-primary-fixed": "#131b2e",
+                    "inverse-on-surface": "#263143",
+                    "surface-variant": "#2a3548",
+                    "surface-container-highest": "#2a3548",
+                    "graph-edge": "#475569",
+                    "tertiary-fixed-dim": "#b7c8e1",
+                    "on-secondary-fixed": "#2f1500",
+                    "inverse-primary": "#565e74",
+                    "investigation-gold": "#FCD34D",
+                    "surface": "#081425",
+                    "risk-low": "#10B981",
+                    "graph-node-bg": "#334155",
+                    "inverse-surface": "#d8e3fb",
+                    "on-tertiary": "#213145",
+                    "tertiary": "#b7c8e1",
+                    "secondary": "#ffb77d",
+                    "tertiary-fixed": "#d3e4fe",
+                    "surface-container": "#152031",
+                    "secondary-fixed-dim": "#ffb77d",
+                    "outline-variant": "#45464d",
+                    "on-primary": "#283044",
+                    "on-tertiary-fixed": "#0b1c30",
+                    "secondary-fixed": "#ffdcc3",
+                    "on-secondary-fixed-variant": "#6e3900",
+                    "error": "#ffb4ab",
+                    "outline": "#909097",
+                    "on-error-container": "#ffdad6",
+                    "on-tertiary-fixed-variant": "#38485d",
+                    "primary-fixed": "#dae2fd",
+                    "on-background": "#d8e3fb",
+                    "primary-fixed-dim": "#bec6e0",
+                    "risk-medium": "#F59E0B",
+                    "on-surface-variant": "#c6c6cd",
+                    "risk-high": "#EF4444",
+                    "surface-container-lowest": "#040e1f",
+                    "primary-container": "#0f172a"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "stack-lg": "32px",
+                    "gutter": "24px",
+                    "stack-md": "16px",
+                    "container-max": "1440px",
+                    "unit": "4px",
+                    "stack-sm": "8px",
+                    "margin": "32px"
+            },
+            "fontFamily": {
+                    "body-md": ["Inter"],
+                    "label-md": ["JetBrains Mono"],
+                    "label-sm": ["JetBrains Mono"],
+                    "body-sm": ["Inter"],
+                    "headline-md": ["Hanken Grotesk"],
+                    "headline-lg": ["Hanken Grotesk"],
+                    "display-lg": ["Hanken Grotesk"],
+                    "headline-lg-mobile": ["Hanken Grotesk"],
+                    "body-lg": ["Inter"]
+            },
+            "fontSize": {
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                    "label-sm": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                    "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "600"}],
+                    "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "headline-lg-mobile": ["28px", {"lineHeight": "36px", "fontWeight": "600"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+</head>
+<body class="bg-background text-on-surface font-body-md min-h-screen flex overflow-hidden">
+<!-- Sidebar Navigation -->
+<aside class="hidden md:flex flex-col h-full w-64 bg-surface-container-lowest border-r border-outline-variant py-stack-md shrink-0">
+<div class="px-6 mb-8">
+<h1 class="font-headline-md text-headline-md text-on-surface tracking-tight">FFIRE Engine</h1>
+<p class="font-label-md text-label-md text-on-surface-variant opacity-70">V2.4 Active</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-low transition-all cursor-pointer active:scale-95" href="#">
+<span class="material-symbols-outlined mr-3">assignment</span>
+<span class="font-label-md text-label-md">Cases</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-low transition-all cursor-pointer active:scale-95" href="#">
+<span class="material-symbols-outlined mr-3">account_tree</span>
+<span class="font-label-md text-label-md">Reasoning Graph</span>
+</a>
+<!-- Active State: Evidence Vault -->
+<a class="flex items-center px-6 py-3 bg-primary-container text-primary border-r-4 border-primary transition-all cursor-pointer active:scale-95" href="#">
+<span class="material-symbols-outlined mr-3" style="font-variation-settings: 'FILL' 1;">folder_shared</span>
+<span class="font-label-md text-label-md">Evidence Vault</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-low transition-all cursor-pointer active:scale-95" href="#">
+<span class="material-symbols-outlined mr-3">history</span>
+<span class="font-label-md text-label-md">Historical Patterns</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-low transition-all cursor-pointer active:scale-95" href="#">
+<span class="material-symbols-outlined mr-3">analytics</span>
+<span class="font-label-md text-label-md">System Health</span>
+</a>
+</nav>
+<div class="px-4 mt-auto space-y-4">
+<button class="w-full py-3 bg-secondary-container text-on-secondary-container font-label-md text-label-md rounded-lg flex items-center justify-center gap-2 hover:bg-secondary transition-colors">
+<span class="material-symbols-outlined">add</span>
+                NEW INVESTIGATION
+            </button>
+<div class="pt-4 border-t border-outline-variant">
+<a class="flex items-center px-4 py-2 text-on-surface-variant hover:bg-surface-container-low transition-all text-label-sm font-label-sm" href="#">
+<span class="material-symbols-outlined mr-3 text-sm">help</span> Documentation
+                </a>
+<a class="flex items-center px-4 py-2 text-on-surface-variant hover:bg-surface-container-low transition-all text-label-sm font-label-sm" href="#">
+<span class="material-symbols-outlined mr-3 text-sm">contact_support</span> Support
+                </a>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col h-full overflow-hidden">
+<!-- Top Navigation Bar -->
+<header class="flex justify-between items-center h-16 w-full px-margin bg-surface border-b border-outline-variant shrink-0">
+<div class="flex items-center gap-8">
+<span class="font-headline-md text-headline-md font-bold text-investigation-gold">FFIRE</span>
+<div class="hidden lg:flex gap-6">
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors px-2 py-1" href="#">Dashboard</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors px-2 py-1" href="#">Investigation Queue</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors px-2 py-1" href="#">Audit Logs</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors px-2 py-1" href="#">Reports</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">search</span>
+<input class="bg-surface-container-low border border-outline-variant rounded-full pl-10 pr-4 py-1.5 text-body-sm w-64 focus:outline-none focus:ring-1 focus:ring-investigation-gold" placeholder="Search Vault..." type="text"/>
+</div>
+<button class="material-symbols-outlined text-on-surface-variant hover:bg-surface-container-high p-2 rounded-full transition-colors cursor-pointer">notifications</button>
+<button class="material-symbols-outlined text-on-surface-variant hover:bg-surface-container-high p-2 rounded-full transition-colors cursor-pointer">settings</button>
+<div class="w-8 h-8 rounded-full bg-surface-container-highest overflow-hidden border border-outline-variant">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a female cyber intelligence investigator in a darkened office environment. Her face is softly lit by the blue glow of multiple computer monitors. She has a sharp, focused expression, wearing a minimalist black tactical vest over a dark shirt. The background is slightly blurred showing technical data visualizations." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCPoCtsp6qt3h9tCccS-xkjIZVxJbqR-bnSlIHJ96OFm0NntPSacVAHexlL4hnndILS7yfgu9Rplz8RjJun__JhBc4uqaawav_VAf1HP4ctSknPRQCgzX7GBEqkIyPaM8zKN0whBn_wcJLpuhTFOER-yzAJvd-2458vN4CkkhoPryvOOn-WEOYIanH3b-lGqk4fphwmSwNvpAtB9qBbLQw0zStezKg_WsxhHm47PJg8JCsum3i7WkUuOJQ1SdfF4Fr3WM1iqFEqcAE"/>
+</div>
+</div>
+</header>
+<!-- Canvas / Content Scrollable Area -->
+<div class="flex-1 overflow-y-auto p-margin">
+<!-- Page Header -->
+<div class="mb-8 flex justify-between items-end">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-on-surface mb-2">Evidence Vault</h2>
+<p class="font-body-md text-body-md text-on-surface-variant max-w-2xl">Secure centralized repository for deterministic evidence verification. All records are cryptographically signed and auditable.</p>
+</div>
+<div class="flex gap-3">
+<button class="flex items-center gap-2 px-4 py-2 border border-outline text-on-surface font-label-md text-label-md hover:bg-surface-container-high transition-colors rounded">
+<span class="material-symbols-outlined text-sm">filter_list</span>
+                        Filter
+                    </button>
+<button class="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary font-label-md text-label-md hover:opacity-90 transition-colors rounded">
+<span class="material-symbols-outlined text-sm">upload_file</span>
+                        Ingest Evidence
+                    </button>
+</div>
+</div>
+<!-- Bento Grid of Categories -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-gutter">
+<!-- Category Section: Identity Documents -->
+<div class="md:col-span-12">
+<div class="flex items-center gap-3 mb-4">
+<span class="material-symbols-outlined text-investigation-gold">badge</span>
+<h3 class="font-headline-md text-headline-md">Identity Documents</h3>
+<div class="h-px flex-1 bg-outline-variant ml-4"></div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">12,482 RECORDS</span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+<!-- Evidence Card -->
+<div class="evidence-card-gradient investigation-border p-4 flex flex-col gap-4 group transition-all">
+<div class="flex justify-between items-start">
+<span class="px-2 py-0.5 bg-surface-container-high text-on-surface-variant text-[10px] font-label-md rounded">KYC_LEVEL_3</span>
+<span class="material-symbols-outlined text-risk-low text-sm" title="Verified">verified_user</span>
+</div>
+<div>
+<p class="font-label-md text-label-md text-primary mb-1">Global Passport Index</p>
+<p class="text-[11px] font-label-sm text-on-surface-variant uppercase tracking-widest">Source: INTERPOL-API</p>
+</div>
+<div class="mt-2 pt-4 border-t border-outline-variant flex justify-between items-end">
+<div class="space-y-1">
+<p class="text-[10px] text-on-surface-variant uppercase">Last Update</p>
+<p class="font-label-sm text-label-sm">2m ago</p>
+</div>
+<span class="material-symbols-outlined opacity-0 group-hover:opacity-100 transition-opacity text-investigation-gold">chevron_right</span>
+</div>
+</div>
+<div class="evidence-card-gradient investigation-border p-4 flex flex-col gap-4 group transition-all">
+<div class="flex justify-between items-start">
+<span class="px-2 py-0.5 bg-surface-container-high text-on-surface-variant text-[10px] font-label-md rounded">AML_SCAN</span>
+<span class="material-symbols-outlined text-risk-medium text-sm" title="Review Required">error</span>
+</div>
+<div>
+<p class="font-label-md text-label-md text-primary mb-1">Sanction Lists</p>
+<p class="text-[11px] font-label-sm text-on-surface-variant uppercase tracking-widest">Source: OFAC_GOV</p>
+</div>
+<div class="mt-2 pt-4 border-t border-outline-variant flex justify-between items-end">
+<div class="space-y-1">
+<p class="text-[10px] text-on-surface-variant uppercase">Last Update</p>
+<p class="font-label-sm text-label-sm">1h ago</p>
+</div>
+<span class="material-symbols-outlined opacity-0 group-hover:opacity-100 transition-opacity text-investigation-gold">chevron_right</span>
+</div>
+</div>
+<div class="evidence-card-gradient investigation-border p-4 flex flex-col gap-4 group transition-all">
+<div class="flex justify-between items-start">
+<span class="px-2 py-0.5 bg-surface-container-high text-on-surface-variant text-[10px] font-label-md rounded">BIO_CHECK</span>
+<span class="material-symbols-outlined text-risk-low text-sm" title="Verified">verified_user</span>
+</div>
+<div>
+<p class="font-label-md text-label-md text-primary mb-1">Biometric Hash Vault</p>
+<p class="text-[11px] font-label-sm text-on-surface-variant uppercase tracking-widest">Source: LOCAL_ENCLAVE</p>
+</div>
+<div class="mt-2 pt-4 border-t border-outline-variant flex justify-between items-end">
+<div class="space-y-1">
+<p class="text-[10px] text-on-surface-variant uppercase">Last Update</p>
+<p class="font-label-sm text-label-sm">Just now</p>
+</div>
+<span class="material-symbols-outlined opacity-0 group-hover:opacity-100 transition-opacity text-investigation-gold">chevron_right</span>
+</div>
+</div>
+<div class="evidence-card-gradient investigation-border p-4 flex flex-col gap-4 group transition-all border-dashed">
+<div class="flex-1 flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors cursor-pointer">
+<span class="material-symbols-outlined text-3xl mb-2">add_circle</span>
+<p class="font-label-sm text-label-sm uppercase">Add Data Source</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Category Section: Device Fingerprints -->
+<div class="md:col-span-12 mt-8">
+<div class="flex items-center gap-3 mb-4">
+<span class="material-symbols-outlined text-investigation-gold">devices</span>
+<h3 class="font-headline-md text-headline-md">Device Fingerprints</h3>
+<div class="h-px flex-1 bg-outline-variant ml-4"></div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">42,019 RECORDS</span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Detailed Evidence Panel -->
+<div class="md:col-span-2 bg-surface-container-low investigation-border p-0 overflow-hidden flex flex-col">
+<div class="bg-surface-container px-4 py-2 border-b border-outline-variant flex justify-between items-center">
+<span class="font-label-sm text-label-sm text-investigation-gold uppercase tracking-tighter">Live Telemetry Feed</span>
+<div class="flex gap-2">
+<span class="w-2 h-2 rounded-full bg-risk-low animate-pulse"></span>
+<span class="text-[10px] font-label-sm text-on-surface-variant">ACTIVE INGESTION</span>
+</div>
+</div>
+<div class="flex-1 p-0 overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-outline-variant bg-surface-container-lowest">
+<th class="px-4 py-3 font-label-sm text-label-sm text-on-surface-variant uppercase">Device Token</th>
+<th class="px-4 py-3 font-label-sm text-label-sm text-on-surface-variant uppercase">Verification</th>
+<th class="px-4 py-3 font-label-sm text-label-sm text-on-surface-variant uppercase">IP/Geo</th>
+<th class="px-4 py-3 font-label-sm text-label-sm text-on-surface-variant uppercase text-right">Updated</th>
+</tr>
+</thead>
+<tbody class="font-label-sm text-label-sm divide-y divide-outline-variant">
+<tr class="hover:bg-surface-container-high transition-colors">
+<td class="px-4 py-3 text-primary">0x4f...8921</td>
+<td class="px-4 py-3">
+<span class="flex items-center gap-1 text-risk-low"><span class="material-symbols-outlined text-xs" style="font-variation-settings: 'FILL' 1;">security</span> Hardware Bound</span>
+</td>
+<td class="px-4 py-3 text-on-surface-variant">US-EAST-1 (VPC)</td>
+<td class="px-4 py-3 text-right">14s</td>
+</tr>
+<tr class="hover:bg-surface-container-high transition-colors">
+<td class="px-4 py-3 text-primary">0x9a...3310</td>
+<td class="px-4 py-3">
+<span class="flex items-center gap-1 text-on-tertiary-container"><span class="material-symbols-outlined text-xs">browser_updated</span> Browser Hook</span>
+</td>
+<td class="px-4 py-3 text-on-surface-variant">London, UK</td>
+<td class="px-4 py-3 text-right">1m</td>
+</tr>
+<tr class="hover:bg-surface-container-high transition-colors">
+<td class="px-4 py-3 text-primary">0xbc...1104</td>
+<td class="px-4 py-3">
+<span class="flex items-center gap-1 text-risk-low"><span class="material-symbols-outlined text-xs" style="font-variation-settings: 'FILL' 1;">security</span> Hardware Bound</span>
+</td>
+<td class="px-4 py-3 text-on-surface-variant">Berlin, DE</td>
+<td class="px-4 py-3 text-right">4m</td>
+</tr>
+<tr class="hover:bg-surface-container-high transition-colors">
+<td class="px-4 py-3 text-primary">0xe2...5591</td>
+<td class="px-4 py-3">
+<span class="flex items-center gap-1 text-risk-high"><span class="material-symbols-outlined text-xs">warning</span> Emulator Probable</span>
+</td>
+<td class="px-4 py-3 text-on-surface-variant">Unknown (Proxy)</td>
+<td class="px-4 py-3 text-right">12m</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Sidebar Summary Chart / Stats -->
+<div class="bg-surface-container-high border border-outline-variant p-6 flex flex-col justify-between">
+<div>
+<p class="font-label-sm text-label-sm text-on-surface-variant uppercase mb-4">Integrity Health</p>
+<div class="relative h-40 flex items-center justify-center">
+<!-- Simple SVG progress visual -->
+<svg class="w-32 h-32 transform -rotate-90">
+<circle class="text-surface-variant" cx="64" cy="64" fill="transparent" r="58" stroke="currentColor" stroke-width="8"></circle>
+<circle class="text-investigation-gold" cx="64" cy="64" fill="transparent" r="58" stroke="currentColor" stroke-dasharray="364" stroke-dashoffset="40" stroke-width="8"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="font-headline-lg text-headline-lg">94%</span>
+<span class="text-[10px] text-on-surface-variant uppercase">Confidence</span>
+</div>
+</div>
+</div>
+<div class="space-y-4">
+<div class="flex justify-between text-label-sm font-label-sm">
+<span class="text-on-surface-variant">Hardware ID</span>
+<span class="text-risk-low">38.2k</span>
+</div>
+<div class="w-full bg-surface-variant h-1 rounded-full">
+<div class="bg-risk-low h-1 rounded-full" style="width: 85%"></div>
+</div>
+<div class="flex justify-between text-label-sm font-label-sm">
+<span class="text-on-surface-variant">Virtual/Proxy</span>
+<span class="text-risk-medium">3.8k</span>
+</div>
+<div class="w-full bg-surface-variant h-1 rounded-full">
+<div class="bg-risk-medium h-1 rounded-full" style="width: 15%"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Category Section: Historical Case Patterns -->
+<div class="md:col-span-12 mt-8">
+<div class="flex items-center gap-3 mb-4">
+<span class="material-symbols-outlined text-investigation-gold">history_edu</span>
+<h3 class="font-headline-md text-headline-md">Historical Case Patterns</h3>
+<div class="h-px flex-1 bg-outline-variant ml-4"></div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">856 ANALYZED CLUSTERS</span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Pattern Card 1 -->
+<div class="bg-surface-container-low investigation-border p-5 relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
+<span class="material-symbols-outlined text-6xl">hub</span>
+</div>
+<div class="flex items-center justify-between mb-4">
+<span class="px-2 py-1 bg-risk-high/10 text-risk-high text-[10px] font-bold rounded">HIGH RECURRENCE</span>
+<span class="text-on-surface-variant text-[10px] font-label-sm">ID: PAT-0082</span>
+</div>
+<h4 class="font-headline-md text-headline-md text-primary mb-2">Synthetic Identity Chain</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-6">Cross-matched patterns involving coordinated KYC document tampering across multiple neo-bank domains.</p>
+<div class="flex justify-between items-center text-label-sm font-label-sm">
+<span class="text-on-surface-variant">Verification: 100% (Manual Audit)</span>
+<button class="text-investigation-gold hover:underline">View Map</button>
+</div>
+</div>
+<!-- Pattern Card 2 -->
+<div class="bg-surface-container-low investigation-border p-5 relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
+<span class="material-symbols-outlined text-6xl">move_down</span>
+</div>
+<div class="flex items-center justify-between mb-4">
+<span class="px-2 py-1 bg-risk-medium/10 text-risk-medium text-[10px] font-bold rounded">EMERGING</span>
+<span class="text-on-surface-variant text-[10px] font-label-sm">ID: PAT-0094</span>
+</div>
+<h4 class="font-headline-md text-headline-md text-primary mb-2">Velocity Smurfing</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-6">High-frequency, low-value transactions utilizing recycled mobile hardware fingerprints from APAC regions.</p>
+<div class="flex justify-between items-center text-label-sm font-label-sm">
+<span class="text-on-surface-variant">Verification: 82% (AI Logic)</span>
+<button class="text-investigation-gold hover:underline">Analyze</button>
+</div>
+</div>
+<!-- Pattern Card 3 -->
+<div class="bg-surface-container-low investigation-border p-5 relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
+<span class="material-symbols-outlined text-6xl">vpn_lock</span>
+</div>
+<div class="flex items-center justify-between mb-4">
+<span class="px-2 py-1 bg-risk-low/10 text-risk-low text-[10px] font-bold rounded">STABLE THREAT</span>
+<span class="text-on-surface-variant text-[10px] font-label-sm">ID: PAT-0041</span>
+</div>
+<h4 class="font-headline-md text-headline-md text-primary mb-2">Residential Proxy Tunneling</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-6">Persistent use of high-reputation residential IPs to mask systematic scraping of credit application endpoints.</p>
+<div class="flex justify-between items-center text-label-sm font-label-sm">
+<span class="text-on-surface-variant">Verification: 99% (Telemetry)</span>
+<button class="text-investigation-gold hover:underline">Drill Down</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Mobile Bottom Navigation -->
+<nav class="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-surface-container border-t border-outline-variant flex justify-around items-center px-4 z-50">
+<a class="flex flex-col items-center gap-1 text-on-surface-variant" href="#">
+<span class="material-symbols-outlined">assignment</span>
+<span class="text-[10px] font-label-sm">Cases</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-on-surface-variant" href="#">
+<span class="material-symbols-outlined">account_tree</span>
+<span class="text-[10px] font-label-sm">Graph</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-primary" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">folder_shared</span>
+<span class="text-[10px] font-label-sm font-bold">Vault</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-on-surface-variant" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="text-[10px] font-label-sm">System</span>
+</a>
+</nav>
+<script>
+        // Micro-interaction for evidence cards
+        document.querySelectorAll('.investigation-border').forEach(card => {
+            card.addEventListener('mouseenter', () => {
+                card.style.transform = 'translateY(-2px)';
+                card.style.transition = 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)';
+            });
+            card.addEventListener('mouseleave', () => {
+                card.style.transform = 'translateY(0px)';
+            });
+        });
+
+        // Search highlight simulation
+        const searchInput = document.querySelector('input[placeholder="Search Vault..."]');
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            document.querySelectorAll('h3, h4, .text-primary').forEach(el => {
+                if (query.length > 2 && el.textContent.toLowerCase().includes(query)) {
+                    el.style.color = '#FCD34D'; // Investigation Gold
+                } else {
+                    el.style.color = '';
+                }
+            });
+        });
+    </script>
+</body></html>
