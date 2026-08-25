@@ -48,6 +48,23 @@ def test_risk_score_exact_value_returned(db_session):
     resp_low = build_investigation_response(inv_low, db_session)
     assert resp_low.risk_score == 0.12
 
+def test_risk_score_preservation_across_status_changes(db_session):
+    """Regression Test: Verify risk score is preserved across status transitions."""
+    inv = models.Investigation(
+        investigation_id="inv_status_change",
+        txn_id="txn_sc",
+        status="ESCALATED",
+        confidence=0.65,
+        risk_score=0.78,
+        report="Escalated report"
+    )
+    db_session.add(inv)
+    db_session.commit()
+
+    resp = build_investigation_response(inv, db_session)
+    assert resp.risk_score == 0.78
+    assert resp.status == "ESCALATED"
+
 def test_deterministic_risk_score_scenarios_low_med_high_critical():
     """Task 10 Test: Verify deterministic risk scoring produces exact scores across risk tiers."""
     # Scenario 1: LOW RISK (Clean transaction, familiar device, home country)

@@ -241,10 +241,10 @@ def velocity_check_node(state: AgentState):
             txns_24h = db.query(Transaction).filter(Transaction.account_id == account_id, Transaction.timestamp >= t_24h).all()
             txns_7d = db.query(Transaction).filter(Transaction.account_id == account_id, Transaction.timestamp >= t_7d).all()
 
-        c_5m, s_5m = len(txns_5m) or 1, sum([float(t.amount) for t in txns_5m]) or (float(txn.amount) if txn else 0.0)
-        c_1h, s_1h = len(txns_1h) or 1, sum([float(t.amount) for t in txns_1h]) or (float(txn.amount) if txn else 0.0)
-        c_24h, s_24h = len(txns_24h) or 1, sum([float(t.amount) for t in txns_24h]) or (float(txn.amount) if txn else 0.0)
-        c_7d, s_7d = len(txns_7d) or 1, sum([float(t.amount) for t in txns_7d]) or (float(txn.amount) if txn else 0.0)
+        c_5m, s_5m = len(txns_5m), sum([float(t.amount) for t in txns_5m])
+        c_1h, s_1h = len(txns_1h), sum([float(t.amount) for t in txns_1h])
+        c_24h, s_24h = len(txns_24h), sum([float(t.amount) for t in txns_24h])
+        c_7d, s_7d = len(txns_7d), sum([float(t.amount) for t in txns_7d])
 
         # Task 8: Detect Velocity Anomaly Patterns & Task 9: RiskSignals
         anomalies = []
@@ -325,10 +325,19 @@ def evidence_verifier_node(state: AgentState):
         "failed_nodes": failed_nodes
     }
 
-    # Task 5: Build Complete Evidence Provenance Object Model
+    # Task 5: Build Complete Evidence Provenance Object Model with Dynamic Confidence
     provenance_records = []
     now_iso = datetime.datetime.utcnow().isoformat()
     inv_id = state.get("investigation_id", "N/A")
+
+    CONFIDENCE_MAP = {
+        "customer_evidence": 0.95,
+        "transaction_evidence": 0.95,
+        "merchant_evidence": 0.95,
+        "device_evidence": 0.95,
+        "location_evidence": 0.95,
+        "velocity_evidence": 0.85
+    }
 
     for src_name, src_dict in [
         ("customer_evidence", cust),
@@ -339,6 +348,7 @@ def evidence_verifier_node(state: AgentState):
         ("velocity_evidence", vel)
     ]:
         if isinstance(src_dict, dict) and "error" not in src_dict:
+            conf = CONFIDENCE_MAP.get(src_name, 0.90)
             for attr, val in src_dict.items():
                 provenance_records.append({
                     "source": src_name,
@@ -346,7 +356,7 @@ def evidence_verifier_node(state: AgentState):
                     "attribute": attr,
                     "value": str(val),
                     "timestamp": now_iso,
-                    "confidence": 0.95,
+                    "confidence": conf,
                     "provenance_citation": f"{src_name}.{attr}={val} [Inv: {inv_id}]"
                 })
 
