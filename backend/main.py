@@ -236,9 +236,12 @@ class InvestigationListResponse(BaseModel):
 # Build the LangGraph app once
 graph_app = build_graph()
 
-def run_investigation_task(investigation_id: str, transaction_id: str):
+def run_investigation_task(investigation_id: str, transaction_id: str, db: Optional[Session] = None):
     start_time = time.time()
-    db = next(get_db())
+    should_close_db = False
+    if db is None:
+        db = next(get_db())
+        should_close_db = True
     try:
         initial_state = {
             "investigation_id": investigation_id,
@@ -318,7 +321,8 @@ def run_investigation_task(investigation_id: str, transaction_id: str):
             # Consider failed investigations as having 0 confidence for metrics
             metrics_collector.record_confidence_score(investigation_id, 0.0)
     finally:
-        db.close()
+        if should_close_db:
+            db.close()
 
 # --- Auth Routes ---
 @app.post("/api/v1/auth/register", response_model=Token)
@@ -573,7 +577,7 @@ async def review_investigation(
     db.refresh(inv)
 
     # Record outcome metrics
-    metrics_collector.record_investment_outcome(action_type.lower())
+    metrics_collector.stop_investigation_timer(investigation_id, status="completed" if action_type == "APPROVE" else "failed")
 
     return {"status": "success", "new_status": inv.status, "investigation": build_investigation_response(inv, db)}
 

@@ -34,6 +34,9 @@ engine = create_engine(
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+import graph
+graph.SessionLocal = TestingSessionLocal
+
 # Override the get_db dependency to use the test database
 def override_get_db():
     try:

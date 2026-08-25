@@ -118,22 +118,32 @@ class FraudVectorDB:
         print("Vector Database seeded with initial historical cases.")
 
     def similarity_search(self, query: str, top_k: int = 2) -> List[Dict[str, Any]]:
-        if self.collection.count() == 0:
+        if not self.collection or self.collection.count() == 0:
             return []
-            
+
         results = self.collection.query(
             query_texts=[query],
             n_results=top_k
         )
-        
+
         formatted_results = []
-        if results["documents"] and len(results["documents"]) > 0:
-            for i in range(len(results["documents"][0])):
+        if results and isinstance(results, dict) and results.get("documents") and len(results["documents"]) > 0:
+            docs = results["documents"][0]
+            ids = results.get("ids", [[]])[0] if results.get("ids") else []
+            metas = results.get("metadatas", [[]])[0] if results.get("metadatas") else []
+            dists = results.get("distances", [[]])[0] if results.get("distances") else []
+
+            for i, doc in enumerate(docs):
+                case_id = ids[i] if i < len(ids) else f"C-{i+1}"
+                meta = metas[i] if i < len(metas) and isinstance(metas[i], dict) else {}
+                outcome = meta.get("outcome", "UNKNOWN") if meta else "UNKNOWN"
+                distance = dists[i] if i < len(dists) else 0.0
+
                 formatted_results.append({
-                    "case_id": results["ids"][0][i],
-                    "description": results["documents"][0][i],
-                    "outcome": results["metadatas"][0][i]["outcome"],
-                    "similarity_distance": results["distances"][0][i] if results["distances"] else 0.0
+                    "case_id": case_id,
+                    "description": doc,
+                    "outcome": outcome,
+                    "similarity_distance": distance
                 })
         return formatted_results
 
