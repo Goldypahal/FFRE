@@ -2,22 +2,22 @@ import pytest
 import models
 from main import run_investigation_task
 
-def test_all_five_evidence_sources_saved_to_database(client, db_session):
-    response = client.post(
-        "/api/v1/investigations",
-        json={
-            "transaction_id": "T-EVIDENCE-TEST",
-            "user_id": "user_1"
-        }
-    )
-    assert response.status_code == 202
-    inv_id = response.json()["investigation_id"]
+def test_all_five_evidence_sources_saved_to_database(db_session):
+    # Setup test entities
+    cust = models.Customer(customer_id="c_ev_1", _name="Test Customer", kyc_status="VERIFIED")
+    acct = models.Account(account_id="a_ev_1", customer_id="c_ev_1")
+    merch = models.Merchant(merchant_id="m_ev_1", name="Test Merchant", risk_score=0.01)
+    txn = models.Transaction(txn_id="T-EVIDENCE-TEST", account_id="a_ev_1", merchant_id="m_ev_1", amount=250.0, currency="USD", status="PENDING")
+    dev = models.Device(device_id="d_ev_1", customer_id="c_ev_1", _fingerprint="fingerprint_123", os="iOS")
+    loc = models.Location(location_id="l_ev_1", txn_id="T-EVIDENCE-TEST", geo_coord="40.7128,-74.0060", country="US")
+    inv = models.Investigation(investigation_id="inv_ev_all", txn_id="T-EVIDENCE-TEST", status="RUNNING")
 
-    # Explicitly run investigation task with db_session so evidence is saved directly in test session
-    run_investigation_task(inv_id, "T-EVIDENCE-TEST", db=db_session)
+    db_session.add_all([cust, acct, merch, txn, dev, loc, inv])
+    db_session.commit()
 
-    # Fetch recorded evidence
-    evidence_records = db_session.query(models.Evidence).filter(models.Evidence.investigation_id == inv_id).all()
+    run_investigation_task("inv_ev_all", "T-EVIDENCE-TEST", db=db_session)
+
+    evidence_records = db_session.query(models.Evidence).filter(models.Evidence.investigation_id == "inv_ev_all").all()
     sources = [ev.source for ev in evidence_records]
 
     assert "customer_evidence" in sources
