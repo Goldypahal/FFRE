@@ -16,7 +16,7 @@ import auth
 from security import encrypt_data
 from metrics import metrics_collector
 
-# Initialize database
+# Initialize database tables
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="FFIRE API Gateway", description="Financial Fraud Investigation Reasoning Engine")
@@ -274,10 +274,13 @@ def run_investigation_task(investigation_id: str, transaction_id: str):
             else:
                 investigation.status = "COMPLETED"
 
+            if result.get("risk_score") is not None:
+                investigation.risk_score = result["risk_score"]
+
             investigation.report = result.get("report")
 
-            # Save mock evidence for now
-            evidence_sources = ["customer_evidence", "transaction_evidence", "merchant_evidence", "device_evidence"]
+            # Save retrieved evidence sources
+            evidence_sources = ["customer_evidence", "transaction_evidence", "merchant_evidence", "device_evidence", "location_evidence"]
             for src in evidence_sources:
                 if result.get(src):
                     snippet_text = str(result[src])
@@ -373,7 +376,9 @@ def build_investigation_response(inv: models.Investigation, db: Session) -> Inve
             if cust:
                 customer_name = cust.name
                 
-    if inv.status == "ESCALATED":
+    if inv.risk_score is not None:
+        risk_score = float(inv.risk_score)
+    elif inv.status == "ESCALATED":
         risk_score = 0.85
     elif inv.status.startswith("CLOSED_REJECT"):
         risk_score = 0.95
@@ -532,30 +537,45 @@ async def review_investigation(
     current_user: models.User = Depends(auth.get_current_user)
 ):
     """
-    Handle human review action (Approve or Reject) for an investigation.
+    Handle human review action (APPROVE or REJECT) for an investigation.
+    Updates status, records risk adjustment, appends analyst resolution to report, and logs audit trail.
     """
     inv = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Investigation not found")
-    
+
     if inv.status not in ["COMPLETED", "ESCALATED", "FAILED", "RUNNING"]:
         raise HTTPException(status_code=400, detail=f"Cannot review investigation in status {inv.status}")
-        
+
     action_type = review_action.action.upper()
     if action_type not in ["APPROVE", "REJECT"]:
         raise HTTPException(status_code=400, detail="Action must be APPROVE or REJECT")
-        
+
     inv.status = f"CLOSED_{action_type}"
-    
+    if action_type == "APPROVE":
+        inv.risk_score = 0.10
+    else:
+        inv.risk_score = 0.95
+
+    notes_str = f"Analyst Review ({action_type}) by {current_user.name}: {review_action.notes or 'No additional notes provided'}"
+    if inv.report:
+        inv.report += f"\n\n### Human Analyst Resolution\n**Verdict**: {action_type}\n**Reviewer**: {current_user.name}\n**Notes**: {review_action.notes or 'None'}"
+    else:
+        inv.report = f"## Investigation Report\n**Status**: CLOSED_{action_type}\n\n### Human Analyst Resolution\n{notes_str}"
+
     audit_log = models.AuditLog(
         investigation_id=inv.investigation_id,
         action=f"HUMAN_REVIEW: {action_type}",
-        details=review_action.notes or f"Manual review {action_type.lower()} by {current_user.name}"
+        details=notes_str
     )
     db.add(audit_log)
     db.commit()
-    
-    return {"status": "success", "new_status": inv.status}
+    db.refresh(inv)
+
+    # Record outcome metrics
+    metrics_collector.record_investment_outcome(action_type.lower())
+
+    return {"status": "success", "new_status": inv.status, "investigation": build_investigation_response(inv, db)}
 
 @app.get("/api/v1/investigations", response_model=InvestigationListResponse)
 async def list_investigations(

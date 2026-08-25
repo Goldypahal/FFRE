@@ -47,6 +47,66 @@ class FraudVectorDB:
                 "case_id": "C-125",
                 "description": "Multiple small transactions followed by a massive transfer. Account takeover suspected. Location was RU.",
                 "outcome": "FRAUD"
+            },
+            {
+                "case_id": "C-130",
+                "description": "SIM swap fraud leading to unauthorized password reset and instant wire transfer to offshore crypto exchange.",
+                "outcome": "FRAUD"
+            },
+            {
+                "case_id": "C-142",
+                "description": "Routine online grocery order matching long-term historical purchase velocity, customer home IP, and registered iOS device.",
+                "outcome": "LEGITIMATE"
+            },
+            {
+                "case_id": "C-155",
+                "description": "Card-not-present transaction spree involving multiple digital gift cards across 4 different merchants within 10 minutes.",
+                "outcome": "FRAUD"
+            },
+            {
+                "case_id": "C-168",
+                "description": "Authorized push payment (APP) scam where victim was coerced via phone phishing into initiating high-value wire transfer.",
+                "outcome": "FRAUD"
+            },
+            {
+                "case_id": "C-174",
+                "description": "Monthly recurring SaaS subscription charge from established vendor with zero velocity anomalies or location mismatches.",
+                "outcome": "LEGITIMATE"
+            },
+            {
+                "case_id": "C-189",
+                "description": "Synthetic identity fraud using stolen SSN with recently opened account attempting rapid credit line drain.",
+                "outcome": "FRAUD"
+            },
+            {
+                "case_id": "C-201",
+                "description": "GEO-location mismatch where mobile transaction originated 5,000 km away from physical store POS scan 15 minutes prior.",
+                "outcome": "FRAUD"
+            },
+            {
+                "case_id": "C-215",
+                "description": "Micro-deposit probing attack testing stolen credit card numbers against non-profit donation gateway.",
+                "outcome": "FRAUD"
+            },
+            {
+                "case_id": "C-228",
+                "description": "Salary direct deposit cleared into verified checking account followed by regular bill payments.",
+                "outcome": "LEGITIMATE"
+            },
+            {
+                "case_id": "C-240",
+                "description": "Triangulation fraud using compromised merchant API keys to route fake orders through third-party fulfillment.",
+                "outcome": "FRAUD"
+            },
+            {
+                "case_id": "C-255",
+                "description": "First-party friendly fraud where account holder placed valid order but falsely claimed non-receipt of goods.",
+                "outcome": "FRAUD"
+            },
+            {
+                "case_id": "C-270",
+                "description": "ATM cash withdrawal using chip-and-PIN from primary cardholder at local branch near home address.",
+                "outcome": "LEGITIMATE"
             }
         ]
         

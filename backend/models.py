@@ -109,6 +109,7 @@ class Investigation(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
     status = Column(String(20), nullable=False, index=True)
     confidence = Column(Numeric(4, 3), nullable=True)
+    risk_score = Column(Numeric(4, 3), nullable=True)
     report = Column(String, nullable=True)
 
     transaction = relationship("Transaction", back_populates="investigations")

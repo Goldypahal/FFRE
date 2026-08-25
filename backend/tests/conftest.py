@@ -48,6 +48,7 @@ app.dependency_overrides[get_db] = override_get_db
 
 # Override get_current_user to bypass authentication in tests
 from auth import get_current_user
+from database import Base
 import models
 def override_get_current_user():
     return models.User(

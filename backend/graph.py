@@ -351,7 +351,20 @@ def validator_node(state: AgentState):
 
 def human_review_node(state: AgentState):
     """Human Escalation (FO-8)"""
-    print("Escalating to human review...")
+    print(f"Escalating investigation {state.get('investigation_id')} to human review queue.")
+    retry_count = state.get("retry_count", 0)
+    confidence = state.get("confidence", 0.0)
+    draft = state.get("draft_explanation", "No draft reasoning generated.")
+
+    escalation_report = (
+        f"## HUMAN REVIEW ESCALATION REPORT\n"
+        f"**Investigation ID**: {state.get('investigation_id')}\n"
+        f"**Transaction ID**: {state.get('transaction_id')}\n"
+        f"**Escalation Reason**: Confidence ({confidence:.2f}) below threshold ({CONFIDENCE_THRESHOLD}) or claim validation limit reached ({retry_count}/{MAX_RETRIES}).\n\n"
+        f"### Draft Reasoning Engine Analysis\n{draft}\n\n"
+        f"### Action Required\nAn analyst must review the evidence bundle, verify transaction details, and submit a final APPROVE or REJECT verdict."
+    )
+    state["report"] = escalation_report
     return state
 
 def report_generator_node(state: AgentState):
