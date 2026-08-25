@@ -57,6 +57,7 @@ class AgentState(TypedDict):
     critic_details: Dict[str, Any]
     critic_cycle_count: int
     evidence_provenance: List[Dict[str, Any]]
+    risk_signals: List[Dict[str, Any]]
 
 from langgraph.checkpoint.memory import MemorySaver
 
@@ -212,38 +213,87 @@ def retrieve_location_node(state: AgentState):
         db.close()
     return {"location_evidence": {"error": "Not Found"}}
 
+VELOCITY_RULES_CONFIG = {
+    "window_5m": {"count_threshold": 3, "amount_threshold": 2500.0},
+    "window_1h": {"count_threshold": 4, "amount_threshold": 5000.0},
+    "window_24h": {"count_threshold": 10, "amount_threshold": 15000.0},
+    "window_7d": {"count_threshold": 30, "amount_threshold": 50000.0}
+}
+
 def velocity_check_node(state: AgentState):
-    """Transaction velocity analysis node with 1-hour timestamp window filtering (SRS DFD 3.1 Velocity Check)"""
-    print("Performing 1-hour transaction velocity check...")
+    """Multi-window velocity check, anomaly detection, and decoupled RiskSignal generation (Tasks 6-9)"""
+    print("Performing multi-window transaction velocity analysis & anomaly pattern detection...")
     db = SessionLocal()
     try:
         txn = db.query(Transaction).filter(Transaction.txn_id == state['transaction_id']).first()
         account_id = txn.account_id if txn else None
-        
-        velocity_count = 1
-        velocity_sum = float(txn.amount) if txn else 0.0
-        
-        if account_id:
-            now = datetime.datetime.utcnow()
-            one_hour_ago = now - datetime.timedelta(hours=1)
-            # Filter strictly for transactions within the last 1 hour
-            recent_txns = db.query(Transaction).filter(
-                Transaction.account_id == account_id,
-                Transaction.timestamp >= one_hour_ago
-            ).all()
-            if recent_txns:
-                velocity_count = len(recent_txns)
-                velocity_sum = sum([float(t.amount) for t in recent_txns])
 
-        high_velocity = velocity_count > 3 or velocity_sum > 5000.0
+        now = datetime.datetime.utcnow()
+        t_5m = now - datetime.timedelta(minutes=5)
+        t_1h = now - datetime.timedelta(hours=1)
+        t_24h = now - datetime.timedelta(hours=24)
+        t_7d = now - datetime.timedelta(days=7)
+
+        txns_5m, txns_1h, txns_24h, txns_7d = [], [], [], []
+        if account_id:
+            txns_5m = db.query(Transaction).filter(Transaction.account_id == account_id, Transaction.timestamp >= t_5m).all()
+            txns_1h = db.query(Transaction).filter(Transaction.account_id == account_id, Transaction.timestamp >= t_1h).all()
+            txns_24h = db.query(Transaction).filter(Transaction.account_id == account_id, Transaction.timestamp >= t_24h).all()
+            txns_7d = db.query(Transaction).filter(Transaction.account_id == account_id, Transaction.timestamp >= t_7d).all()
+
+        c_5m, s_5m = len(txns_5m) or 1, sum([float(t.amount) for t in txns_5m]) or (float(txn.amount) if txn else 0.0)
+        c_1h, s_1h = len(txns_1h) or 1, sum([float(t.amount) for t in txns_1h]) or (float(txn.amount) if txn else 0.0)
+        c_24h, s_24h = len(txns_24h) or 1, sum([float(t.amount) for t in txns_24h]) or (float(txn.amount) if txn else 0.0)
+        c_7d, s_7d = len(txns_7d) or 1, sum([float(t.amount) for t in txns_7d]) or (float(txn.amount) if txn else 0.0)
+
+        # Task 8: Detect Velocity Anomaly Patterns & Task 9: RiskSignals
+        anomalies = []
+        signals = []
+
+        if c_5m >= VELOCITY_RULES_CONFIG["window_5m"]["count_threshold"]:
+            anomalies.append("BURST_TRANSACTIONS")
+            signals.append({
+                "signal": "BURST_TRANSACTIONS_5M",
+                "severity": 0.85,
+                "source": "velocity_check",
+                "evidence": {"window": "5m", "count": c_5m, "sum": s_5m}
+            })
+
+        if s_1h >= (s_24h / max(c_24h, 1)) * 3.0 and c_1h > 1:
+            anomalies.append("RAPID_AMOUNT_ESCALATION")
+            signals.append({
+                "signal": "RAPID_AMOUNT_ESCALATION_1H",
+                "severity": 0.90,
+                "source": "velocity_check",
+                "evidence": {"sum_1h": s_1h, "sum_24h": s_24h}
+            })
+
+        unique_merchants_1h = len(set([t.merchant_id for t in txns_1h if t.merchant_id]))
+        if unique_merchants_1h >= 3:
+            anomalies.append("MULTI_MERCHANT_SPIKE")
+            signals.append({
+                "signal": "MULTI_MERCHANT_SPIKE_1H",
+                "severity": 0.80,
+                "source": "velocity_check",
+                "evidence": {"unique_merchants": unique_merchants_1h}
+            })
+
+        high_velocity = c_1h >= VELOCITY_RULES_CONFIG["window_1h"]["count_threshold"] or s_1h >= VELOCITY_RULES_CONFIG["window_1h"]["amount_threshold"] or len(anomalies) > 0
         velocity_score = 0.85 if high_velocity else 0.15
-        
+
         state["velocity_evidence"] = {
-            "velocity_count_1h": velocity_count,
-            "velocity_sum_1h": velocity_sum,
+            "velocity_count_1h": c_1h,
+            "velocity_sum_1h": s_1h,
+            "velocity_5m": {"count": c_5m, "sum": s_5m},
+            "velocity_1h": {"count": c_1h, "sum": s_1h},
+            "velocity_24h": {"count": c_24h, "sum": s_24h},
+            "velocity_7d": {"count": c_7d, "sum": s_7d},
             "high_velocity_flag": high_velocity,
+            "anomaly_patterns": anomalies,
             "velocity_score": velocity_score
         }
+        existing_signals = state.get("risk_signals", [])
+        state["risk_signals"] = existing_signals + signals if existing_signals else signals
     except Exception as e:
         state["velocity_evidence"] = {"error": str(e), "velocity_score": 0.50}
     finally:
@@ -304,12 +354,24 @@ def evidence_verifier_node(state: AgentState):
     return state
 
 def rule_engine_node(state: AgentState):
-    """Rule-based Fraud Analysis (FO-5 Part 1)"""
+    """Rule-based Fraud Analysis & Decoupled RiskSignal Collection (FO-5 Part 1 / Task 9)"""
     from rules import evaluate_rules
     print("Evaluating deterministic rules...")
     score, reasons = evaluate_rules(state)
     state["rule_score"] = score
     state["rule_reasons"] = reasons
+
+    rule_signals = []
+    for reason in reasons:
+        rule_signals.append({
+            "signal": "DETERMINISTIC_RULE_TRIGGERED",
+            "severity": min(round(score, 2), 1.0),
+            "source": "rule_engine",
+            "evidence": {"rule": reason}
+        })
+
+    existing_signals = state.get("risk_signals", [])
+    state["risk_signals"] = existing_signals + rule_signals if existing_signals else rule_signals
     return state
 
 def knowledge_lookup_node(state: AgentState):
