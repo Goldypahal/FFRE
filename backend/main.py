@@ -785,9 +785,8 @@ async def export_investigation_report(
             doc.build(elements)
             buffer.seek(0)
             pdf_bytes = buffer.getvalue()
-        except Exception:
-            pdf_text = f"FINANCIAL FRAUD INVESTIGATION REPORT (FFRE)\nGenerated: {payload['export_date']}\nID: {inv.investigation_id}\n\nSummary:\n{inv.report or 'N/A'}"
-            pdf_bytes = pdf_text.encode('utf-8')
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to render binary PDF report: {str(e)}")
 
         return Response(
             content=pdf_bytes,

@@ -1,6 +1,6 @@
 """
 Security utilities for PII encryption at rest.
-Implements AES-256 encryption for sensitive fields using cryptography library.
+Implements symmetric Fernet encryption (AES-128-CBC with HMAC-SHA256 authentication) for sensitive fields using cryptography library.
 """
 
 import os
