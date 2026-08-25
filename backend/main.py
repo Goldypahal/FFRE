@@ -5,6 +5,7 @@ from typing import List, Optional
 import uuid
 import datetime
 import time
+import hashlib
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, asc, func
@@ -410,9 +411,10 @@ def build_investigation_response(inv: models.Investigation, db: Session) -> Inve
 # --- Protected Investigation Routes ---
 
 @app.post("/api/v1/investigations", response_model=InvestigationResponse, status_code=202)
-async def submit_investigation(
+async def create_investigation(
     request: InvestigationRequest,
     background_tasks: BackgroundTasks,
+    response: Response,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.check_permissions("investigator"))
 ):
@@ -452,6 +454,19 @@ async def submit_investigation(
             - 404 if transaction not found (though mock data will be created)
             - 500 for internal server errors
     """
+    # Task 15: Request Idempotency Key Handling
+    raw_key = request.transaction_id + "_" + request.user_id
+    idemp_key = f"idemp_{hashlib.md5(raw_key.encode()).hexdigest()}"
+
+    existing_inv = db.query(models.Investigation).filter(
+        models.Investigation.idempotency_key == idemp_key,
+        models.Investigation.status.in_(["RUNNING", "QUEUED", "COMPLETED", "WAITING_HUMAN", "ESCALATED"])
+    ).first()
+
+    if existing_inv:
+        response.headers["X-Cache-Hit"] = "true"
+        return build_investigation_response(existing_inv, db)
+
     # Verify or mock transaction
     txn = db.query(models.Transaction).filter(models.Transaction.txn_id == request.transaction_id).first()
     if not txn:
@@ -502,7 +517,8 @@ async def submit_investigation(
 
     inv = models.Investigation(
         txn_id=request.transaction_id,
-        status="RUNNING"
+        status="RUNNING",
+        idempotency_key=idemp_key
     )
     db.add(inv)
     db.commit()
@@ -519,6 +535,7 @@ async def submit_investigation(
     worker_queue.enqueue(inv.investigation_id, request.transaction_id)
     background_tasks.add_task(run_investigation_task, inv.investigation_id, request.transaction_id)
 
+    response.headers["X-Cache-Hit"] = "false"
     return build_investigation_response(inv, db)
 
 @app.get("/api/v1/investigations/{investigation_id}", response_model=InvestigationResponse)
@@ -534,6 +551,33 @@ async def get_investigation(
     if not inv:
         raise HTTPException(status_code=404, detail="Investigation not found")
         
+    return build_investigation_response(inv, db)
+
+@app.post("/api/v1/investigations/{investigation_id}/cancel", response_model=InvestigationResponse)
+async def cancel_investigation(
+    investigation_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Task 14: Cancel a running investigation protocol."""
+    inv = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Investigation not found")
+    if inv.status in ("COMPLETED", "REJECTED"):
+        raise HTTPException(status_code=400, detail=f"Cannot cancel investigation in status {inv.status}")
+
+    inv.status = "CANCELLED"
+    audit_log = models.AuditLog(
+        investigation_id=inv.investigation_id,
+        action="INVESTIGATION_CANCELLED",
+        details=f"Cancelled by user {getattr(current_user, 'email', current_user.user_id)}"
+    )
+    db.add(audit_log)
+    db.commit()
+    db.refresh(inv)
+
+    from worker import worker_queue
+    worker_queue.cancel(investigation_id)
     return build_investigation_response(inv, db)
 
 @app.post("/api/v1/investigations/{investigation_id}/review")

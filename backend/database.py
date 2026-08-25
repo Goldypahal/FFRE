@@ -20,3 +20,15 @@ def get_db():
         yield db
     finally:
         db.close()
+
+def init_db():
+    Base.metadata.create_all(bind=engine)
+    if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
+        with engine.connect() as conn:
+            try:
+                conn.execute(text("ALTER TABLE investigation ADD COLUMN idempotency_key VARCHAR"))
+                conn.commit()
+            except Exception:
+                pass
+
+init_db()

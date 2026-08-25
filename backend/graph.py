@@ -684,6 +684,26 @@ def with_audit_logger(node_func, node_name: str):
     def wrapper(state: AgentState):
         db = SessionLocal()
         start_time = time.time()
+        investigation_id = state.get("investigation_id")
+
+        # Task 14: Check for investigation cancellation
+        if investigation_id:
+            try:
+                inv = db.query(Investigation).filter(Investigation.investigation_id == investigation_id).first()
+                if inv and inv.status == "CANCELLED":
+                    print(f"Investigation {investigation_id} is CANCELLED. Skipping {node_name} execution.")
+                    audit_log = AuditLog(
+                        investigation_id=investigation_id,
+                        action=f"NODE_CANCELLED_SKIPPED: {node_name}",
+                        details=f"Skipped execution of {node_name} due to cancellation"
+                    )
+                    db.add(audit_log)
+                    db.commit()
+                    db.close()
+                    return {"execution_trace": [f"{node_name}_CANCELLED"]}
+            except Exception as e:
+                print(f"Warning: Cancellation check failed: {e}")
+
         try:
             new_state = node_func(state)
             if not isinstance(new_state, dict):
@@ -694,7 +714,6 @@ def with_audit_logger(node_func, node_name: str):
 
             metrics_collector.record_node_execution_time(node_name, execution_time_ms / 1000.0)
 
-            investigation_id = state.get("investigation_id")
             if investigation_id:
                 try:
                     audit_log = AuditLog(

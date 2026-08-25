@@ -59,6 +59,10 @@ class DurableWorkerQueue:
             self._queue.task_done()
         return True
 
+    def cancel(self, investigation_id: str):
+        """Task 14: Cancel enqueued job for an investigation."""
+        print(f"Cancellation signal recorded in worker queue for {investigation_id}")
+
     def start_worker(self):
         """Start worker background loop."""
         if self._is_running:

@@ -112,6 +112,7 @@ class Investigation(Base):
     confidence = Column(Numeric(4, 3), nullable=True)
     risk_score = Column(Numeric(4, 3), nullable=True)
     report = Column(String, nullable=True)
+    idempotency_key = Column(String(100), nullable=True, index=True)
 
     transaction = relationship("Transaction", back_populates="investigations")
     evidence = relationship("Evidence", back_populates="investigation")
