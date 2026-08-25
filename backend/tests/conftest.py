@@ -34,24 +34,31 @@ engine = create_engine(
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+import database
 import graph
+import main
+import worker
+
+database.SessionLocal = TestingSessionLocal
 graph.SessionLocal = TestingSessionLocal
+main.SessionLocal = TestingSessionLocal
+worker.SessionLocal = TestingSessionLocal
+
+# Create tables
+Base.metadata.create_all(bind=engine)
 
 # Override the get_db dependency to use the test database
 def override_get_db():
+    db = TestingSessionLocal()
     try:
-        db = TestingSessionLocal()
         yield db
     finally:
         db.close()
 
-# Override the dependency in the main app
-from database import get_db
-app.dependency_overrides[get_db] = override_get_db
+app.dependency_overrides[database.get_db] = override_get_db
 
 # Override get_current_user to bypass authentication in tests
 from auth import get_current_user
-from database import Base
 import models
 def override_get_current_user():
     return models.User(
@@ -62,9 +69,6 @@ def override_get_current_user():
     )
 app.dependency_overrides[get_current_user] = override_get_current_user
 
-# Create tables
-Base.metadata.create_all(bind=engine)
-
 @pytest.fixture
 def client():
     with TestClient(app) as c:
@@ -72,10 +76,18 @@ def client():
 
 @pytest.fixture
 def db_session():
-    connection = engine.connect()
-    transaction = connection.begin()
-    session = TestingSessionLocal(bind=connection)
-    yield session
-    session.close()
-    transaction.rollback()
-    connection.close()
+    db = TestingSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+@pytest.fixture(autouse=True)
+def clean_db():
+    worker.worker_queue._queue = worker.queue.Queue()
+    yield
+    worker.worker_queue._queue = worker.queue.Queue()
+    with engine.connect() as conn:
+        for table in reversed(Base.metadata.sorted_tables):
+            conn.execute(table.delete())
+        conn.commit()

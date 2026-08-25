@@ -30,5 +30,10 @@ def init_db():
                 conn.commit()
             except Exception:
                 pass
+            try:
+                conn.execute(text("ALTER TABLE investigation ADD COLUMN updated_at DATETIME"))
+                conn.commit()
+            except Exception:
+                pass
 
 init_db()

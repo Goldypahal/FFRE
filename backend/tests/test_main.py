@@ -21,7 +21,7 @@ def test_create_investigation(client):
     data = response.json()
     assert "investigation_id" in data
     assert data["transaction_id"] == "T-12345"
-    assert data["status"] == "RUNNING"
+    assert data["status"] in ["QUEUED", "RUNNING"]
 
 def test_get_investigation_not_found(client):
     """Test getting a non-existent investigation"""
@@ -47,8 +47,8 @@ def test_get_investigation_after_creation(client):
     data = get_response.json()
     assert data["investigation_id"] == investigation_id
     assert data["transaction_id"] == "T-67890"
-    # Status might be RUNNING or COMPLETED depending on async processing
-    assert data["status"] in ["RUNNING", "COMPLETED"]
+    # Status might be QUEUED, RUNNING, or COMPLETED depending on async processing
+    assert data["status"] in ["QUEUED", "RUNNING", "COMPLETED", "WAITING_HUMAN", "ESCALATED"]
 
 def test_export_investigation_pdf_format(client):
     """Test exporting investigation report in genuine binary PDF format"""

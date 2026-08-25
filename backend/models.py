@@ -108,6 +108,7 @@ class Investigation(Base):
     investigation_id = Column(String, primary_key=True, default=generate_uuid)
     txn_id = Column(String, ForeignKey("transaction.txn_id"))
     created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=True)
     status = Column(String(20), nullable=False, index=True)
     confidence = Column(Numeric(4, 3), nullable=True)
     risk_score = Column(Numeric(4, 3), nullable=True)

@@ -460,7 +460,7 @@ async def create_investigation(
 
     existing_inv = db.query(models.Investigation).filter(
         models.Investigation.idempotency_key == idemp_key,
-        models.Investigation.status.in_(["RUNNING", "QUEUED", "COMPLETED", "WAITING_HUMAN", "ESCALATED"])
+        models.Investigation.status.in_(["RUNNING", "QUEUED", "COMPLETED", "WAITING_HUMAN", "ESCALATED", "FAILED"])
     ).first()
 
     if existing_inv:
@@ -517,7 +517,7 @@ async def create_investigation(
 
     inv = models.Investigation(
         txn_id=request.transaction_id,
-        status="RUNNING",
+        status="QUEUED",
         idempotency_key=idemp_key
     )
     db.add(inv)

@@ -20,8 +20,9 @@ def test_acceptance_test_a_dynamic_planner_execution(db_session):
     merch = models.Merchant(merchant_id="m_e2e_a", name="Dynamic Merchant", risk_score=0.01)
     txn = models.Transaction(txn_id="T-E2E-A", account_id="a_e2e_a", merchant_id="m_e2e_a", amount=150.0, currency="USD", status="PENDING")
     dev = models.Device(device_id="d_e2e_a", customer_id="c_e2e_a", os="Android")
+    inv = models.Investigation(investigation_id="inv_e2e_a", txn_id="T-E2E-A", status="QUEUED")
 
-    db_session.add_all([cust, acct, merch, txn, dev])
+    db_session.add_all([cust, acct, merch, txn, dev, inv])
     db_session.commit()
 
     initial_state = {
