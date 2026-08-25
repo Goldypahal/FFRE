@@ -82,8 +82,9 @@ def test_retrieve_customer_node():
         result = retrieve_customer_node(state)
 
     # Check that customer_evidence was populated
-    assert "customer_evidence" in result
-    assert result["customer_evidence"] == {"kyc_status": "VERIFIED", "risk_tier": "LOW", "name": "Alex Johnson"}
+    assert result["customer_evidence"]["kyc_status"] == "VERIFIED"
+    assert result["customer_evidence"]["risk_tier"] == "LOW"
+    assert result["customer_evidence"]["name"] == "Alex Johnson"
 
 def test_build_graph():
     """Test that the graph can be built without errors"""

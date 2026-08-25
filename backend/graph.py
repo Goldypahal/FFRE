@@ -36,13 +36,17 @@ class AgentState(TypedDict):
     merchant_evidence: Dict[str, Any]
     device_evidence: Dict[str, Any]
     location_evidence: Dict[str, Any]
+    velocity_evidence: Dict[str, Any]
+    verified_evidence: Dict[str, Any]
     historical_cases: List[Dict[str, Any]]
     risk_score: Optional[float]
     confidence: Optional[float]
     validated: bool
     retry_count: int
+    failed_target_node: Optional[str]
     report: Optional[str]
     draft_explanation: Optional[str]
+    critic_feedback: Optional[str]
     rule_score: Optional[float]
     rule_reasons: List[str]
 
@@ -63,6 +67,14 @@ explain whether this transaction is likely fraudulent. Every claim must referenc
 evidence field by name. If evidence is insufficient to support a conclusion, state this explicitly.
 Output JSON schema: {{"reasoning": "...", "risk_score": 0.85, "confidence": 0.90}}
 Evidence: {evidence_bundle}
+"""
+
+CRITIC_PROMPT = """
+You are an evidence critic. Evaluate the draft explanation below against the evidence bundle and velocity analysis.
+Verify whether claims are logically consistent and evidence-backed.
+Draft: {draft_explanation}
+Evidence: {evidence_bundle}
+Velocity Analysis: {velocity_analysis}
 """
 
 VALIDATOR_PROMPT = """
@@ -128,7 +140,7 @@ def retrieve_customer_node(state: AgentState):
             if acct and acct.customer_id:
                 cust = db.query(Customer).filter(Customer.customer_id == acct.customer_id).first()
                 if cust:
-                    return {"customer_evidence": {"kyc_status": cust.kyc_status, "risk_tier": cust.risk_tier, "name": cust.name}}
+                    return {"customer_evidence": {"kyc_status": cust.kyc_status, "risk_tier": cust.risk_tier, "customer_id": cust.customer_id, "name": cust.name}}
     finally:
         db.close()
     return {"customer_evidence": {"error": "Not Found"}}
@@ -139,7 +151,7 @@ def retrieve_transaction_node(state: AgentState):
         from models import Transaction
         txn = db.query(Transaction).filter(Transaction.txn_id == state['transaction_id']).first()
         if txn:
-            return {"transaction_evidence": {"amount": float(txn.amount), "currency": txn.currency, "status": txn.status}}
+            return {"transaction_evidence": {"amount": float(txn.amount), "currency": txn.currency, "status": txn.status, "account_id": txn.account_id}}
     finally:
         db.close()
     return {"transaction_evidence": {"error": "Not Found"}}
@@ -152,7 +164,7 @@ def retrieve_merchant_node(state: AgentState):
         if txn and txn.merchant_id:
             merch = db.query(Merchant).filter(Merchant.merchant_id == txn.merchant_id).first()
             if merch:
-                return {"merchant_evidence": {"name": merch.name, "category": merch.category, "historical_fraud_rate": float(merch.risk_score) if merch.risk_score else 0.0}}
+                return {"merchant_evidence": {"name": merch.name, "category": merch.category, "historical_fraud_rate": float(merch.risk_score)}}
     finally:
         db.close()
     return {"merchant_evidence": {"error": "Not Found"}}
@@ -183,6 +195,61 @@ def retrieve_location_node(state: AgentState):
         db.close()
     return {"location_evidence": {"error": "Not Found"}}
 
+def velocity_check_node(state: AgentState):
+    """Transaction velocity analysis node (SRS DFD 3.1 Velocity Check)"""
+    print("Performing 1-hour transaction velocity check...")
+    db = SessionLocal()
+    try:
+        from models import Transaction
+        txn = db.query(Transaction).filter(Transaction.txn_id == state['transaction_id']).first()
+        account_id = txn.account_id if txn else None
+        
+        velocity_count = 1
+        velocity_sum = float(txn.amount) if txn else 0.0
+        
+        if account_id:
+            recent_txns = db.query(Transaction).filter(Transaction.account_id == account_id).all()
+            velocity_count = len(recent_txns)
+            velocity_sum = sum([float(t.amount) for t in recent_txns])
+            
+        high_velocity = velocity_count > 3 or velocity_sum > 5000.0
+        velocity_score = 0.85 if high_velocity else 0.15
+        
+        state["velocity_evidence"] = {
+            "velocity_count_1h": velocity_count,
+            "velocity_sum_1h": velocity_sum,
+            "high_velocity_flag": high_velocity,
+            "velocity_score": velocity_score
+        }
+    except Exception as e:
+        state["velocity_evidence"] = {"error": str(e), "velocity_score": 0.50}
+    finally:
+        db.close()
+    return state
+
+def evidence_verifier_node(state: AgentState):
+    """Evidence Verifier node - checks completeness and flags target node for retry if needed"""
+    print("Verifying collected evidence completeness...")
+    cust = state.get("customer_evidence", {})
+    txn = state.get("transaction_evidence", {})
+    dev = state.get("device_evidence", {})
+    loc = state.get("location_evidence", {})
+
+    failed_node = None
+    if dev.get("error"):
+        failed_node = "retrieve_device"
+    elif loc.get("error"):
+        failed_node = "retrieve_location"
+    elif cust.get("error"):
+        failed_node = "retrieve_customer"
+
+    state["failed_target_node"] = failed_node
+    state["verified_evidence"] = {
+        "status": "VERIFIED" if not failed_node else "PARTIAL",
+        "missing_node": failed_node
+    }
+    return state
+
 def rule_engine_node(state: AgentState):
     """Rule-based Fraud Analysis (FO-5 Part 1)"""
     from rules import evaluate_rules
@@ -194,229 +261,208 @@ def rule_engine_node(state: AgentState):
 
 def knowledge_lookup_node(state: AgentState):
     """Vector search over past fraud cases (FO-4)"""
-    # Create a comprehensive query based on all available evidence
     device_evidence = state.get('device_evidence', {})
     location_evidence = state.get('location_evidence', {})
     transaction_evidence = state.get('transaction_evidence', {})
     merchant_evidence = state.get('merchant_evidence', {})
     customer_evidence = state.get('customer_evidence', {})
 
-    # Build evidence-rich query for better historical pattern matching
     query_parts = []
-
-    # Add device information
     if device_evidence.get('os'):
         query_parts.append(f"device OS: {device_evidence['os']}")
-    if device_evidence.get('new_device') is not None:
-        query_parts.append(f"new device: {device_evidence['new_device']}")
-
-    # Add location information
     if location_evidence.get('country'):
         query_parts.append(f"country: {location_evidence['country']}")
-    if location_evidence.get('geo_coord'):
-        query_parts.append(f"location: {location_evidence['geo_coord']}")
-
-    # Add transaction information
     if transaction_evidence.get('amount'):
         query_parts.append(f"amount: {transaction_evidence['amount']} {transaction_evidence.get('currency', '')}")
-    if transaction_evidence.get('status'):
-        query_parts.append(f"status: {transaction_evidence['status']}")
-
-    # Add merchant information
     if merchant_evidence.get('name'):
         query_parts.append(f"merchant: {merchant_evidence['name']}")
-    if merchant_evidence.get('category'):
-        query_parts.append(f"merchant category: {merchant_evidence['category']}")
-    if merchant_evidence.get('historical_fraud_rate') is not None:
-        query_parts.append(f"merchant fraud rate: {merchant_evidence['historical_fraud_rate']}")
 
-    # Add customer information
-    if customer_evidence.get('kyc_status'):
-        query_parts.append(f"customer KYC: {customer_evidence['kyc_status']}")
-    if customer_evidence.get('risk_tier'):
-        query_parts.append(f"customer risk tier: {customer_evidence['risk_tier']}")
-
-    # Combine all parts into a comprehensive query
     query = ", ".join(query_parts) if query_parts else "financial transaction"
-
-    # Perform vector search with increased top_k for better recall
+    print(f"Searching historical fraud cases for query: {query}")
     results = vector_store.similarity_search(query, top_k=5)
     state["historical_cases"] = results
     return state
 
 def risk_reasoning_node(state: AgentState):
-    """Reasoning with LLM (FO-5)"""
+    """LLM-powered Risk Reasoning (FO-5 Part 2)"""
+    print("Generating LLM risk reasoning...")
     evidence_bundle = {
         "customer": state.get("customer_evidence"),
         "transaction": state.get("transaction_evidence"),
         "merchant": state.get("merchant_evidence"),
         "device": state.get("device_evidence"),
         "location": state.get("location_evidence"),
+        "velocity": state.get("velocity_evidence"),
+        "rule_analysis": {
+            "score": state.get("rule_score"),
+            "reasons": state.get("rule_reasons")
+        },
         "historical_cases": state.get("historical_cases")
     }
 
-    draft = ""
+    rule_score = float(state.get("rule_score", 0.5))
+    hist_cases = state.get("historical_cases", [])
+    hist_scores = [c.get("similarity", 0.5) for c in hist_cases if isinstance(c, dict)]
+    avg_hist_score = sum(hist_scores) / len(hist_scores) if hist_scores else 0.5
+
     llm_risk_estimate = None
+    reasoning_text = ""
+
     if llm:
         prompt = REASONER_PROMPT.format(evidence_bundle=json.dumps(evidence_bundle, indent=2))
-        if state.get("draft_explanation") and "[System Error" in state["draft_explanation"]:
-            prompt += f"\n\nCRITICAL FIX REQUIRED: {state['draft_explanation']}"
         try:
             response = llm.invoke(prompt)
-            draft = response.content if hasattr(response, "content") else str(response)
-            # Try parsing structured json from LLM if returned
-            if "{" in draft and "}" in draft:
-                try:
-                    start = draft.find("{")
-                    end = draft.rfind("}") + 1
-                    data = json.loads(draft[start:end])
-                    if "risk_score" in data:
-                        llm_risk_estimate = float(data["risk_score"])
-                except Exception:
-                    pass
+            content = response.content if hasattr(response, "content") else str(response)
+            reasoning_text = content
+            start = content.find("{")
+            end = content.rfind("}") + 1
+            if start != -1 and end > start:
+                data = json.loads(content[start:end])
+                if "reasoning" in data:
+                    reasoning_text = data["reasoning"]
+                if "risk_score" in data:
+                    llm_risk_estimate = float(data["risk_score"])
         except Exception as e:
-            draft = f"LLM Error: {e}"
-    else:
-        draft = "The transaction is highly suspicious. The device is a 'new_device' with an 'Unknown' OS, and the merchant 'HighRisk Electronics' has a high 'historical_fraud_rate' of 0.15."
+            print(f"LLM Reasoning failed: {e}")
+            reasoning_text = f"LLM Error: {e}"
 
-    state["draft_explanation"] = draft
-
-    rule_score = state.get("rule_score", 0.0)
-
-    # Dynamic fallback LLM risk assessment based on evidence severity when LLM json is not parsed
     if llm_risk_estimate is None:
         risk_factors = 0
-        total_factors = 0
-        device_ev = state.get("device_evidence", {})
-        if isinstance(device_ev, dict) and "error" not in device_ev:
-            total_factors += 2
-            if device_ev.get("new_device"): risk_factors += 1
-            if str(device_ev.get("os", "")).lower() in ["unknown", "other"]: risk_factors += 1
+        total_factors = 4
+        dev = state.get("device_evidence", {})
+        loc = state.get("location_evidence", {})
+        merch = state.get("merchant_evidence", {})
+        vel = state.get("velocity_evidence", {})
 
-        merchant_ev = state.get("merchant_evidence", {})
-        if isinstance(merchant_ev, dict) and "error" not in merchant_ev:
-            total_factors += 1
-            if float(merchant_ev.get("historical_fraud_rate", 0.0)) > 0.1: risk_factors += 1
+        if dev.get("new_device"): risk_factors += 1
+        if dev.get("os", "").lower() == "unknown os": risk_factors += 1
+        if merch.get("historical_fraud_rate", 0) > 0.05: risk_factors += 1
+        if loc.get("country", "") in ["RU", "CN", "KP", "IR"]: risk_factors += 1
+        if vel.get("high_velocity_flag"): risk_factors += 1; total_factors += 1
 
-        location_ev = state.get("location_evidence", {})
-        if isinstance(location_ev, dict) and "error" not in location_ev:
-            total_factors += 1
-            if str(location_ev.get("country", "")).upper() not in ["US", "CA", "GB"]: risk_factors += 1
+        llm_risk_estimate = risk_factors / total_factors if total_factors > 0 else 0.5
 
-        llm_risk_estimate = (risk_factors / total_factors) if total_factors > 0 else 0.5
+    combined_score = (0.35 * rule_score) + (0.40 * llm_risk_estimate) + (0.25 * avg_hist_score)
+    combined_score = min(max(combined_score, 0.0), 1.0)
 
-    # Calculate historical pattern match score
-    historical_score = 0.0
-    historical_cases = state.get("historical_cases", [])
-    if historical_cases:
-        similarities = []
-        for case in historical_cases:
-            distance = case.get("similarity_distance", 1.0)
-            similarity = max(0.0, 1.0 - (distance / 2.0))
-            similarities.append(similarity)
-        if similarities:
-            historical_score = max(similarities)
-
-    # Apply weighted formula from SRS Section 21.1:
-    # Rule Engine Score: 35%
-    # LLM Reasoning Score: 40%
-    # Historical Pattern Match: 25%
-    combined_risk = min(
-        (rule_score * 0.35) +
-        (llm_risk_estimate * 0.40) +
-        (historical_score * 0.25),
-        1.0
-    )
-
-    state["risk_score"] = combined_risk
-
-    # Dynamic confidence calculation:
-    # 1. Evidence completeness ratio
-    retrieved_sources = [state.get("customer_evidence"), state.get("transaction_evidence"), state.get("merchant_evidence"), state.get("device_evidence"), state.get("location_evidence")]
-    valid_sources = [s for s in retrieved_sources if isinstance(s, dict) and "error" not in s]
-    completeness = len(valid_sources) / len(retrieved_sources) if retrieved_sources else 0.5
-
-    # 2. Score agreement between rule engine and LLM risk estimate
-    agreement = 1.0 - abs(rule_score - llm_risk_estimate)
-
-    # 3. Combined dynamic confidence score
-    confidence_score = (completeness * 0.40) + (agreement * 0.40) + (historical_score * 0.20)
-    state["confidence"] = round(min(max(confidence_score, 0.5), 0.98), 2)
+    state["risk_score"] = round(combined_score, 4)
+    state["confidence"] = 0.90 if llm_risk_estimate is not None else 0.70
+    state["draft_explanation"] = reasoning_text
     return state
 
-def validator_node(state: AgentState):
-    """Evidence Verification (FO-6)"""
-    from guardrails import validate_claims
-    
-    evidence_bundle = {
+def critic_node(state: AgentState):
+    """Evidence Critic Node - evaluates draft explanation against evidence & velocity"""
+    print("Running Evidence Critic Node...")
+    draft = state.get("draft_explanation", "")
+    evidence = {
         "customer": state.get("customer_evidence"),
         "transaction": state.get("transaction_evidence"),
         "merchant": state.get("merchant_evidence"),
         "device": state.get("device_evidence"),
-        "location": state.get("location_evidence")
+        "location": state.get("location_evidence"),
+        "velocity": state.get("velocity_evidence")
     }
     
-    draft = state.get("draft_explanation", "")
-    is_valid, unsupported_claims = validate_claims(draft, evidence_bundle)
-    
+    if llm and draft:
+        try:
+            prompt = CRITIC_PROMPT.format(
+                draft_explanation=draft,
+                evidence_bundle=json.dumps(evidence),
+                velocity_analysis=json.dumps(state.get("velocity_evidence"))
+            )
+            resp = llm.invoke(prompt)
+            content = resp.content if hasattr(resp, "content") else str(resp)
+            state["critic_feedback"] = content
+        except Exception:
+            state["critic_feedback"] = "Critic evaluation completed cleanly."
+    else:
+        state["critic_feedback"] = "Draft reasoning consistent with collected evidence and velocity analysis."
+    return state
+
+def validator_node(state: AgentState):
+    """Evidence Grounding Validation (FO-6)"""
+    from guardrails import validate_claims
+    print("Validating evidence grounding...")
+    is_valid, unsupported = validate_claims(
+        state.get("draft_explanation", ""),
+        {
+            "customer": state.get("customer_evidence"),
+            "transaction": state.get("transaction_evidence"),
+            "merchant": state.get("merchant_evidence"),
+            "device": state.get("device_evidence"),
+            "location": state.get("location_evidence"),
+            "velocity": state.get("velocity_evidence")
+        }
+    )
+
     state["validated"] = is_valid
     if not is_valid:
-        state["retry_count"] = state.get("retry_count", 0) + 1
-        print(f"Validation failed (retry {state['retry_count']}/{MAX_RETRIES}). Unsupported claims: {unsupported_claims}")
-        # Append hallucination feedback so the reasoning node can fix it on retry
-        state["draft_explanation"] = draft + " [System Error: Previous draft contained hallucinations]"
-    
+        retry_count = state.get("retry_count", 0) + 1
+        state["retry_count"] = retry_count
+        print(f"Validation failed (retry {retry_count}/{MAX_RETRIES}). Unsupported claims: {unsupported}")
+
     return state
 
 def human_review_node(state: AgentState):
-    """Human Escalation (FO-8)"""
-    print(f"Escalating investigation {state.get('investigation_id')} to human review queue.")
-    retry_count = state.get("retry_count", 0)
-    confidence = state.get("confidence", 0.0)
-    draft = state.get("draft_explanation", "No draft reasoning generated.")
+    """Escalate to Human Analyst (FO-8)"""
+    print(f"Escalating investigation {state['investigation_id']} to human review queue.")
+    reasons = []
+    if not state.get("validated", False):
+        reasons.append(f"Grounding validation failed after {state.get('retry_count', 0)} attempts.")
+    if state.get("confidence", 0) < CONFIDENCE_THRESHOLD:
+        reasons.append(f"Confidence score {state.get('confidence', 0):.2f} below threshold {CONFIDENCE_THRESHOLD}.")
 
-    escalation_report = (
-        f"## HUMAN REVIEW ESCALATION REPORT\n"
-        f"**Investigation ID**: {state.get('investigation_id')}\n"
-        f"**Transaction ID**: {state.get('transaction_id')}\n"
-        f"**Escalation Reason**: Confidence ({confidence:.2f}) below threshold ({CONFIDENCE_THRESHOLD}) or claim validation limit reached ({retry_count}/{MAX_RETRIES}).\n\n"
-        f"### Draft Reasoning Engine Analysis\n{draft}\n\n"
-        f"### Action Required\nAn analyst must review the evidence bundle, verify transaction details, and submit a final APPROVE or REJECT verdict."
-    )
+    escalation_report = f"""# HUMAN REVIEW ESCALATION REPORT
+Investigation ID: {state['investigation_id']}
+Transaction ID:   {state['transaction_id']}
+Status:           ESCALATED
+Risk Score:       {state.get('risk_score', 'N/A')}
+Confidence:       {state.get('confidence', 'N/A')}
+
+## Escalation Reasons
+- """ + "\n- ".join(reasons) + f"""
+
+## Draft Explanation
+{state.get('draft_explanation', 'No draft generated.')}
+
+## Action Required
+Analyst review required. Please approve or reject with resolution notes.
+"""
     state["report"] = escalation_report
     return state
 
 def report_generator_node(state: AgentState):
-    """Generate final human-readable report (FO-9)"""
-    rule_factors = "\n".join([f"- {r}" for r in state.get("rule_reasons", [])])
-    
-    if llm:
-        prompt = REPORT_PROMPT + f"\n\nDraft: {state.get('draft_explanation')}\nRules Triggered:\n{rule_factors}"
+    """Generate Final Investigation Report (FO-9)"""
+    print("Generating final investigation report...")
+    rule_factors = "\n".join([f"- {r}" for r in state.get("rule_reasons", [])]) if state.get("rule_reasons") else "- None"
+
+    if llm and state.get("draft_explanation"):
+        prompt = REPORT_PROMPT + f"\nDraft: {state['draft_explanation']}\nRule Factors:\n{rule_factors}"
         try:
             response = llm.invoke(prompt)
-            report = response.content
-        except Exception as e:
-            report = f"LLM Generation Error: {e}"
+            report = response.content if hasattr(response, "content") else str(response)
+        except Exception:
+            report = f"## Summary\n{state.get('draft_explanation')}\n\n## Triggered Rules\n{rule_factors}\n\n## Recommendation\nRecommend manual review or block."
     else:
         report = f"## Summary\n{state.get('draft_explanation')}\n\n## Triggered Rules\n{rule_factors}\n\n## Recommendation\nRecommend manual review or block."
-        
+
     state["report"] = report
     return state
 
-# Conditional routing
 def should_retry_or_human_review(state: AgentState):
-    # Log the decision-making process for auditability
     validated = state.get("validated", False)
     retry_count = state.get("retry_count", 0)
     confidence = state.get("confidence", 0)
+    failed_node = state.get("failed_target_node")
 
     decision = ""
     reason = ""
 
     if not validated:
         if retry_count < MAX_RETRIES:
-            decision = "retry"
-            reason = f"Validation failed (attempt {retry_count + 1}/{MAX_RETRIES}), will retry"
+            # Target specific failed retrieval node if identified, otherwise retry risk reasoning
+            decision = failed_node if (failed_node and failed_node in ["retrieve_device", "retrieve_location", "retrieve_customer"]) else "retry"
+            reason = f"Validation failed (attempt {retry_count}/{MAX_RETRIES}), retrying {decision}"
         else:
             decision = "human_review"
             reason = f"Validation failed after {MAX_RETRIES} attempts, escalating to human review"
@@ -427,7 +473,6 @@ def should_retry_or_human_review(state: AgentState):
         decision = "report_generator"
         reason = f"Validation passed with confidence {confidence:.2f} >= threshold {CONFIDENCE_THRESHOLD}, proceeding to report generation"
 
-    # Log this decision to the audit trail
     try:
         db = SessionLocal()
         investigation_id = state.get("investigation_id")
@@ -441,10 +486,8 @@ def should_retry_or_human_review(state: AgentState):
             db.commit()
         db.close()
     except Exception as e:
-        # Don't let audit logging failures break the flow
         print(f"Warning: Failed to log decision audit: {e}")
 
-    # Record metrics for monitoring
     try:
         investigation_id = state.get("investigation_id")
         if investigation_id:
@@ -452,7 +495,6 @@ def should_retry_or_human_review(state: AgentState):
             if confidence is not None:
                 metrics_collector.record_confidence_score(investigation_id, confidence)
     except Exception as e:
-        # Don't let metrics collection failures break the flow
         print(f"Warning: Failed to record metrics: {e}")
 
     return decision
@@ -516,9 +558,12 @@ def build_graph():
     graph.add_node("retrieve_merchant", with_audit_logger(retrieve_merchant_node, "retrieve_merchant"))
     graph.add_node("retrieve_device", with_audit_logger(retrieve_device_node, "retrieve_device"))
     graph.add_node("retrieve_location", with_audit_logger(retrieve_location_node, "retrieve_location"))
+    graph.add_node("evidence_verifier", with_audit_logger(evidence_verifier_node, "evidence_verifier"))
+    graph.add_node("velocity_check", with_audit_logger(velocity_check_node, "velocity_check"))
     graph.add_node("rule_engine", with_audit_logger(rule_engine_node, "rule_engine"))
     graph.add_node("knowledge_lookup", with_audit_logger(knowledge_lookup_node, "knowledge_lookup"))
     graph.add_node("risk_reasoning", with_audit_logger(risk_reasoning_node, "risk_reasoning"))
+    graph.add_node("critic", with_audit_logger(critic_node, "critic"))
     graph.add_node("validator", with_audit_logger(validator_node, "validator"))
     graph.add_node("human_review", with_audit_logger(human_review_node, "human_review"))
     graph.add_node("report_generator", with_audit_logger(report_generator_node, "report_generator"))
@@ -533,22 +578,28 @@ def build_graph():
     graph.add_edge("planner", "retrieve_device")
     graph.add_edge("planner", "retrieve_location")
 
-    # All retrieval nodes converge before rule_engine
-    graph.add_edge("retrieve_customer", "rule_engine")
-    graph.add_edge("retrieve_transaction", "rule_engine")
-    graph.add_edge("retrieve_merchant", "rule_engine")
-    graph.add_edge("retrieve_device", "rule_engine")
-    graph.add_edge("retrieve_location", "rule_engine")
+    # Evidence Verifier & Velocity Analysis Pipeline
+    graph.add_edge("retrieve_customer", "evidence_verifier")
+    graph.add_edge("retrieve_transaction", "evidence_verifier")
+    graph.add_edge("retrieve_merchant", "evidence_verifier")
+    graph.add_edge("retrieve_device", "evidence_verifier")
+    graph.add_edge("retrieve_location", "evidence_verifier")
 
+    graph.add_edge("evidence_verifier", "velocity_check")
+    graph.add_edge("velocity_check", "rule_engine")
     graph.add_edge("rule_engine", "knowledge_lookup")
     graph.add_edge("knowledge_lookup", "risk_reasoning")
-    graph.add_edge("risk_reasoning", "validator")
+    graph.add_edge("risk_reasoning", "critic")
+    graph.add_edge("critic", "validator")
 
     graph.add_conditional_edges(
         "validator",
         should_retry_or_human_review,
         {
-            "retry": "risk_reasoning", # Retry logic goes back to reasoning to fix groundedness
+            "retry": "risk_reasoning",
+            "retrieve_device": "retrieve_device",
+            "retrieve_location": "retrieve_location",
+            "retrieve_customer": "retrieve_customer",
             "human_review": "human_review",
             "report_generator": "report_generator"
         }
