@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, status, Query
+from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, status, Query, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from typing import List, Optional
@@ -260,8 +260,9 @@ def run_investigation_task(investigation_id: str, transaction_id: str, db: Optio
             "report": None
         }
 
-        # Run graph
-        result = graph_app.invoke(initial_state)
+        # Run graph with checkpoint thread config
+        config = {"configurable": {"thread_id": investigation_id}}
+        result = graph_app.invoke(initial_state, config=config)
 
         # Update DB
         investigation = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
@@ -675,6 +676,83 @@ async def list_investigations(
         total_pages=total_pages
     )
 
+@app.post("/api/v1/investigations/{investigation_id}/export")
+async def export_investigation_report(
+    investigation_id: str,
+    format: str = Query("json", pattern="^(json|pdf|html)$"),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """
+    Export full investigation report in JSON, HTML, or PDF format with evidence and audit history.
+    """
+    inv = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Investigation not found")
+
+    response_data = build_investigation_response(inv, db)
+    audit_logs = db.query(models.AuditLog).filter(models.AuditLog.investigation_id == investigation_id).order_by(models.AuditLog.timestamp).all()
+
+    audit_trail = [
+        {
+            "timestamp": log.timestamp.isoformat(),
+            "action": log.action,
+            "details": log.details
+        }
+        for log in audit_logs
+    ]
+
+    payload = {
+        "export_date": datetime.datetime.utcnow().isoformat(),
+        "investigation": response_data.model_dump(),
+        "audit_trail": audit_trail
+    }
+
+    if format == "json":
+        return payload
+    elif format == "html":
+        html_content = f"""<!DOCTYPE html>
+<html>
+<head><title>FFRE Investigation Report - {inv.investigation_id}</title><style>body{{font-family:sans-serif;margin:40px;color:#1e293b;}} h1{{color:#0f172a;}} table{{border-collapse:collapse;width:100%;margin-top:20px;}} th,td{{border:1px solid #cbd5e1;padding:8px;text-align:left;}} th{{background-color:#f1f5f9;}} .badge{{padding:4px 8px;border-radius:4px;font-weight:bold;background-color:#e2e8f0;}}</style></head>
+<body>
+<h1>Financial Fraud Investigation Report</h1>
+<p><strong>Investigation ID:</strong> {inv.investigation_id} | <strong>Transaction ID:</strong> {inv.txn_id}</p>
+<p><strong>Status:</strong> <span class="badge">{inv.status}</span> | <strong>Risk Score:</strong> {inv.risk_score or 'N/A'} | <strong>Confidence:</strong> {inv.confidence or 'N/A'}</p>
+<h2>Executive Summary & Findings</h2>
+<pre>{inv.report or 'No detailed report available.'}</pre>
+<h2>Audit Trail</h2>
+<table><tr><th>Timestamp</th><th>Action</th><th>Details</th></tr>
+{''.join([f"<tr><td>{log['timestamp']}</td><td>{log['action']}</td><td>{log['details']}</td></tr>" for log in audit_trail])}
+</table>
+</body>
+</html>"""
+        return Response(content=html_content, media_type="text/html")
+    else:
+        pdf_text = f"""================================================================================
+FINANCIAL FRAUD INVESTIGATION REPORT (FFRE)
+================================================================================
+Generated:        {payload['export_date']}
+Investigation ID: {inv.investigation_id}
+Transaction ID:   {inv.txn_id}
+Status:           {inv.status}
+Calculated Risk:  {inv.risk_score or 'N/A'}
+Confidence Score: {inv.confidence or 'N/A'}
+
+--------------------------------------------------------------------------------
+EXECUTIVE REPORT & REASONING FINDINGS
+--------------------------------------------------------------------------------
+{inv.report or 'No report available.'}
+
+--------------------------------------------------------------------------------
+AUDIT & ESCALATION HISTORY ({len(audit_trail)} Entries)
+--------------------------------------------------------------------------------
+""" + "\n".join([f"[{log['timestamp']}] {log['action']} - {log['details']}" for log in audit_trail])
+        return Response(
+            content=pdf_text,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename=report_{investigation_id}.pdf"}
+        )
+
 @app.patch("/api/v1/investigations/{investigation_id}", response_model=InvestigationResponse)
 async def update_investigation(
     investigation_id: str,
@@ -742,15 +820,22 @@ async def delete_investigation(
     investigation_id_for_log = inv.investigation_id
     txn_id_for_log = inv.txn_id
 
-    # Delete the investigation (cascades to evidence and audit_logs)
+    # Delete evidence associated with investigation
+    db.query(models.Evidence).filter(models.Evidence.investigation_id == investigation_id).delete()
+
+    # Create immutable tombstone audit log before deleting investigation record
+    tombstone_log = models.AuditLog(
+        investigation_id=None,
+        action=f"INVESTIGATION_DELETED: {investigation_id_for_log}",
+        details=f"Investigation for transaction {txn_id_for_log} deleted by administrator {current_user.name}"
+    )
+    db.add(tombstone_log)
+
+    # Delete investigation record
     db.delete(inv)
     db.commit()
 
-    # Add audit log for the deletion (note: this won't be tied to a specific investigation since it's deleted)
-    # In a real system, you might want to store this in a separate audit table or log service
-    # For now, we'll just commit and return success
-
-    return {"status": "success", "message": f"Investigation {investigation_id} deleted successfully"}
+    return {"status": "success", "message": f"Investigation {investigation_id} deleted successfully. Audit trail retained permanently."}
 
 @app.get("/api/v1/health")
 async def health_check():

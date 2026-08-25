@@ -46,20 +46,22 @@ class AgentState(TypedDict):
     rule_score: Optional[float]
     rule_reasons: List[str]
 
+from langgraph.checkpoint.memory import MemorySaver
+
 # Prompt Templates from SRS Chapter 19
 PLANNER_PROMPT = """
 You are a financial fraud investigation planner. Given the transaction summary below,
 output a JSON list of evidence-gathering tasks required to investigate it. Only select tasks
 from the approved task catalog: [customer_history, transaction_detail, merchant_reputation,
-device_fingerprint, location_check, velocity_check, historical_fraud_match].
+device_fingerprint, location_check].
 Transaction: {transaction_summary}
 """
 
 REASONER_PROMPT = """
 You are a fraud investigation reasoning engine. Using ONLY the evidence provided below,
 explain whether this transaction is likely fraudulent. Every claim must reference a specific
-evidence field by name. If evidence is insufficient to support a conclusion, state this explicitly
-rather than guessing.
+evidence field by name. If evidence is insufficient to support a conclusion, state this explicitly.
+Output JSON schema: {{"reasoning": "...", "risk_score": 0.85, "confidence": 0.90}}
 Evidence: {evidence_bundle}
 """
 
@@ -80,6 +82,20 @@ validated, grounded content provided.
 def planner_node(state: AgentState):
     """Decompose investigation into sub-tasks (FO-2)"""
     print(f"Planning investigation for {state['transaction_id']}")
+    task_mapping = {
+        "customer_history": "retrieve_customer",
+        "retrieve_customer": "retrieve_customer",
+        "transaction_detail": "retrieve_txn",
+        "retrieve_txn": "retrieve_txn",
+        "retrieve_transaction": "retrieve_txn",
+        "merchant_reputation": "retrieve_merchant",
+        "retrieve_merchant": "retrieve_merchant",
+        "device_fingerprint": "retrieve_device",
+        "retrieve_device": "retrieve_device",
+        "location_check": "retrieve_location",
+        "retrieve_location": "retrieve_location"
+    }
+
     approved_tasks = ["retrieve_customer", "retrieve_txn", "retrieve_merchant", "retrieve_device", "retrieve_location"]
     tasks_to_run = approved_tasks.copy()
     if llm:
@@ -87,11 +103,14 @@ def planner_node(state: AgentState):
         try:
             response = llm.invoke(prompt)
             content = response.content if hasattr(response, "content") else str(response)
-            parsed = json.loads(content)
-            if isinstance(parsed, list):
-                valid_tasks = [t for t in parsed if t in approved_tasks]
-                if valid_tasks:
-                    tasks_to_run = valid_tasks
+            start = content.find("[")
+            end = content.rfind("]") + 1
+            if start != -1 and end > start:
+                parsed = json.loads(content[start:end])
+                if isinstance(parsed, list):
+                    mapped_tasks = [task_mapping[t] for t in parsed if t in task_mapping]
+                    if mapped_tasks:
+                        tasks_to_run = list(dict.fromkeys(mapped_tasks))
         except Exception as e:
             print(f"LLM Planner failed: {e}")
 
@@ -534,5 +553,6 @@ def build_graph():
 
     graph.add_edge("report_generator", END)
     graph.add_edge("human_review", END)
-    
-    return graph.compile()
+
+    checkpointer = MemorySaver()
+    return graph.compile(checkpointer=checkpointer)

@@ -114,7 +114,7 @@ class Investigation(Base):
 
     transaction = relationship("Transaction", back_populates="investigations")
     evidence = relationship("Evidence", back_populates="investigation")
-    audit_logs = relationship("AuditLog", back_populates="investigation", order_by="AuditLog.timestamp")
+    audit_logs = relationship("AuditLog", back_populates="investigation", order_by="AuditLog.timestamp", cascade="save-update, merge")
 
 class Evidence(Base):
     __tablename__ = "evidence"
@@ -146,7 +146,7 @@ class AuditLog(Base):
     __tablename__ = "audit_log"
 
     log_id = Column(String, primary_key=True, default=generate_uuid)
-    investigation_id = Column(String, ForeignKey("investigation.investigation_id"), index=True)
+    investigation_id = Column(String, ForeignKey("investigation.investigation_id", ondelete="SET NULL"), nullable=True, index=True)
     action = Column(String(250), nullable=False)
     details = Column(Text, nullable=True)
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
