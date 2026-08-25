@@ -49,7 +49,9 @@ def test_acceptance_test_a_dynamic_planner_execution(db_session):
         "rule_score": None,
         "rule_reasons": [],
         "execution_trace": [],
-        "critic_details": {}
+        "critic_details": {},
+        "critic_cycle_count": 0,
+        "evidence_provenance": []
     }
 
     config = {"configurable": {"thread_id": "inv_e2e_a"}}
@@ -90,6 +92,47 @@ def test_critic_strict_schema_validation():
     assert "critic_details" in res
     assert "affected_claims" in res["critic_details"]
     assert "severity" in res["critic_details"]
+
+def test_bounded_critic_correction_loop_max_cycles():
+    """Task 4 Test: Verify critic correction loop is bounded to MAX_CRITIC_CYCLES = 2."""
+    state_cycle_1 = {
+        "investigation_id": "inv_b_1",
+        "validated": True,
+        "critic_issues": True,
+        "critic_cycle_count": 0
+    }
+    decision_1 = should_retry_or_human_review(state_cycle_1)
+    assert decision_1 == "risk_reasoning"
+    assert state_cycle_1["critic_cycle_count"] == 1
+
+    state_cycle_max = {
+        "investigation_id": "inv_b_max",
+        "validated": True,
+        "critic_issues": True,
+        "critic_cycle_count": 2
+    }
+    decision_max = should_retry_or_human_review(state_cycle_max)
+    assert decision_max == "human_review"
+
+def test_evidence_provenance_record_building():
+    """Task 5 Test: Verify evidence verifier builds normalized evidence provenance object model."""
+    state = {
+        "investigation_id": "inv_prov_1",
+        "transaction_id": "T-PROV-1",
+        "customer_evidence": {"kyc_status": "VERIFIED", "risk_tier": "LOW"},
+        "transaction_evidence": {"amount": 250.0, "currency": "USD"}
+    }
+    res = evidence_verifier_node(state)
+    provenance = res.get("evidence_provenance", [])
+
+    assert len(provenance) >= 4
+    sample = provenance[0]
+    assert "source" in sample
+    assert "entity" in sample
+    assert "attribute" in sample
+    assert "value" in sample
+    assert "timestamp" in sample
+    assert "provenance_citation" in sample
 
 def test_acceptance_test_b_single_retrieval_failure_retry():
     """Test B: Single retrieval failure routes back to specific failed retrieval node."""

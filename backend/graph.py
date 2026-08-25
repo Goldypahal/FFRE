@@ -55,6 +55,8 @@ class AgentState(TypedDict):
     rule_reasons: List[str]
     execution_trace: Annotated[List[str], operator.add]
     critic_details: Dict[str, Any]
+    critic_cycle_count: int
+    evidence_provenance: List[Dict[str, Any]]
 
 from langgraph.checkpoint.memory import MemorySaver
 
@@ -249,7 +251,7 @@ def velocity_check_node(state: AgentState):
     return state
 
 def evidence_verifier_node(state: AgentState):
-    """Evidence Verifier node - checks completeness across all 6 evidence sources"""
+    """Evidence Verifier node with Complete Evidence Provenance (FO-3 / Task 5)"""
     print("Verifying collected evidence completeness across all 6 sources...")
     cust = state.get("customer_evidence", {})
     txn = state.get("transaction_evidence", {})
@@ -272,6 +274,33 @@ def evidence_verifier_node(state: AgentState):
         "status": "VERIFIED" if not failed_nodes else "PARTIAL",
         "failed_nodes": failed_nodes
     }
+
+    # Task 5: Build Complete Evidence Provenance Object Model
+    provenance_records = []
+    now_iso = datetime.datetime.utcnow().isoformat()
+    inv_id = state.get("investigation_id", "N/A")
+
+    for src_name, src_dict in [
+        ("customer_evidence", cust),
+        ("transaction_evidence", txn),
+        ("merchant_evidence", merch),
+        ("device_evidence", dev),
+        ("location_evidence", loc),
+        ("velocity_evidence", vel)
+    ]:
+        if isinstance(src_dict, dict) and "error" not in src_dict:
+            for attr, val in src_dict.items():
+                provenance_records.append({
+                    "source": src_name,
+                    "entity": state.get("transaction_id", "N/A"),
+                    "attribute": attr,
+                    "value": str(val),
+                    "timestamp": now_iso,
+                    "confidence": 0.95,
+                    "provenance_citation": f"{src_name}.{attr}={val} [Inv: {inv_id}]"
+                })
+
+    state["evidence_provenance"] = provenance_records
     return state
 
 def rule_engine_node(state: AgentState):
@@ -523,25 +552,34 @@ def report_generator_node(state: AgentState):
     return state
 
 def should_retry_or_human_review(state: AgentState):
-    """Complete 6-Source Targeted Retry & Actionable Critic Router (Priority 2 & Priority 3)"""
+    """Complete 6-Source Targeted Retry & Bounded Critic Router (Task 4)"""
     validated = state.get("validated", False)
     retry_count = state.get("retry_count", 0)
     confidence = state.get("confidence", 0)
     failed_node = state.get("failed_target_node")
     critic_issues = state.get("critic_issues", False)
+    critic_cycles = state.get("critic_cycle_count", 0)
+    MAX_CRITIC_CYCLES = 2
 
     decision = ""
     reason = ""
 
-    if not validated or critic_issues:
+    if critic_issues and validated:
+        if critic_cycles < MAX_CRITIC_CYCLES:
+            state["critic_cycle_count"] = critic_cycles + 1
+            decision = "risk_reasoning"
+            reason = f"Critic check failed (cycle {critic_cycles + 1}/{MAX_CRITIC_CYCLES}), retrying risk_reasoning"
+        else:
+            decision = "human_review"
+            reason = f"Critic correction cycle limit reached ({MAX_CRITIC_CYCLES}), escalating to human review"
+    elif not validated:
         if retry_count < MAX_RETRIES:
-            # Complete 6-source targeted retry routing
             valid_target_nodes = ["retrieve_customer", "retrieve_transaction", "retrieve_merchant", "retrieve_device", "retrieve_location", "velocity_check"]
             if failed_node and failed_node in valid_target_nodes:
                 decision = failed_node
             else:
                 decision = "risk_reasoning"
-            reason = f"Validation or Critic check failed (attempt {retry_count}/{MAX_RETRIES}), retrying {decision}"
+            reason = f"Validation failed (attempt {retry_count}/{MAX_RETRIES}), retrying {decision}"
         else:
             decision = "human_review"
             reason = f"Validation failed after {MAX_RETRIES} attempts, escalating to human review"
