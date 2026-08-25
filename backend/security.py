@@ -12,20 +12,19 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 def get_encryption_key():
     """
     Generate encryption key from environment variable.
-    In production, use a proper key management service (AWS KMS, HashiCorp Vault, etc.)
+    In production, raises an error if ENCRYPTION_SECRET_KEY is not configured.
     """
-    # Get secret from environment - should be set in production
-    # For development, provide a default but warn about it
+    env = os.getenv("ENV", "development").lower()
     secret_key = os.getenv("ENCRYPTION_SECRET_KEY")
     if not secret_key:
-        # In production, this should raise an error rather than using a default
+        if env == "production":
+            raise ValueError("ENCRYPTION_SECRET_KEY environment variable must be set in production!")
         secret_key = "dev-secret-key-change-in-production"
-        print("WARNING: Using default encryption key. Set ENCRYPTION_SECRET_KEY environment variable in production!")
+        print("WARNING: Using default development encryption key. Set ENCRYPTION_SECRET_KEY in production!")
 
-    # Use a salt - in production, this should be stored separately or derived properly
-    salt = b"fixed-salt-for-demo-purpose-use-random-in-production"
+    salt_str = os.getenv("ENCRYPTION_SALT", "ffre-default-salt-v1")
+    salt = salt_str.encode('utf-8')
 
-    # Derive a key using PBKDF2
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
         length=32,
@@ -34,6 +33,7 @@ def get_encryption_key():
     )
     key = base64.urlsafe_b64encode(kdf.derive(secret_key.encode()))
     return key
+
 
 # Initialize Fernet cipher suite
 try:

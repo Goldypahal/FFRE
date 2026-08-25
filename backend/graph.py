@@ -80,15 +80,24 @@ validated, grounded content provided.
 def planner_node(state: AgentState):
     """Decompose investigation into sub-tasks (FO-2)"""
     print(f"Planning investigation for {state['transaction_id']}")
+    approved_tasks = ["retrieve_customer", "retrieve_txn", "retrieve_merchant", "retrieve_device", "retrieve_location"]
+    tasks_to_run = approved_tasks.copy()
     if llm:
         prompt = PLANNER_PROMPT.format(transaction_summary=f"Transaction ID: {state['transaction_id']}")
         try:
-            llm.invoke(prompt) # Fire the LLM for reasoning logging
+            response = llm.invoke(prompt)
+            content = response.content if hasattr(response, "content") else str(response)
+            parsed = json.loads(content)
+            if isinstance(parsed, list):
+                valid_tasks = [t for t in parsed if t in approved_tasks]
+                if valid_tasks:
+                    tasks_to_run = valid_tasks
         except Exception as e:
             print(f"LLM Planner failed: {e}")
-            
-    state["tasks"] = ["retrieve_customer", "retrieve_txn", "retrieve_merchant", "retrieve_device", "retrieve_location"]
+
+    state["tasks"] = tasks_to_run
     return state
+
 
 def retrieve_customer_node(state: AgentState):
     db = SessionLocal()
@@ -228,13 +237,24 @@ def risk_reasoning_node(state: AgentState):
     }
 
     draft = ""
+    llm_risk_estimate = None
     if llm:
         prompt = REASONER_PROMPT.format(evidence_bundle=json.dumps(evidence_bundle, indent=2))
         if state.get("draft_explanation") and "[System Error" in state["draft_explanation"]:
             prompt += f"\n\nCRITICAL FIX REQUIRED: {state['draft_explanation']}"
         try:
             response = llm.invoke(prompt)
-            draft = response.content
+            draft = response.content if hasattr(response, "content") else str(response)
+            # Try parsing structured json from LLM if returned
+            if "{" in draft and "}" in draft:
+                try:
+                    start = draft.find("{")
+                    end = draft.rfind("}") + 1
+                    data = json.loads(draft[start:end])
+                    if "risk_score" in data:
+                        llm_risk_estimate = float(data["risk_score"])
+                except Exception:
+                    pass
         except Exception as e:
             draft = f"LLM Error: {e}"
     else:
@@ -244,25 +264,37 @@ def risk_reasoning_node(state: AgentState):
 
     rule_score = state.get("rule_score", 0.0)
 
-    # Calculate LLM-based risk estimate from the reasoning (if available, otherwise use default)
-    # For now, we'll use a placeholder that could be enhanced with actual LLM confidence scoring
-    llm_risk_estimate = 0.85  # This could be improved by parsing LLM output for confidence
+    # Dynamic fallback LLM risk assessment based on evidence severity when LLM json is not parsed
+    if llm_risk_estimate is None:
+        risk_factors = 0
+        total_factors = 0
+        device_ev = state.get("device_evidence", {})
+        if isinstance(device_ev, dict) and "error" not in device_ev:
+            total_factors += 2
+            if device_ev.get("new_device"): risk_factors += 1
+            if str(device_ev.get("os", "")).lower() in ["unknown", "other"]: risk_factors += 1
+
+        merchant_ev = state.get("merchant_evidence", {})
+        if isinstance(merchant_ev, dict) and "error" not in merchant_ev:
+            total_factors += 1
+            if float(merchant_ev.get("historical_fraud_rate", 0.0)) > 0.1: risk_factors += 1
+
+        location_ev = state.get("location_evidence", {})
+        if isinstance(location_ev, dict) and "error" not in location_ev:
+            total_factors += 1
+            if str(location_ev.get("country", "")).upper() not in ["US", "CA", "GB"]: risk_factors += 1
+
+        llm_risk_estimate = (risk_factors / total_factors) if total_factors > 0 else 0.5
 
     # Calculate historical pattern match score
     historical_score = 0.0
     historical_cases = state.get("historical_cases", [])
     if historical_cases:
-        # Convert similarity distances to similarity scores (higher = more similar)
-        # Assuming distance is cosine distance where 0=identical, 2=opposite
         similarities = []
         for case in historical_cases:
-            distance = case.get("similarity_distance", 1.0)  # default to medium dissimilarity
-            # Convert distance to similarity: 1 - (distance/2) gives range [0,1]
+            distance = case.get("similarity_distance", 1.0)
             similarity = max(0.0, 1.0 - (distance / 2.0))
             similarities.append(similarity)
-
-        # Use the maximum similarity as our historical pattern score
-        # (most similar historical case)
         if similarities:
             historical_score = max(similarities)
 
@@ -278,8 +310,19 @@ def risk_reasoning_node(state: AgentState):
     )
 
     state["risk_score"] = combined_risk
-    # Confidence based on risk score and evidence completeness
-    state["confidence"] = 0.92 if combined_risk > 0.8 else (0.75 if combined_risk > 0.4 else 0.6)
+
+    # Dynamic confidence calculation:
+    # 1. Evidence completeness ratio
+    retrieved_sources = [state.get("customer_evidence"), state.get("transaction_evidence"), state.get("merchant_evidence"), state.get("device_evidence"), state.get("location_evidence")]
+    valid_sources = [s for s in retrieved_sources if isinstance(s, dict) and "error" not in s]
+    completeness = len(valid_sources) / len(retrieved_sources) if retrieved_sources else 0.5
+
+    # 2. Score agreement between rule engine and LLM risk estimate
+    agreement = 1.0 - abs(rule_score - llm_risk_estimate)
+
+    # 3. Combined dynamic confidence score
+    confidence_score = (completeness * 0.40) + (agreement * 0.40) + (historical_score * 0.20)
+    state["confidence"] = round(min(max(confidence_score, 0.5), 0.98), 2)
     return state
 
 def validator_node(state: AgentState):

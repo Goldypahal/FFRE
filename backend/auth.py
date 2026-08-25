@@ -8,8 +8,16 @@ from sqlalchemy.orm import Session
 from database import get_db
 import models
 import os
+from sqlalchemy import func
 
-SECRET_KEY = os.environ.get("SECRET_KEY", "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7")
+ENV = os.getenv("ENV", "development").lower()
+SECRET_KEY = os.environ.get("SECRET_KEY")
+if not SECRET_KEY:
+    if ENV == "production":
+        raise ValueError("SECRET_KEY environment variable must be set in production!")
+    SECRET_KEY = "dev-secret-key-change-in-production"
+    print("WARNING: Using default development SECRET_KEY. Set SECRET_KEY in production!")
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 # 1 day for dev
 
@@ -35,11 +43,8 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 def get_user_by_email(db: Session, email: str) -> Optional[models.User]:
     if not email:
         return None
-    users = db.query(models.User).all()
-    for user in users:
-        if user.email and user.email.lower() == email.lower():
-            return user
-    return None
+    return db.query(models.User).filter(func.lower(models.User.email) == email.lower()).first()
+
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
