@@ -475,29 +475,32 @@ def with_audit_logger(node_func, node_name: str):
             # Log execution
             investigation_id = state.get("investigation_id")
             if investigation_id:
-                audit_log = AuditLog(
-                    investigation_id=investigation_id,
-                    action=f"NODE_EXECUTION: {node_name}",
-                    details=f"Successfully executed {node_name} in {execution_time_ms}ms",
-                )
-                db.add(audit_log)
-                db.commit()
+                try:
+                    audit_log = AuditLog(
+                        investigation_id=investigation_id,
+                        action=f"NODE_EXECUTION: {node_name}",
+                        details=f"Successfully executed {node_name} in {execution_time_ms}ms"
+                    )
+                    db.add(audit_log)
+                    db.commit()
+                except Exception:
+                    db.rollback()
             return new_state
         except Exception as e:
-            # Calculate execution time for failed operations
             execution_time_ms = int((time.time() - start_time) * 1000)
-
             db.rollback()
-            # Log the error
             investigation_id = state.get("investigation_id")
             if investigation_id:
-                audit_log = AuditLog(
-                    investigation_id=investigation_id,
-                    action=f"NODE_ERROR: {node_name}",
-                    details=f"Failed to execute {node_name} after {execution_time_ms}ms: {str(e)[:500]}",  # Limit error message length
-                )
-                db.add(audit_log)
-                db.commit()
+                try:
+                    audit_log = AuditLog(
+                        investigation_id=investigation_id,
+                        action=f"NODE_ERROR: {node_name}",
+                        details=f"Failed to execute {node_name} after {execution_time_ms}ms: {str(e)[:500]}"
+                    )
+                    db.add(audit_log)
+                    db.commit()
+                except Exception:
+                    db.rollback()
             raise e
         finally:
             db.close()
@@ -554,5 +557,12 @@ def build_graph():
     graph.add_edge("report_generator", END)
     graph.add_edge("human_review", END)
 
-    checkpointer = MemorySaver()
+    try:
+        from langgraph.checkpoint.sqlite import SqliteSaver
+        import sqlite3
+        conn = sqlite3.connect("ffire_checkpoints.db", check_same_thread=False)
+        checkpointer = SqliteSaver(conn)
+    except Exception:
+        checkpointer = MemorySaver()
+
     return graph.compile(checkpointer=checkpointer)

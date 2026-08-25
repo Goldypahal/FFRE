@@ -515,6 +515,8 @@ async def submit_investigation(
     db.add(audit_log)
     db.commit()
 
+    from worker import worker_queue
+    worker_queue.enqueue(inv.investigation_id, request.transaction_id)
     background_tasks.add_task(run_investigation_task, inv.investigation_id, request.transaction_id)
 
     return build_investigation_response(inv, db)
