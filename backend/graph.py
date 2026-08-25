@@ -71,7 +71,8 @@ Evidence: {evidence_bundle}
 
 CRITIC_PROMPT = """
 You are an evidence critic. Evaluate the draft explanation below against the evidence bundle and velocity analysis.
-Verify whether claims are logically consistent and evidence-backed. If any claim is ungrounded or inconsistent, flag it explicitly.
+Verify whether claims are logically consistent and evidence-backed.
+Output JSON schema: {{"critic_issues": true/false, "critique": "Detailed critique message..."}}
 Draft: {draft_explanation}
 Evidence: {evidence_bundle}
 Velocity Analysis: {velocity_analysis}
@@ -211,10 +212,6 @@ def velocity_check_node(state: AgentState):
             if recent_txns:
                 velocity_count = len(recent_txns)
                 velocity_sum = sum([float(t.amount) for t in recent_txns])
-            else:
-                recent_all = db.query(Transaction).filter(Transaction.account_id == account_id).all()
-                velocity_count = len(recent_all)
-                velocity_sum = sum([float(t.amount) for t in recent_all])
 
         high_velocity = velocity_count > 3 or velocity_sum > 5000.0
         velocity_score = 0.85 if high_velocity else 0.15
@@ -382,7 +379,7 @@ def risk_reasoning_node(state: AgentState):
     return state
 
 def critic_node(state: AgentState):
-    """Actionable Evidence Critic Node (Priority 3 Fix)"""
+    """Actionable Evidence Critic Node with Structured JSON Output"""
     print("Running Evidence Critic Node...")
     draft = state.get("draft_explanation", "")
     evidence = {
@@ -405,9 +402,17 @@ def critic_node(state: AgentState):
                 velocity_analysis=json.dumps(state.get("velocity_evidence"))
             )
             resp = llm.invoke(prompt)
-            content = resp.content if hasattr(resp, "content") else str(resp)
-            if "unsupported" in content.lower() or "inconsistent" in content.lower() or "error" in content.lower():
-                issues_found = True
+            resp_text = resp.content if hasattr(resp, "content") else str(resp)
+            start = resp_text.find("{")
+            end = resp_text.rfind("}") + 1
+            if start != -1 and end > start:
+                data = json.loads(resp_text[start:end])
+                issues_found = bool(data.get("critic_issues", False))
+                content = data.get("critique", resp_text)
+            else:
+                content = resp_text
+                if "unsupported" in content.lower() or "inconsistent" in content.lower() or "error" in content.lower():
+                    issues_found = True
         except Exception:
             pass
 
