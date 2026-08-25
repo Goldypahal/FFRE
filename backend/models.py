@@ -66,6 +66,7 @@ class Transaction(Base):
     amount = Column(Numeric(14, 2), nullable=False)
     currency = Column(String(3), nullable=False)
     status = Column(String(20), nullable=False)
+    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
 
     investigations = relationship("Investigation", back_populates="transaction")
 

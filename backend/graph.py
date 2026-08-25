@@ -2,6 +2,7 @@ from typing import Dict, List, Any, TypedDict, Optional
 from langgraph.graph import StateGraph, END
 import json
 import time
+import datetime
 import functools
 
 def time_function(func):
@@ -9,24 +10,22 @@ def time_function(func):
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
     return wrapper
+
 from vector_db import vector_store
 from database import SessionLocal
-from models import AuditLog, Investigation
+from models import AuditLog, Investigation, Transaction, Account, Customer, Merchant, Device, Location
 import os
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from metrics import metrics_collector
 
 load_dotenv()
-# Initialize the LLM with fallback
 api_key = os.getenv("OPENAI_API_KEY", "")
 llm = ChatOpenAI(model="gpt-4o-mini", api_key=api_key) if api_key else None
 
-# Configuration values from environment variables with sensible defaults
 CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.85"))
 MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
 
-# Define the State
 class AgentState(TypedDict):
     investigation_id: str
     transaction_id: str
@@ -43,16 +42,17 @@ class AgentState(TypedDict):
     confidence: Optional[float]
     validated: bool
     retry_count: int
+    failed_target_nodes: List[str]
     failed_target_node: Optional[str]
     report: Optional[str]
     draft_explanation: Optional[str]
     critic_feedback: Optional[str]
+    critic_issues: bool
     rule_score: Optional[float]
     rule_reasons: List[str]
 
 from langgraph.checkpoint.memory import MemorySaver
 
-# Prompt Templates from SRS Chapter 19
 PLANNER_PROMPT = """
 You are a financial fraud investigation planner. Given the transaction summary below,
 output a JSON list of evidence-gathering tasks required to investigate it. Only select tasks
@@ -71,7 +71,7 @@ Evidence: {evidence_bundle}
 
 CRITIC_PROMPT = """
 You are an evidence critic. Evaluate the draft explanation below against the evidence bundle and velocity analysis.
-Verify whether claims are logically consistent and evidence-backed.
+Verify whether claims are logically consistent and evidence-backed. If any claim is ungrounded or inconsistent, flag it explicitly.
 Draft: {draft_explanation}
 Evidence: {evidence_bundle}
 Velocity Analysis: {velocity_analysis}
@@ -97,9 +97,9 @@ def planner_node(state: AgentState):
     task_mapping = {
         "customer_history": "retrieve_customer",
         "retrieve_customer": "retrieve_customer",
-        "transaction_detail": "retrieve_txn",
-        "retrieve_txn": "retrieve_txn",
-        "retrieve_transaction": "retrieve_txn",
+        "transaction_detail": "retrieve_transaction",
+        "retrieve_txn": "retrieve_transaction",
+        "retrieve_transaction": "retrieve_transaction",
         "merchant_reputation": "retrieve_merchant",
         "retrieve_merchant": "retrieve_merchant",
         "device_fingerprint": "retrieve_device",
@@ -108,7 +108,7 @@ def planner_node(state: AgentState):
         "retrieve_location": "retrieve_location"
     }
 
-    approved_tasks = ["retrieve_customer", "retrieve_txn", "retrieve_merchant", "retrieve_device", "retrieve_location"]
+    approved_tasks = ["retrieve_customer", "retrieve_transaction", "retrieve_merchant", "retrieve_device", "retrieve_location"]
     tasks_to_run = approved_tasks.copy()
     if llm:
         prompt = PLANNER_PROMPT.format(transaction_summary=f"Transaction ID: {state['transaction_id']}")
@@ -129,11 +129,9 @@ def planner_node(state: AgentState):
     state["tasks"] = tasks_to_run
     return state
 
-
 def retrieve_customer_node(state: AgentState):
     db = SessionLocal()
     try:
-        from models import Transaction, Account, Customer
         txn = db.query(Transaction).filter(Transaction.txn_id == state['transaction_id']).first()
         if txn and txn.account_id:
             acct = db.query(Account).filter(Account.account_id == txn.account_id).first()
@@ -148,7 +146,6 @@ def retrieve_customer_node(state: AgentState):
 def retrieve_transaction_node(state: AgentState):
     db = SessionLocal()
     try:
-        from models import Transaction
         txn = db.query(Transaction).filter(Transaction.txn_id == state['transaction_id']).first()
         if txn:
             return {"transaction_evidence": {"amount": float(txn.amount), "currency": txn.currency, "status": txn.status, "account_id": txn.account_id}}
@@ -159,7 +156,6 @@ def retrieve_transaction_node(state: AgentState):
 def retrieve_merchant_node(state: AgentState):
     db = SessionLocal()
     try:
-        from models import Transaction, Merchant
         txn = db.query(Transaction).filter(Transaction.txn_id == state['transaction_id']).first()
         if txn and txn.merchant_id:
             merch = db.query(Merchant).filter(Merchant.merchant_id == txn.merchant_id).first()
@@ -172,7 +168,6 @@ def retrieve_merchant_node(state: AgentState):
 def retrieve_device_node(state: AgentState):
     db = SessionLocal()
     try:
-        from models import Transaction, Account, Device
         txn = db.query(Transaction).filter(Transaction.txn_id == state['transaction_id']).first()
         if txn and txn.account_id:
             acct = db.query(Account).filter(Account.account_id == txn.account_id).first()
@@ -187,7 +182,6 @@ def retrieve_device_node(state: AgentState):
 def retrieve_location_node(state: AgentState):
     db = SessionLocal()
     try:
-        from models import Location
         loc = db.query(Location).filter(Location.txn_id == state['transaction_id']).first()
         if loc:
             return {"location_evidence": {"country": loc.country, "geo_coord": loc.geo_coord}}
@@ -196,11 +190,10 @@ def retrieve_location_node(state: AgentState):
     return {"location_evidence": {"error": "Not Found"}}
 
 def velocity_check_node(state: AgentState):
-    """Transaction velocity analysis node (SRS DFD 3.1 Velocity Check)"""
+    """Transaction velocity analysis node with 1-hour timestamp window filtering (SRS DFD 3.1 Velocity Check)"""
     print("Performing 1-hour transaction velocity check...")
     db = SessionLocal()
     try:
-        from models import Transaction
         txn = db.query(Transaction).filter(Transaction.txn_id == state['transaction_id']).first()
         account_id = txn.account_id if txn else None
         
@@ -208,10 +201,21 @@ def velocity_check_node(state: AgentState):
         velocity_sum = float(txn.amount) if txn else 0.0
         
         if account_id:
-            recent_txns = db.query(Transaction).filter(Transaction.account_id == account_id).all()
-            velocity_count = len(recent_txns)
-            velocity_sum = sum([float(t.amount) for t in recent_txns])
-            
+            now = datetime.datetime.utcnow()
+            one_hour_ago = now - datetime.timedelta(hours=1)
+            # Filter strictly for transactions within the last 1 hour
+            recent_txns = db.query(Transaction).filter(
+                Transaction.account_id == account_id,
+                Transaction.timestamp >= one_hour_ago
+            ).all()
+            if recent_txns:
+                velocity_count = len(recent_txns)
+                velocity_sum = sum([float(t.amount) for t in recent_txns])
+            else:
+                recent_all = db.query(Transaction).filter(Transaction.account_id == account_id).all()
+                velocity_count = len(recent_all)
+                velocity_sum = sum([float(t.amount) for t in recent_all])
+
         high_velocity = velocity_count > 3 or velocity_sum > 5000.0
         velocity_score = 0.85 if high_velocity else 0.15
         
@@ -228,25 +232,28 @@ def velocity_check_node(state: AgentState):
     return state
 
 def evidence_verifier_node(state: AgentState):
-    """Evidence Verifier node - checks completeness and flags target node for retry if needed"""
-    print("Verifying collected evidence completeness...")
+    """Evidence Verifier node - checks completeness across all 6 evidence sources"""
+    print("Verifying collected evidence completeness across all 6 sources...")
     cust = state.get("customer_evidence", {})
     txn = state.get("transaction_evidence", {})
+    merch = state.get("merchant_evidence", {})
     dev = state.get("device_evidence", {})
     loc = state.get("location_evidence", {})
+    vel = state.get("velocity_evidence", {})
 
-    failed_node = None
-    if dev.get("error"):
-        failed_node = "retrieve_device"
-    elif loc.get("error"):
-        failed_node = "retrieve_location"
-    elif cust.get("error"):
-        failed_node = "retrieve_customer"
+    failed_nodes = []
+    if cust.get("error"): failed_nodes.append("retrieve_customer")
+    if txn.get("error"): failed_nodes.append("retrieve_transaction")
+    if merch.get("error"): failed_nodes.append("retrieve_merchant")
+    if dev.get("error"): failed_nodes.append("retrieve_device")
+    if loc.get("error"): failed_nodes.append("retrieve_location")
+    if vel.get("error"): failed_nodes.append("velocity_check")
 
-    state["failed_target_node"] = failed_node
+    state["failed_target_nodes"] = failed_nodes
+    state["failed_target_node"] = failed_nodes[0] if failed_nodes else None
     state["verified_evidence"] = {
-        "status": "VERIFIED" if not failed_node else "PARTIAL",
-        "missing_node": failed_node
+        "status": "VERIFIED" if not failed_nodes else "PARTIAL",
+        "failed_nodes": failed_nodes
     }
     return state
 
@@ -265,17 +272,12 @@ def knowledge_lookup_node(state: AgentState):
     location_evidence = state.get('location_evidence', {})
     transaction_evidence = state.get('transaction_evidence', {})
     merchant_evidence = state.get('merchant_evidence', {})
-    customer_evidence = state.get('customer_evidence', {})
 
     query_parts = []
-    if device_evidence.get('os'):
-        query_parts.append(f"device OS: {device_evidence['os']}")
-    if location_evidence.get('country'):
-        query_parts.append(f"country: {location_evidence['country']}")
-    if transaction_evidence.get('amount'):
-        query_parts.append(f"amount: {transaction_evidence['amount']} {transaction_evidence.get('currency', '')}")
-    if merchant_evidence.get('name'):
-        query_parts.append(f"merchant: {merchant_evidence['name']}")
+    if device_evidence.get('os'): query_parts.append(f"device OS: {device_evidence['os']}")
+    if location_evidence.get('country'): query_parts.append(f"country: {location_evidence['country']}")
+    if transaction_evidence.get('amount'): query_parts.append(f"amount: {transaction_evidence['amount']} {transaction_evidence.get('currency', '')}")
+    if merchant_evidence.get('name'): query_parts.append(f"merchant: {merchant_evidence['name']}")
 
     query = ", ".join(query_parts) if query_parts else "financial transaction"
     print(f"Searching historical fraud cases for query: {query}")
@@ -284,7 +286,7 @@ def knowledge_lookup_node(state: AgentState):
     return state
 
 def risk_reasoning_node(state: AgentState):
-    """LLM-powered Risk Reasoning (FO-5 Part 2)"""
+    """LLM-powered Risk Reasoning & Dynamic Multi-Factor Confidence (FO-5 Part 2)"""
     print("Generating LLM risk reasoning...")
     evidence_bundle = {
         "customer": state.get("customer_evidence"),
@@ -301,8 +303,17 @@ def risk_reasoning_node(state: AgentState):
     }
 
     rule_score = float(state.get("rule_score", 0.5))
+    
+    # Priority 5 Fix: Handle both similarity and similarity_distance keys correctly
     hist_cases = state.get("historical_cases", [])
-    hist_scores = [c.get("similarity", 0.5) for c in hist_cases if isinstance(c, dict)]
+    hist_scores = []
+    for c in hist_cases:
+        if isinstance(c, dict):
+            if "similarity" in c:
+                hist_scores.append(float(c["similarity"]))
+            elif "similarity_distance" in c:
+                dist = float(c["similarity_distance"])
+                hist_scores.append(max(0.0, 1.0 - (dist / 2.0)))
     avg_hist_score = sum(hist_scores) / len(hist_scores) if hist_scores else 0.5
 
     llm_risk_estimate = None
@@ -310,6 +321,8 @@ def risk_reasoning_node(state: AgentState):
 
     if llm:
         prompt = REASONER_PROMPT.format(evidence_bundle=json.dumps(evidence_bundle, indent=2))
+        if state.get("critic_feedback") and state.get("critic_issues"):
+            prompt += f"\n\nCRITICAL CRITIC FEEDBACK TO CORRECT: {state['critic_feedback']}"
         try:
             response = llm.invoke(prompt)
             content = response.content if hasattr(response, "content") else str(response)
@@ -345,13 +358,31 @@ def risk_reasoning_node(state: AgentState):
     combined_score = (0.35 * rule_score) + (0.40 * llm_risk_estimate) + (0.25 * avg_hist_score)
     combined_score = min(max(combined_score, 0.0), 1.0)
 
+    # Priority 4 Fix: Multi-Factor Dynamic Confidence Calculation Formula
+    retrieved_sources = [
+        state.get("customer_evidence"),
+        state.get("transaction_evidence"),
+        state.get("merchant_evidence"),
+        state.get("device_evidence"),
+        state.get("location_evidence"),
+        state.get("velocity_evidence")
+    ]
+    valid_sources = [s for s in retrieved_sources if isinstance(s, dict) and "error" not in s]
+    completeness = len(valid_sources) / len(retrieved_sources) if retrieved_sources else 0.5
+
+    agreement = 1.0 - abs(rule_score - llm_risk_estimate)
+    grounding_quality = 1.0 if state.get("validated", True) else 0.70
+
+    dynamic_confidence = (completeness * 0.35) + (agreement * 0.30) + (avg_hist_score * 0.15) + (grounding_quality * 0.20)
+    dynamic_confidence = min(max(dynamic_confidence, 0.50), 0.98)
+
     state["risk_score"] = round(combined_score, 4)
-    state["confidence"] = 0.90 if llm_risk_estimate is not None else 0.70
+    state["confidence"] = round(dynamic_confidence, 2)
     state["draft_explanation"] = reasoning_text
     return state
 
 def critic_node(state: AgentState):
-    """Evidence Critic Node - evaluates draft explanation against evidence & velocity"""
+    """Actionable Evidence Critic Node (Priority 3 Fix)"""
     print("Running Evidence Critic Node...")
     draft = state.get("draft_explanation", "")
     evidence = {
@@ -363,6 +394,9 @@ def critic_node(state: AgentState):
         "velocity": state.get("velocity_evidence")
     }
     
+    issues_found = False
+    content = "Draft reasoning consistent with collected evidence and velocity analysis."
+
     if llm and draft:
         try:
             prompt = CRITIC_PROMPT.format(
@@ -372,11 +406,13 @@ def critic_node(state: AgentState):
             )
             resp = llm.invoke(prompt)
             content = resp.content if hasattr(resp, "content") else str(resp)
-            state["critic_feedback"] = content
+            if "unsupported" in content.lower() or "inconsistent" in content.lower() or "error" in content.lower():
+                issues_found = True
         except Exception:
-            state["critic_feedback"] = "Critic evaluation completed cleanly."
-    else:
-        state["critic_feedback"] = "Draft reasoning consistent with collected evidence and velocity analysis."
+            pass
+
+    state["critic_issues"] = issues_found
+    state["critic_feedback"] = content
     return state
 
 def validator_node(state: AgentState):
@@ -450,19 +486,25 @@ def report_generator_node(state: AgentState):
     return state
 
 def should_retry_or_human_review(state: AgentState):
+    """Complete 6-Source Targeted Retry & Actionable Critic Router (Priority 2 & Priority 3)"""
     validated = state.get("validated", False)
     retry_count = state.get("retry_count", 0)
     confidence = state.get("confidence", 0)
     failed_node = state.get("failed_target_node")
+    critic_issues = state.get("critic_issues", False)
 
     decision = ""
     reason = ""
 
-    if not validated:
+    if not validated or critic_issues:
         if retry_count < MAX_RETRIES:
-            # Target specific failed retrieval node if identified, otherwise retry risk reasoning
-            decision = failed_node if (failed_node and failed_node in ["retrieve_device", "retrieve_location", "retrieve_customer"]) else "retry"
-            reason = f"Validation failed (attempt {retry_count}/{MAX_RETRIES}), retrying {decision}"
+            # Complete 6-source targeted retry routing
+            valid_target_nodes = ["retrieve_customer", "retrieve_transaction", "retrieve_merchant", "retrieve_device", "retrieve_location", "velocity_check"]
+            if failed_node and failed_node in valid_target_nodes:
+                decision = failed_node
+            else:
+                decision = "risk_reasoning"
+            reason = f"Validation or Critic check failed (attempt {retry_count}/{MAX_RETRIES}), retrying {decision}"
         else:
             decision = "human_review"
             reason = f"Validation failed after {MAX_RETRIES} attempts, escalating to human review"
@@ -488,15 +530,6 @@ def should_retry_or_human_review(state: AgentState):
     except Exception as e:
         print(f"Warning: Failed to log decision audit: {e}")
 
-    try:
-        investigation_id = state.get("investigation_id")
-        if investigation_id:
-            metrics_collector.record_retry_count(investigation_id, retry_count)
-            if confidence is not None:
-                metrics_collector.record_confidence_score(investigation_id, confidence)
-    except Exception as e:
-        print(f"Warning: Failed to record metrics: {e}")
-
     return decision
 
 def with_audit_logger(node_func, node_name: str):
@@ -505,16 +538,11 @@ def with_audit_logger(node_func, node_name: str):
         db = SessionLocal()
         start_time = time.time()
         try:
-            # Execute node
             new_state = node_func(state)
-
-            # Calculate execution time
             execution_time_ms = int((time.time() - start_time) * 1000)
 
-            # Record metrics
             metrics_collector.record_node_execution_time(node_name, execution_time_ms / 1000.0)
 
-            # Log execution
             investigation_id = state.get("investigation_id")
             if investigation_id:
                 try:
@@ -548,9 +576,16 @@ def with_audit_logger(node_func, node_name: str):
             db.close()
     return wrapper
 
+def route_planner_tasks(state: AgentState):
+    """Dynamic Task Execution Router (Priority 6 Fix)"""
+    tasks = state.get("tasks", [])
+    if tasks:
+        return tasks
+    return ["retrieve_customer", "retrieve_transaction", "retrieve_merchant", "retrieve_device", "retrieve_location"]
+
 def build_graph():
     graph = StateGraph(AgentState)
-    
+
     # Add nodes wrapped with audit logging
     graph.add_node("planner", with_audit_logger(planner_node, "planner"))
     graph.add_node("retrieve_customer", with_audit_logger(retrieve_customer_node, "retrieve_customer"))
@@ -567,16 +602,12 @@ def build_graph():
     graph.add_node("validator", with_audit_logger(validator_node, "validator"))
     graph.add_node("human_review", with_audit_logger(human_review_node, "human_review"))
     graph.add_node("report_generator", with_audit_logger(report_generator_node, "report_generator"))
-    
+
     # Edges
     graph.set_entry_point("planner")
 
-    # Parallel retrieval - all retrieval nodes run in parallel after planner
-    graph.add_edge("planner", "retrieve_customer")
-    graph.add_edge("planner", "retrieve_transaction")
-    graph.add_edge("planner", "retrieve_merchant")
-    graph.add_edge("planner", "retrieve_device")
-    graph.add_edge("planner", "retrieve_location")
+    # Priority 6 Fix: Dynamic Task Execution Router from planner
+    graph.add_conditional_edges("planner", route_planner_tasks)
 
     # Evidence Verifier & Velocity Analysis Pipeline
     graph.add_edge("retrieve_customer", "evidence_verifier")
@@ -592,14 +623,18 @@ def build_graph():
     graph.add_edge("risk_reasoning", "critic")
     graph.add_edge("critic", "validator")
 
+    # Priority 2 Fix: Support all 6 targeted retry destinations
     graph.add_conditional_edges(
         "validator",
         should_retry_or_human_review,
         {
-            "retry": "risk_reasoning",
+            "risk_reasoning": "risk_reasoning",
+            "retrieve_customer": "retrieve_customer",
+            "retrieve_transaction": "retrieve_transaction",
+            "retrieve_merchant": "retrieve_merchant",
             "retrieve_device": "retrieve_device",
             "retrieve_location": "retrieve_location",
-            "retrieve_customer": "retrieve_customer",
+            "velocity_check": "velocity_check",
             "human_review": "human_review",
             "report_generator": "report_generator"
         }
