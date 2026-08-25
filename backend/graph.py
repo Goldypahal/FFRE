@@ -813,12 +813,6 @@ def build_graph():
     graph.add_edge("report_generator", END)
     graph.add_edge("human_review", END)
 
-    try:
-        from langgraph.checkpoint.sqlite import SqliteSaver
-        import sqlite3
-        conn = sqlite3.connect("ffire_checkpoints.db", check_same_thread=False)
-        checkpointer = SqliteSaver(conn)
-    except Exception:
-        checkpointer = MemorySaver()
-
+    from checkpointing import get_durable_checkpointer
+    checkpointer = get_durable_checkpointer()
     return graph.compile(checkpointer=checkpointer)

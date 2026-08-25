@@ -4,6 +4,7 @@ import models
 from worker import worker_queue
 from main import run_investigation_task
 from graph import build_graph
+from checkpointing import DurableSqliteSaver
 
 def test_durable_worker_queue_enqueue_and_processing(db_session):
     """Test enqueuing job into durable worker queue and executing graph task."""
@@ -31,7 +32,44 @@ def test_sqlite_saver_persistent_checkpoint_creation():
     """Test that SqliteSaver checkpointer is active and compiles graph."""
     graph_app = build_graph()
     assert graph_app is not None
-    # Checkpoint configuration thread ID isolation
     config = {"configurable": {"thread_id": "test_thread_checkpoint"}}
     state = graph_app.get_state(config)
     assert state is not None
+
+def test_durable_checkpoint_persistence_across_instances(tmp_path):
+    """Task 16 Test: Durable checkpointer persists state to disk across saver restarts."""
+    db_file = str(tmp_path / "test_checkpoints.db")
+    config = {
+        "configurable": {
+            "thread_id": "inv_persist_99",
+            "checkpoint_ns": "",
+            "checkpoint_id": "1"
+        }
+    }
+
+    checkpoint = {
+        "v": 1,
+        "id": "1",
+        "ts": "2026-08-25T17:00:00Z",
+        "channel_values": {"risk_score": 0.88},
+        "channel_versions": {},
+        "versions_seen": {},
+        "pending_sends": []
+    }
+    metadata = {
+        "source": "loop",
+        "writes": {},
+        "step": 1,
+        "parents": {}
+    }
+
+    # Instance A saves checkpoint to SQLite disk
+    saver_a = DurableSqliteSaver(db_path=db_file)
+    saver_a.put(config, checkpoint, metadata, {})
+
+    # Instance B simulates process restart and reloads checkpoint from SQLite disk
+    saver_b = DurableSqliteSaver(db_path=db_file)
+    tuple_res = saver_b.get_tuple(config)
+
+    assert tuple_res is not None
+    assert tuple_res.checkpoint is not None
