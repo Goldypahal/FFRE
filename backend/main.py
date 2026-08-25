@@ -728,27 +728,69 @@ async def export_investigation_report(
 </html>"""
         return Response(content=html_content, media_type="text/html")
     else:
-        pdf_text = f"""================================================================================
-FINANCIAL FRAUD INVESTIGATION REPORT (FFRE)
-================================================================================
-Generated:        {payload['export_date']}
-Investigation ID: {inv.investigation_id}
-Transaction ID:   {inv.txn_id}
-Status:           {inv.status}
-Calculated Risk:  {inv.risk_score or 'N/A'}
-Confidence Score: {inv.confidence or 'N/A'}
+        try:
+            from reportlab.lib.pagesizes import letter
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib import colors
+            import io
 
---------------------------------------------------------------------------------
-EXECUTIVE REPORT & REASONING FINDINGS
---------------------------------------------------------------------------------
-{inv.report or 'No report available.'}
+            buffer = io.BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
+            styles = getSampleStyleSheet()
 
---------------------------------------------------------------------------------
-AUDIT & ESCALATION HISTORY ({len(audit_trail)} Entries)
---------------------------------------------------------------------------------
-""" + "\n".join([f"[{log['timestamp']}] {log['action']} - {log['details']}" for log in audit_trail])
+            title_style = ParagraphStyle('DocTitle', parent=styles['Heading1'], fontSize=18, leading=22, textColor=colors.HexColor("#0f172a"))
+            heading_style = ParagraphStyle('DocHeading', parent=styles['Heading2'], fontSize=14, leading=18, textColor=colors.HexColor("#1e293b"), spaceBefore=12)
+            body_style = ParagraphStyle('DocBody', parent=styles['Normal'], fontSize=10, leading=14, textColor=colors.HexColor("#334155"))
+
+            elements = []
+            elements.append(Paragraph("Financial Fraud Investigation Report (FFRE)", title_style))
+            elements.append(Spacer(1, 10))
+
+            meta_text = f"<b>Investigation ID:</b> {inv.investigation_id} | <b>Transaction ID:</b> {inv.txn_id}<br/><b>Status:</b> {inv.status} | <b>Risk Score:</b> {inv.risk_score or 'N/A'} | <b>Confidence:</b> {inv.confidence or 'N/A'}<br/><b>Generated Date:</b> {payload['export_date']}"
+            elements.append(Paragraph(meta_text, body_style))
+            elements.append(Spacer(1, 15))
+
+            import html as html_lib
+            elements.append(Paragraph("Executive Summary & Findings", heading_style))
+            report_text = html_lib.escape(inv.report or "No report available.").replace('\n', '<br/>')
+            elements.append(Paragraph(report_text, body_style))
+            elements.append(Spacer(1, 15))
+
+            elements.append(Paragraph(f"Audit Trail ({len(audit_trail)} Entries)", heading_style))
+
+            table_data = [["Timestamp", "Action", "Details"]]
+            for log in audit_trail[:30]:
+                ts_str = html_lib.escape(str(log.get('timestamp') or ''))
+                act_str = html_lib.escape(str(log.get('action') or ''))
+                det_str = html_lib.escape(str(log.get('details') or ''))
+                table_data.append([
+                    Paragraph(ts_str, body_style),
+                    Paragraph(act_str, body_style),
+                    Paragraph(det_str, body_style)
+                ])
+
+            t = Table(table_data, colWidths=[130, 150, 260])
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#f1f5f9')),
+                ('TEXTCOLOR', (0,0), (-1,0), colors.HexColor('#0f172a')),
+                ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+                ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cbd5e1')),
+                ('TOPPADDING', (0,0), (-1,-1), 6),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+            ]))
+            elements.append(t)
+
+            doc.build(elements)
+            buffer.seek(0)
+            pdf_bytes = buffer.getvalue()
+        except Exception:
+            pdf_text = f"FINANCIAL FRAUD INVESTIGATION REPORT (FFRE)\nGenerated: {payload['export_date']}\nID: {inv.investigation_id}\n\nSummary:\n{inv.report or 'N/A'}"
+            pdf_bytes = pdf_text.encode('utf-8')
+
         return Response(
-            content=pdf_text,
+            content=pdf_bytes,
             media_type="application/pdf",
             headers={"Content-Disposition": f"attachment; filename=report_{investigation_id}.pdf"}
         )

@@ -49,3 +49,17 @@ def test_get_investigation_after_creation(client):
     assert data["transaction_id"] == "T-67890"
     # Status might be RUNNING or COMPLETED depending on async processing
     assert data["status"] in ["RUNNING", "COMPLETED"]
+
+def test_export_investigation_pdf_format(client):
+    """Test exporting investigation report in genuine binary PDF format"""
+    create_response = client.post(
+        "/api/v1/investigations",
+        json={"transaction_id": "T-PDF-TEST", "user_id": "user_pdf"}
+    )
+    assert create_response.status_code == 202
+    inv_id = create_response.json()["investigation_id"]
+
+    export_response = client.post(f"/api/v1/investigations/{inv_id}/export?format=pdf")
+    assert export_response.status_code == 200
+    assert export_response.headers["content-type"] == "application/pdf"
+    assert export_response.content.startswith(b"%PDF")
