@@ -216,6 +216,18 @@ class MetricsCollector:
             self._failed_investigations += 1
             self._total_investigations += 1
 
+    def get_summary(self) -> dict:
+        """Get aggregated summary of all metrics."""
+        dur_stats = self.get_investigation_duration_stats()
+        return {
+            "investigation_count": dur_stats["count"],
+            "duration_stats": dur_stats,
+            "risk_score_stats": self.get_risk_score_stats(),
+            "confidence_score_stats": self.get_confidence_score_stats(),
+            "node_execution_stats": self.get_node_execution_time_stats(),
+            "outcomes": self.get_investment_outcome_counts()
+        }
+
 
 # Global instance
 metrics_collector = MetricsCollector()

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, status, Query, Response
+from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, status, Query, Response, Header
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from typing import List, Optional
@@ -415,48 +415,19 @@ async def create_investigation(
     request: InvestigationRequest,
     background_tasks: BackgroundTasks,
     response: Response,
+    idempotency_key_header: Optional[str] = Header(None, alias="Idempotency-Key"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.check_permissions("investigator"))
 ):
     """
     FO-1: Accept an investigation request for a transaction or customer identifier.
-
-    This endpoint initiates a financial fraud investigation for the specified transaction.
-    The investigation process follows the FFIRE (Financial Fraud Investigation Reasoning Engine)
-    workflow which includes:
-
-    1. Planning: Decompose investigation into required evidence-gathering tasks
-    2. Evidence Retrieval: Parallel collection of customer, transaction, merchant, device, and location evidence
-    3. Rule-based Analysis: Apply deterministic fraud detection rules
-    4. Knowledge Lookup: Search historical fraud cases for similar patterns
-    5. Risk Reasoning: LLM-powered analysis combining rule results, historical patterns, and evidence
-    6. Validation: Check for hallucinations and unsupported claims in the reasoning
-    7. Report Generation: Create structured investigation report
-    8. Human Review: Escalate to human analyst if confidence is low or validation fails after retries
-
-    The investigation runs asynchronously in the background. Use the returned investigation_id
-    to poll for results using the GET /api/v1/investigations/{investigation_id} endpoint.
-
-    Args:
-        request: InvestigationRequest containing transaction_id and user_id
-        background_tasks: FastAPI background task runner
-        db: Database session dependency
-        current_user: Authenticated user with investigator role
-
-    Returns:
-        InvestigationResponse: Initial investigation status with investigation_id
-
-    Raises:
-        HTTPException:
-            - 400 if email already registered (during user creation)
-            - 401 if authentication fails
-            - 403 if user lacks investigator role
-            - 404 if transaction not found (though mock data will be created)
-            - 500 for internal server errors
     """
-    # Task 15: Request Idempotency Key Handling
-    raw_key = request.transaction_id + "_" + request.user_id
-    idemp_key = f"idemp_{hashlib.md5(raw_key.encode()).hexdigest()}"
+    # Task 15: Explicit Header or Payload-derived Idempotency Key Handling
+    if idempotency_key_header:
+        idemp_key = f"idemp_{idempotency_key_header.strip()}"
+    else:
+        raw_key = request.transaction_id + "_" + request.user_id
+        idemp_key = f"idemp_{hashlib.md5(raw_key.encode()).hexdigest()}"
 
     existing_inv = db.query(models.Investigation).filter(
         models.Investigation.idempotency_key == idemp_key,

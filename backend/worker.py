@@ -8,14 +8,15 @@ from database import SessionLocal
 from main import run_investigation_task
 
 VALID_STATES: Set[str] = {
-    "QUEUED", "RUNNING", "RETRYING", "WAITING_HUMAN", "COMPLETED", "FAILED", "CANCELLED"
+    "QUEUED", "RUNNING", "RETRYING", "WAITING_HUMAN", "ESCALATED", "COMPLETED", "FAILED", "CANCELLED"
 }
 
 VALID_TRANSITIONS: Dict[str, Set[str]] = {
     "QUEUED": {"RUNNING", "CANCELLED", "FAILED", "QUEUED"},
-    "RUNNING": {"QUEUED", "RETRYING", "WAITING_HUMAN", "COMPLETED", "FAILED", "CANCELLED"},
+    "RUNNING": {"QUEUED", "RETRYING", "WAITING_HUMAN", "ESCALATED", "COMPLETED", "FAILED", "CANCELLED"},
     "RETRYING": {"RUNNING", "CANCELLED", "FAILED"},
     "WAITING_HUMAN": {"RUNNING", "COMPLETED", "FAILED", "CANCELLED"},
+    "ESCALATED": {"RUNNING", "RETRYING", "COMPLETED", "FAILED", "CANCELLED"},
     "COMPLETED": set(),
     "FAILED": {"RETRYING"},
     "CANCELLED": set()
@@ -135,10 +136,6 @@ class DurableWorkerQueue:
             should_close = True
 
         try:
-            self.transition_job_state(inv_id, "RUNNING", db=db)
-            run_investigation_task(inv_id, txn_id, db=db)
-
-            # Inspect if investigation failed internally
             inv = db.query(models.Investigation).filter(
                 models.Investigation.investigation_id == inv_id
             ).first()
@@ -151,13 +148,22 @@ class DurableWorkerQueue:
                         action="DEAD_LETTER_QUEUE",
                         details=f"Job exceeded max retries ({MAX_JOB_RETRIES}). Sent to dead-letter queue."
                     )
-                    db.add(audit)
+                    dlq = models.DeadLetterJob(
+                        investigation_id=inv_id,
+                        transaction_id=txn_id,
+                        failure_reason=inv.report or "Max retries exceeded",
+                        retry_count=retry_count
+                    )
+                    db.add_all([audit, dlq])
                     db.commit()
                 else:
                     job["retry_count"] = retry_count
                     inv.status = "RETRYING"
                     db.commit()
                     self._queue.put(job)
+            else:
+                self.transition_job_state(inv_id, "RUNNING", db=db)
+                run_investigation_task(inv_id, txn_id, db=db)
         except Exception as e:
             print(f"Worker execution failed for {inv_id}: {e}")
             retry_count += 1
@@ -168,7 +174,13 @@ class DurableWorkerQueue:
                     action="DEAD_LETTER_QUEUE",
                     details=f"Job exceeded max retries ({MAX_JOB_RETRIES}). Sent to dead-letter queue."
                 )
-                db.add(audit)
+                dlq = models.DeadLetterJob(
+                    investigation_id=inv_id,
+                    transaction_id=txn_id,
+                    failure_reason=str(e),
+                    retry_count=retry_count
+                )
+                db.add_all([audit, dlq])
                 db.commit()
             else:
                 job["retry_count"] = retry_count

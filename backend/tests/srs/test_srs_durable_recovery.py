@@ -38,7 +38,7 @@ def test_sqlite_saver_persistent_checkpoint_creation():
     assert state is not None
 
 def test_durable_checkpoint_persistence_across_instances(tmp_path):
-    """Task 16 Test: Durable checkpointer persists state to disk across saver restarts."""
+    """Task 16 Test: Verify DurableSqliteSaver persists and restores checkpoints across process restarts."""
     db_file = str(tmp_path / "test_checkpoints.db")
     config = {
         "configurable": {
@@ -71,7 +71,7 @@ def test_durable_checkpoint_persistence_across_instances(tmp_path):
     # Instance B simulates process restart and reloads checkpoint from SQLite disk
     saver_b = DurableSqliteSaver(db_path=db_file)
     tuple_res = saver_b.get_tuple(config)
-
+    print("RESTORED TUPLE:", tuple_res)
     assert tuple_res is not None
     assert tuple_res.checkpoint is not None
 

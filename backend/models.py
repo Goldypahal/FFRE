@@ -1,98 +1,83 @@
-from sqlalchemy import Column, String, Numeric, ForeignKey, Boolean, Text, DateTime
-from sqlalchemy.orm import relationship
-from sqlalchemy.ext.hybrid import hybrid_property
 import uuid
 import datetime
+from sqlalchemy import Column, String, Float, DateTime, ForeignKey, Text, Numeric, Integer
+from sqlalchemy.orm import relationship
 from database import Base
-from security import encrypt_data, decrypt_data
 
 def generate_uuid():
     return str(uuid.uuid4())
 
 class User(Base):
-    __tablename__ = "user"
+    __tablename__ = "users"
 
     user_id = Column(String, primary_key=True, default=generate_uuid)
-    _name = Column("name", String(150), nullable=False)
-    role = Column(String(50), nullable=False)
-    _email = Column("email", String(150), nullable=False, unique=True)
-    hashed_password = Column(String(200), nullable=False, server_default="")
-
-    @hybrid_property
-    def name(self):
-        return decrypt_data(self._name) if self._name else None
-
-    @name.setter
-    def name(self, value):
-        self._name = encrypt_data(value) if value else None
-
-    @hybrid_property
-    def email(self):
-        return decrypt_data(self._email) if self._email else None
-
-    @email.setter
-    def email(self, value):
-        self._email = encrypt_data(value) if value else None
+    name = Column(String(100), nullable=False)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=True)
+    role = Column(String(50), nullable=False, default="investigator")
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
 class Customer(Base):
     __tablename__ = "customer"
 
     customer_id = Column(String, primary_key=True, default=generate_uuid)
-    _name = Column("name", String(150), nullable=False)
-    kyc_status = Column(String(20), nullable=False)
-    risk_tier = Column(String(10), default="LOW")
+    name = Column(String(100), nullable=False)
+    kyc_status = Column(String(50), default="UNVERIFIED")
+    risk_tier = Column(String(20), default="LOW")
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
-    @hybrid_property
-    def name(self):
-        return decrypt_data(self._name) if self._name else None
-
-    @name.setter
-    def name(self, value):
-        self._name = encrypt_data(value) if value else None
+    accounts = relationship("Account", back_populates="customer")
+    devices = relationship("Device", back_populates="customer")
 
 class Account(Base):
     __tablename__ = "account"
 
     account_id = Column(String, primary_key=True, default=generate_uuid)
     customer_id = Column(String, ForeignKey("customer.customer_id"))
-    account_type = Column(String(50))
+    account_type = Column(String(50), default="CHECKING")
+    balance = Column(Numeric(12, 2), default=0.0)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    customer = relationship("Customer", back_populates="accounts")
+    transactions = relationship("Transaction", back_populates="account")
+
+class Merchant(Base):
+    __tablename__ = "merchant"
+
+    merchant_id = Column(String, primary_key=True, default=generate_uuid)
+    name = Column(String(100), nullable=False)
+    category = Column(String(50), default="RETAIL")
+    risk_score = Column(Numeric(4, 3), default=0.0)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    transactions = relationship("Transaction", back_populates="merchant")
 
 class Transaction(Base):
     __tablename__ = "transaction"
 
     txn_id = Column(String, primary_key=True, default=generate_uuid)
     account_id = Column(String, ForeignKey("account.account_id"))
-    merchant_id = Column(String, ForeignKey("merchant.merchant_id"), nullable=True)
-    amount = Column(Numeric(14, 2), nullable=False)
-    currency = Column(String(3), nullable=False)
-    status = Column(String(20), nullable=False)
+    merchant_id = Column(String, ForeignKey("merchant.merchant_id"))
+    amount = Column(Numeric(12, 2), nullable=False)
+    currency = Column(String(10), default="USD")
+    status = Column(String(50), default="PENDING")
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
 
+    account = relationship("Account", back_populates="transactions")
+    merchant = relationship("Merchant", back_populates="transactions")
     investigations = relationship("Investigation", back_populates="transaction")
-
-class Merchant(Base):
-    __tablename__ = "merchant"
-
-    merchant_id = Column(String, primary_key=True, default=generate_uuid)
-    name = Column(String(150), nullable=False)
-    category = Column(String(100))
-    risk_score = Column(Numeric(4, 3))
+    locations = relationship("Location", back_populates="transaction")
 
 class Device(Base):
     __tablename__ = "device"
 
     device_id = Column(String, primary_key=True, default=generate_uuid)
     customer_id = Column(String, ForeignKey("customer.customer_id"))
-    _fingerprint = Column("fingerprint", String(150))
+    fingerprint = Column(String(255))
     os = Column(String(50))
+    ip_address = Column(String(45))
 
-    @hybrid_property
-    def fingerprint(self):
-        return decrypt_data(self._fingerprint) if self._fingerprint else None
-
-    @fingerprint.setter
-    def fingerprint(self, value):
-        self._fingerprint = encrypt_data(value) if value else None
+    customer = relationship("Customer", back_populates="devices")
 
 class Location(Base):
     __tablename__ = "location"
@@ -101,6 +86,8 @@ class Location(Base):
     txn_id = Column(String, ForeignKey("transaction.txn_id"))
     geo_coord = Column(String(100))
     country = Column(String(50))
+
+    transaction = relationship("Transaction", back_populates="locations")
 
 class Investigation(Base):
     __tablename__ = "investigation"
@@ -155,3 +142,13 @@ class AuditLog(Base):
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
 
     investigation = relationship("Investigation", back_populates="audit_logs")
+
+class DeadLetterJob(Base):
+    __tablename__ = "dead_letter_job"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    investigation_id = Column(String, ForeignKey("investigation.investigation_id", ondelete="CASCADE"), nullable=False, index=True)
+    transaction_id = Column(String, nullable=False)
+    failure_reason = Column(Text, nullable=True)
+    retry_count = Column(Integer, default=3, nullable=False)
+    failed_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
