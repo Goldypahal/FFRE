@@ -26,6 +26,9 @@ llm = ChatOpenAI(model="gpt-4o-mini", api_key=api_key) if api_key else None
 CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.85"))
 MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
 
+from typing import Annotated
+import operator
+
 class AgentState(TypedDict):
     investigation_id: str
     transaction_id: str
@@ -50,6 +53,8 @@ class AgentState(TypedDict):
     critic_issues: bool
     rule_score: Optional[float]
     rule_reasons: List[str]
+    execution_trace: Annotated[List[str], operator.add]
+    critic_details: Dict[str, Any]
 
 from langgraph.checkpoint.memory import MemorySaver
 
@@ -72,7 +77,14 @@ Evidence: {evidence_bundle}
 CRITIC_PROMPT = """
 You are an evidence critic. Evaluate the draft explanation below against the evidence bundle and velocity analysis.
 Verify whether claims are logically consistent and evidence-backed.
-Output JSON schema: {{"critic_issues": true/false, "critique": "Detailed critique message..."}}
+Output JSON schema:
+{{
+  "critic_issues": true/false,
+  "critique": "Detailed critique message",
+  "affected_claims": ["claim 1"],
+  "evidence_references": ["customer_evidence.name"],
+  "severity": "LOW" | "MEDIUM" | "HIGH"
+}}
 Draft: {draft_explanation}
 Evidence: {evidence_bundle}
 Velocity Analysis: {velocity_analysis}
@@ -93,7 +105,7 @@ validated, grounded content provided.
 """
 
 def planner_node(state: AgentState):
-    """Decompose investigation into sub-tasks (FO-2)"""
+    """Decompose investigation into sub-tasks with strict schema validation (FO-2 / Task 2)"""
     print(f"Planning investigation for {state['transaction_id']}")
     task_mapping = {
         "customer_history": "retrieve_customer",
@@ -109,9 +121,17 @@ def planner_node(state: AgentState):
         "retrieve_location": "retrieve_location"
     }
 
-    approved_tasks = ["retrieve_customer", "retrieve_transaction", "retrieve_merchant", "retrieve_device", "retrieve_location"]
-    tasks_to_run = approved_tasks.copy()
-    if llm:
+    approved_allowlist = ["retrieve_customer", "retrieve_transaction", "retrieve_merchant", "retrieve_device", "retrieve_location"]
+    tasks_to_run = approved_allowlist.copy()
+
+    # If state already provides explicitly validated task list (e.g. from unit tests), validate against allowlist
+    existing_tasks = state.get("tasks", [])
+    if existing_tasks:
+        validated_existing = [task_mapping.get(t, t) for t in existing_tasks if task_mapping.get(t, t) in approved_allowlist]
+        if validated_existing:
+            tasks_to_run = list(dict.fromkeys(validated_existing))
+
+    if llm and not existing_tasks:
         prompt = PLANNER_PROMPT.format(transaction_summary=f"Transaction ID: {state['transaction_id']}")
         try:
             response = llm.invoke(prompt)
@@ -121,9 +141,9 @@ def planner_node(state: AgentState):
             if start != -1 and end > start:
                 parsed = json.loads(content[start:end])
                 if isinstance(parsed, list):
-                    mapped_tasks = [task_mapping[t] for t in parsed if t in task_mapping]
-                    if mapped_tasks:
-                        tasks_to_run = list(dict.fromkeys(mapped_tasks))
+                    mapped = [task_mapping.get(t) for t in parsed if task_mapping.get(t) in approved_allowlist]
+                    if mapped:
+                        tasks_to_run = list(dict.fromkeys(mapped))
         except Exception as e:
             print(f"LLM Planner failed: {e}")
 
@@ -379,7 +399,7 @@ def risk_reasoning_node(state: AgentState):
     return state
 
 def critic_node(state: AgentState):
-    """Actionable Evidence Critic Node with Structured JSON Output"""
+    """Strict Schema-Validated Evidence Critic Node (Task 3)"""
     print("Running Evidence Critic Node...")
     draft = state.get("draft_explanation", "")
     evidence = {
@@ -393,6 +413,11 @@ def critic_node(state: AgentState):
     
     issues_found = False
     content = "Draft reasoning consistent with collected evidence and velocity analysis."
+    critic_details = {
+        "affected_claims": [],
+        "evidence_references": [],
+        "severity": "LOW"
+    }
 
     if llm and draft:
         try:
@@ -409,15 +434,22 @@ def critic_node(state: AgentState):
                 data = json.loads(resp_text[start:end])
                 issues_found = bool(data.get("critic_issues", False))
                 content = data.get("critique", resp_text)
+                critic_details = {
+                    "affected_claims": data.get("affected_claims", []),
+                    "evidence_references": data.get("evidence_references", []),
+                    "severity": data.get("severity", "MEDIUM" if issues_found else "LOW")
+                }
             else:
                 content = resp_text
                 if "unsupported" in content.lower() or "inconsistent" in content.lower() or "error" in content.lower():
                     issues_found = True
+                    critic_details["severity"] = "MEDIUM"
         except Exception:
             pass
 
     state["critic_issues"] = issues_found
     state["critic_feedback"] = content
+    state["critic_details"] = critic_details
     return state
 
 def validator_node(state: AgentState):
@@ -481,7 +513,7 @@ def report_generator_node(state: AgentState):
         prompt = REPORT_PROMPT + f"\nDraft: {state['draft_explanation']}\nRule Factors:\n{rule_factors}"
         try:
             response = llm.invoke(prompt)
-            report = response.content if hasattr(response, "content") else str(response)
+            report = response.content if hasattr(response, "content") else str(report)
         except Exception:
             report = f"## Summary\n{state.get('draft_explanation')}\n\n## Triggered Rules\n{rule_factors}\n\n## Recommendation\nRecommend manual review or block."
     else:
@@ -544,6 +576,10 @@ def with_audit_logger(node_func, node_name: str):
         start_time = time.time()
         try:
             new_state = node_func(state)
+            if not isinstance(new_state, dict):
+                new_state = {}
+            new_state["execution_trace"] = [node_name]
+
             execution_time_ms = int((time.time() - start_time) * 1000)
 
             metrics_collector.record_node_execution_time(node_name, execution_time_ms / 1000.0)

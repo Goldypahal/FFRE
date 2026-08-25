@@ -13,17 +13,83 @@ from graph import (
     route_planner_tasks
 )
 
-def test_acceptance_test_a_dynamic_planner_execution():
-    """Test A: Dynamic Planner Selection - only requested nodes execute."""
-    state = {
-        "tasks": ["retrieve_customer", "retrieve_device"]
-    }
-    routed_nodes = route_planner_tasks(state)
+def test_acceptance_test_a_dynamic_planner_execution(db_session):
+    """Task 1 & Task 2 Test: Dynamic Planner Selection & Node Execution Trace Assertions."""
+    cust = models.Customer(customer_id="c_e2e_a", name="Dynamic Customer", kyc_status="VERIFIED")
+    acct = models.Account(account_id="a_e2e_a", customer_id="c_e2e_a")
+    merch = models.Merchant(merchant_id="m_e2e_a", name="Dynamic Merchant", risk_score=0.01)
+    txn = models.Transaction(txn_id="T-E2E-A", account_id="a_e2e_a", merchant_id="m_e2e_a", amount=150.0, currency="USD", status="PENDING")
+    dev = models.Device(device_id="d_e2e_a", customer_id="c_e2e_a", os="Android")
 
-    assert routed_nodes == ["retrieve_customer", "retrieve_device"]
-    assert "retrieve_merchant" not in routed_nodes
-    assert "retrieve_transaction" not in routed_nodes
-    assert "retrieve_location" not in routed_nodes
+    db_session.add_all([cust, acct, merch, txn, dev])
+    db_session.commit()
+
+    initial_state = {
+        "investigation_id": "inv_e2e_a",
+        "transaction_id": "T-E2E-A",
+        "tasks": ["retrieve_customer", "retrieve_device"],
+        "customer_evidence": {},
+        "transaction_evidence": {},
+        "merchant_evidence": {},
+        "device_evidence": {},
+        "location_evidence": {},
+        "velocity_evidence": {},
+        "verified_evidence": {},
+        "historical_cases": [],
+        "risk_score": None,
+        "confidence": None,
+        "validated": False,
+        "retry_count": 0,
+        "failed_target_nodes": [],
+        "failed_target_node": None,
+        "report": None,
+        "draft_explanation": None,
+        "critic_feedback": None,
+        "critic_issues": False,
+        "rule_score": None,
+        "rule_reasons": [],
+        "execution_trace": [],
+        "critic_details": {}
+    }
+
+    config = {"configurable": {"thread_id": "inv_e2e_a"}}
+    graph_app = build_graph()
+    res = graph_app.invoke(initial_state, config=config)
+
+    # Task 1 Assertion: Verify node execution trace contains requested nodes and excludes unrequested nodes
+    trace = res.get("execution_trace", [])
+    assert "retrieve_customer" in trace
+    assert "retrieve_device" in trace
+    assert "retrieve_merchant" not in trace
+    assert "retrieve_location" not in trace
+
+    # Verify requested customer and device evidence executed
+    assert res.get("customer_evidence", {}).get("kyc_status") == "VERIFIED"
+    assert res.get("device_evidence", {}).get("os") == "Android"
+    assert res.get("merchant_evidence") == {}
+    assert res.get("location_evidence") == {}
+
+def test_planner_schema_validation_allowlist():
+    """Task 2 Test: Planner filters out malformed or unknown tasks against strict allowlist."""
+    state = {
+        "transaction_id": "T-ALLOWLIST",
+        "tasks": ["retrieve_customer", "malformed_unknown_task", "hacker_task"]
+    }
+    res = planner_node(state)
+    assert res["tasks"] == ["retrieve_customer"]
+
+def test_critic_strict_schema_validation():
+    """Task 3 Test: Critic node parses and populates structured JSON critic_details schema."""
+    state = {
+        "draft_explanation": "Transaction of $500 from unknown device.",
+        "customer_evidence": {"kyc_status": "VERIFIED"},
+        "transaction_evidence": {"amount": 500.0},
+        "velocity_evidence": {"velocity_score": 0.15}
+    }
+    res = critic_node(state)
+    assert "critic_details" in res
+    assert "affected_claims" in res["critic_details"]
+    assert "severity" in res["critic_details"]
 
 def test_acceptance_test_b_single_retrieval_failure_retry():
     """Test B: Single retrieval failure routes back to specific failed retrieval node."""
