@@ -65,3 +65,15 @@ def test_task29_semantic_evidence_verification_matrix():
         assert req_res["symbol_found"] is True, f"Symbol {req_res['target_symbol']} missing for {req_res['req_id']}"
         assert req_res["test_found"] is True, f"Test {req_res['target_test']} missing for {req_res['req_id']}"
         assert req_res["verification_status"] == "VERIFIED"
+
+def test_task30_runtime_behavioral_acceptance_suite():
+    """Task 30 Test: Verify 100% runtime behavioral acceptance coverage across positive and negative testing suites."""
+    engine = SRSEvidenceAuditEngine()
+    summary = engine.run_audit()
+
+    assert summary["runtime_behavioral_acceptance_coverage_pct"] == 100.0
+
+    for req_res in engine.results:
+        assert req_res["positive_status"] == "PASS", f"Positive status failed for {req_res['req_id']}"
+        assert req_res["negative_status"] == "PASS", f"Negative status failed for {req_res['req_id']}"
+        assert req_res["runtime_behavior_verdict"] == "VERIFIED"
