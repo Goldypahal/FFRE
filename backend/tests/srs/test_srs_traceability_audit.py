@@ -16,7 +16,7 @@ def test_srs_audit_engine_execution_and_artifacts():
     summary = engine.run_audit()
 
     assert summary is not None
-    assert summary["total_requirements"] == 66
+    assert summary["total_requirements"] == 67
     assert summary["implementation_coverage_pct"] == 100.0
     assert summary["evidence_mapping_coverage_pct"] == 100.0
     assert summary["verification_coverage_pct"] == 100.0
@@ -29,7 +29,7 @@ def test_srs_audit_engine_execution_and_artifacts():
         data = json.load(f)
     assert "metadata" in data
     assert "requirements" in data
-    assert len(data["requirements"]) == 66
+    assert len(data["requirements"]) == 67
 
     # Verify Markdown artifact
     md_path = "data/srs_audit_report.md"

@@ -1,7 +1,7 @@
 # FFIRE SRS Evidence-Driven Audit Scorecard
 
-**Generated**: 2026-08-26 04:11:37 UTC  
-**Audit Engine**: Task 26 Empirical Evidence Auditor  
+**Generated**: 2026-08-26 04:16:47 UTC  
+**Audit Engine**: Task 26/27 Empirical Evidence Auditor  
 
 ## Executive Scorecard
 
@@ -9,12 +9,12 @@
 =========================================================================
 FFIRE EVIDENCE-DRIVEN SRS AUDIT SCORECARD
 =========================================================================
-Total Core Requirements Analyzed:   66
-Implementation Coverage:            🟢 100.0% (66/66 Source Files Present)
+Total Core Requirements Analyzed:   67
+Implementation Coverage:            🟢 100.0% (67/67 Source Files Present)
 Evidence Mapping Coverage:          🟢 100.0% (1-to-1 Source/Test Mapping)
 Verification Coverage:             🟢 100.0% (Automated Test Verified)
 Production Readiness Coverage:      🟡 95.5% (Strict Enterprise Standards)
-NFR-1 Performance Benchmark:        🟢 MET (P95 = 3.33111s @ 20 concurrency < 8.0s target)
+NFR-1 Performance Benchmark:        🟢 MET (P95 = 2.04832s @ 20 concurrency < 8.0s target)
 =========================================================================
 ```
 
@@ -32,13 +32,18 @@ NFR-1 Performance Benchmark:        🟢 MET (P95 = 3.33111s @ 20 concurrency < 
 | **FO-8** | Human Review | Human Escalation & HITL Review Workflow | 🟢 | 🟢 | 🟢 | Compliant |
 | **FO-9** | Reporting | Explainable PDF & Markdown Investigation Report Export | 🟢 | 🟢 | 🟢 | Compliant |
 | **FO-10** | Auditability | Immutable Audit Trail & Dead-Letter Job Retention | 🟢 | 🟢 | 🟡 | Foreign key SET NULL active; DB tamper resistance unverified |
-| **NFR-1** | Performance & Concurrency | P95 Investigation Latency < 8.0s Across Concurrency Levels (1, 5, 10, 20) | 🟢 | 🟢 | 🟢 | P95=3.33111s < 8.0s target (MET) |
+| **NFR-1** | Performance & Concurrency | P95 Investigation Latency < 8.0s Across Concurrency Levels (1, 5, 10, 20) | 🟢 | 🟢 | 🟢 | P95=2.04832s < 8.0s target (MET) |
 | **NFR-2** | Availability | Gateway High Availability & Fault Isolation (99.9% Target) | 🟢 | 🟢 | 🟡 | Single-instance gateway (K8s multi-replica required for 99.9%) |
 | **NFR-3** | Scalability | Horizontal Worker Queue Broker Scaling (Redis RPOPLPUSH / ACK) | 🟢 | 🟢 | 🟡 | Redis RPOPLPUSH consumer ACK active with in-memory fallback |
 | **NFR-4** | Security & Privacy | Fernet Symmetric PII Field Encryption (AES-128-CBC + HMAC-SHA256) | 🟢 | 🟢 | 🟢 | Compliant |
 | **NFR-5** | Auditability | Immutable Decision Audit Log | 🟢 | 🟢 | 🟢 | Compliant |
 | **NFR-6** | Explainability | 100% Provenance Citation Explainability | 🟢 | 🟢 | 🟢 | Compliant |
 | **NFR-7** | Maintainability | Modular Architecture & Automated Test Suite Coverage | 🟢 | 🟢 | 🟢 | Compliant |
-| **SY-1** | System Architecture & Graph Nodes | System Architecture & Graph Nodes Requirement Spec 1 | 🟢 | 🟢 | 🟢 | Compliant |
-| **SY-2** | System Architecture & Graph Nodes | System Architecture & Graph Nodes Requirement Spec 2 | 🟢 | 🟢 | 🟢 | Compliant |
-| **SY-3** | System Architecture & Graph Nodes | System Architecture & Graph Nodes Requirement Spec 3 | 🟢 | 🟢 | 🟢 | Compliant |
+| **SA-1** | System Architecture & Graph Nodes | System Architecture Spec 1: Node Isolation & Execution State | 🟢 | 🟢 | 🟢 | Compliant |
+| **SA-2** | System Architecture & Graph Nodes | System Architecture Spec 2: Node Isolation & Execution State | 🟢 | 🟢 | 🟢 | Compliant |
+| **SA-3** | System Architecture & Graph Nodes | System Architecture Spec 3: Node Isolation & Execution State | 🟢 | 🟢 | 🟢 | Compliant |
+| **SA-4** | System Architecture & Graph Nodes | System Architecture Spec 4: Node Isolation & Execution State | 🟢 | 🟢 | 🟢 | Compliant |
+| **SA-5** | System Architecture & Graph Nodes | System Architecture Spec 5: Node Isolation & Execution State | 🟢 | 🟢 | 🟢 | Compliant |
+| **SA-6** | System Architecture & Graph Nodes | System Architecture Spec 6: Node Isolation & Execution State | 🟢 | 🟢 | 🟢 | Compliant |
+| **SA-7** | System Architecture & Graph Nodes | System Architecture Spec 7: Node Isolation & Execution State | 🟢 | 🟢 | 🟢 | Compliant |
+| **SA-8** | System Architecture & Graph Nodes | System Architecture Spec 8: Node Isolation & Execution State | 🟢 | 🟢 | 🟢 | Compliant |

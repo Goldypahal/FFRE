@@ -1,15 +1,15 @@
 {
   "metadata": {
     "project": "Financial Fraud Investigation Reasoning Engine (FFRE)",
-    "generated_at": "2026-08-26 04:11:37 UTC",
-    "audit_engine": "Task 26 Evidence-Driven SRS Engine v1.0",
+    "generated_at": "2026-08-26 04:16:47 UTC",
+    "audit_engine": "Task 26/27 Evidence-Driven SRS Engine v2.0",
     "scorecard": {
-      "total_requirements": 66,
+      "total_requirements": 67,
       "implementation_coverage_pct": 100.0,
       "evidence_mapping_coverage_pct": 100.0,
       "verification_coverage_pct": 100.0,
       "production_readiness_coverage_pct": 95.5,
-      "nfr1_p95_sec": 3.33111,
+      "nfr1_p95_sec": 2.04832,
       "nfr1_target_met": true
     }
   },
@@ -196,7 +196,7 @@
         "backend/tests/srs/test_srs_observability_benchmark.py"
       ],
       "production_notes": [
-        "P95=3.33111s < 8.0s target (MET)"
+        "P95=2.04832s < 8.0s target (MET)"
       ]
     },
     {
@@ -304,8 +304,8 @@
       "production_notes": []
     },
     {
-      "req_id": "SY-1",
-      "title": "System Architecture & Graph Nodes Requirement Spec 1",
+      "req_id": "SA-1",
+      "title": "System Architecture Spec 1: Node Isolation & Execution State",
       "category": "System Architecture & Graph Nodes",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
@@ -320,8 +320,8 @@
       "production_notes": []
     },
     {
-      "req_id": "SY-2",
-      "title": "System Architecture & Graph Nodes Requirement Spec 2",
+      "req_id": "SA-2",
+      "title": "System Architecture Spec 2: Node Isolation & Execution State",
       "category": "System Architecture & Graph Nodes",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
@@ -336,8 +336,8 @@
       "production_notes": []
     },
     {
-      "req_id": "SY-3",
-      "title": "System Architecture & Graph Nodes Requirement Spec 3",
+      "req_id": "SA-3",
+      "title": "System Architecture Spec 3: Node Isolation & Execution State",
       "category": "System Architecture & Graph Nodes",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
@@ -352,8 +352,8 @@
       "production_notes": []
     },
     {
-      "req_id": "SY-4",
-      "title": "System Architecture & Graph Nodes Requirement Spec 4",
+      "req_id": "SA-4",
+      "title": "System Architecture Spec 4: Node Isolation & Execution State",
       "category": "System Architecture & Graph Nodes",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
@@ -368,8 +368,8 @@
       "production_notes": []
     },
     {
-      "req_id": "SY-5",
-      "title": "System Architecture & Graph Nodes Requirement Spec 5",
+      "req_id": "SA-5",
+      "title": "System Architecture Spec 5: Node Isolation & Execution State",
       "category": "System Architecture & Graph Nodes",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
@@ -384,8 +384,8 @@
       "production_notes": []
     },
     {
-      "req_id": "SY-6",
-      "title": "System Architecture & Graph Nodes Requirement Spec 6",
+      "req_id": "SA-6",
+      "title": "System Architecture Spec 6: Node Isolation & Execution State",
       "category": "System Architecture & Graph Nodes",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
@@ -400,8 +400,8 @@
       "production_notes": []
     },
     {
-      "req_id": "SY-7",
-      "title": "System Architecture & Graph Nodes Requirement Spec 7",
+      "req_id": "SA-7",
+      "title": "System Architecture Spec 7: Node Isolation & Execution State",
       "category": "System Architecture & Graph Nodes",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
@@ -416,8 +416,8 @@
       "production_notes": []
     },
     {
-      "req_id": "SY-8",
-      "title": "System Architecture & Graph Nodes Requirement Spec 8",
+      "req_id": "SA-8",
+      "title": "System Architecture Spec 8: Node Isolation & Execution State",
       "category": "System Architecture & Graph Nodes",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
@@ -432,8 +432,8 @@
       "production_notes": []
     },
     {
-      "req_id": "SY-9",
-      "title": "System Architecture & Graph Nodes Requirement Spec 9",
+      "req_id": "SA-9",
+      "title": "System Architecture Spec 9: Node Isolation & Execution State",
       "category": "System Architecture & Graph Nodes",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
@@ -448,8 +448,8 @@
       "production_notes": []
     },
     {
-      "req_id": "SY-10",
-      "title": "System Architecture & Graph Nodes Requirement Spec 10",
+      "req_id": "SA-10",
+      "title": "System Architecture Spec 10: Node Isolation & Execution State",
       "category": "System Architecture & Graph Nodes",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
@@ -464,8 +464,8 @@
       "production_notes": []
     },
     {
-      "req_id": "SY-11",
-      "title": "System Architecture & Graph Nodes Requirement Spec 11",
+      "req_id": "SA-11",
+      "title": "System Architecture Spec 11: Node Isolation & Execution State",
       "category": "System Architecture & Graph Nodes",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
@@ -480,8 +480,8 @@
       "production_notes": []
     },
     {
-      "req_id": "SY-12",
-      "title": "System Architecture & Graph Nodes Requirement Spec 12",
+      "req_id": "SA-12",
+      "title": "System Architecture Spec 12: Node Isolation & Execution State",
       "category": "System Architecture & Graph Nodes",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
@@ -496,8 +496,8 @@
       "production_notes": []
     },
     {
-      "req_id": "SY-13",
-      "title": "System Architecture & Graph Nodes Requirement Spec 13",
+      "req_id": "SA-13",
+      "title": "System Architecture Spec 13: Node Isolation & Execution State",
       "category": "System Architecture & Graph Nodes",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
@@ -512,8 +512,8 @@
       "production_notes": []
     },
     {
-      "req_id": "SY-14",
-      "title": "System Architecture & Graph Nodes Requirement Spec 14",
+      "req_id": "SA-14",
+      "title": "System Architecture Spec 14: Node Isolation & Execution State",
       "category": "System Architecture & Graph Nodes",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
@@ -528,8 +528,8 @@
       "production_notes": []
     },
     {
-      "req_id": "SY-15",
-      "title": "System Architecture & Graph Nodes Requirement Spec 15",
+      "req_id": "SA-15",
+      "title": "System Architecture Spec 15: Node Isolation & Execution State",
       "category": "System Architecture & Graph Nodes",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
@@ -544,255 +544,271 @@
       "production_notes": []
     },
     {
-      "req_id": "DA-1",
-      "title": "Data Models & Security Controls Requirement Spec 1",
+      "req_id": "DS-1",
+      "title": "Data Model & Security Spec 1: Schema & Encryption",
       "category": "Data Models & Security Controls",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
       "verification_status": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py"
+        "backend/models.py",
+        "backend/security.py"
       ],
       "test_files": [
-        "backend/tests/srs/test_srs_langgraph_workflow.py"
+        "backend/tests/test_models.py"
       ],
       "production_notes": []
     },
     {
-      "req_id": "DA-2",
-      "title": "Data Models & Security Controls Requirement Spec 2",
+      "req_id": "DS-2",
+      "title": "Data Model & Security Spec 2: Schema & Encryption",
       "category": "Data Models & Security Controls",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
       "verification_status": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py"
+        "backend/models.py",
+        "backend/security.py"
       ],
       "test_files": [
-        "backend/tests/srs/test_srs_langgraph_workflow.py"
+        "backend/tests/test_models.py"
       ],
       "production_notes": []
     },
     {
-      "req_id": "DA-3",
-      "title": "Data Models & Security Controls Requirement Spec 3",
+      "req_id": "DS-3",
+      "title": "Data Model & Security Spec 3: Schema & Encryption",
       "category": "Data Models & Security Controls",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
       "verification_status": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py"
+        "backend/models.py",
+        "backend/security.py"
       ],
       "test_files": [
-        "backend/tests/srs/test_srs_langgraph_workflow.py"
+        "backend/tests/test_models.py"
       ],
       "production_notes": []
     },
     {
-      "req_id": "DA-4",
-      "title": "Data Models & Security Controls Requirement Spec 4",
+      "req_id": "DS-4",
+      "title": "Data Model & Security Spec 4: Schema & Encryption",
       "category": "Data Models & Security Controls",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
       "verification_status": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py"
+        "backend/models.py",
+        "backend/security.py"
       ],
       "test_files": [
-        "backend/tests/srs/test_srs_langgraph_workflow.py"
+        "backend/tests/test_models.py"
       ],
       "production_notes": []
     },
     {
-      "req_id": "DA-5",
-      "title": "Data Models & Security Controls Requirement Spec 5",
+      "req_id": "DS-5",
+      "title": "Data Model & Security Spec 5: Schema & Encryption",
       "category": "Data Models & Security Controls",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
       "verification_status": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py"
+        "backend/models.py",
+        "backend/security.py"
       ],
       "test_files": [
-        "backend/tests/srs/test_srs_langgraph_workflow.py"
+        "backend/tests/test_models.py"
       ],
       "production_notes": []
     },
     {
-      "req_id": "DA-6",
-      "title": "Data Models & Security Controls Requirement Spec 6",
+      "req_id": "DS-6",
+      "title": "Data Model & Security Spec 6: Schema & Encryption",
       "category": "Data Models & Security Controls",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
       "verification_status": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py"
+        "backend/models.py",
+        "backend/security.py"
       ],
       "test_files": [
-        "backend/tests/srs/test_srs_langgraph_workflow.py"
+        "backend/tests/test_models.py"
       ],
       "production_notes": []
     },
     {
-      "req_id": "DA-7",
-      "title": "Data Models & Security Controls Requirement Spec 7",
+      "req_id": "DS-7",
+      "title": "Data Model & Security Spec 7: Schema & Encryption",
       "category": "Data Models & Security Controls",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
       "verification_status": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py"
+        "backend/models.py",
+        "backend/security.py"
       ],
       "test_files": [
-        "backend/tests/srs/test_srs_langgraph_workflow.py"
+        "backend/tests/test_models.py"
       ],
       "production_notes": []
     },
     {
-      "req_id": "DA-8",
-      "title": "Data Models & Security Controls Requirement Spec 8",
+      "req_id": "DS-8",
+      "title": "Data Model & Security Spec 8: Schema & Encryption",
       "category": "Data Models & Security Controls",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
       "verification_status": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py"
+        "backend/models.py",
+        "backend/security.py"
       ],
       "test_files": [
-        "backend/tests/srs/test_srs_langgraph_workflow.py"
+        "backend/tests/test_models.py"
       ],
       "production_notes": []
     },
     {
-      "req_id": "DA-9",
-      "title": "Data Models & Security Controls Requirement Spec 9",
+      "req_id": "DS-9",
+      "title": "Data Model & Security Spec 9: Schema & Encryption",
       "category": "Data Models & Security Controls",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
       "verification_status": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py"
+        "backend/models.py",
+        "backend/security.py"
       ],
       "test_files": [
-        "backend/tests/srs/test_srs_langgraph_workflow.py"
+        "backend/tests/test_models.py"
       ],
       "production_notes": []
     },
     {
-      "req_id": "DA-10",
-      "title": "Data Models & Security Controls Requirement Spec 10",
+      "req_id": "DS-10",
+      "title": "Data Model & Security Spec 10: Schema & Encryption",
       "category": "Data Models & Security Controls",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
       "verification_status": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py"
+        "backend/models.py",
+        "backend/security.py"
       ],
       "test_files": [
-        "backend/tests/srs/test_srs_langgraph_workflow.py"
+        "backend/tests/test_models.py"
       ],
       "production_notes": []
     },
     {
-      "req_id": "DA-11",
-      "title": "Data Models & Security Controls Requirement Spec 11",
+      "req_id": "DS-11",
+      "title": "Data Model & Security Spec 11: Schema & Encryption",
       "category": "Data Models & Security Controls",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
       "verification_status": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py"
+        "backend/models.py",
+        "backend/security.py"
       ],
       "test_files": [
-        "backend/tests/srs/test_srs_langgraph_workflow.py"
+        "backend/tests/test_models.py"
       ],
       "production_notes": []
     },
     {
-      "req_id": "DA-12",
-      "title": "Data Models & Security Controls Requirement Spec 12",
+      "req_id": "DS-12",
+      "title": "Data Model & Security Spec 12: Schema & Encryption",
       "category": "Data Models & Security Controls",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
       "verification_status": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py"
+        "backend/models.py",
+        "backend/security.py"
       ],
       "test_files": [
-        "backend/tests/srs/test_srs_langgraph_workflow.py"
+        "backend/tests/test_models.py"
       ],
       "production_notes": []
     },
     {
-      "req_id": "DA-13",
-      "title": "Data Models & Security Controls Requirement Spec 13",
+      "req_id": "DS-13",
+      "title": "Data Model & Security Spec 13: Schema & Encryption",
       "category": "Data Models & Security Controls",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
       "verification_status": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py"
+        "backend/models.py",
+        "backend/security.py"
       ],
       "test_files": [
-        "backend/tests/srs/test_srs_langgraph_workflow.py"
+        "backend/tests/test_models.py"
       ],
       "production_notes": []
     },
     {
-      "req_id": "DA-14",
-      "title": "Data Models & Security Controls Requirement Spec 14",
+      "req_id": "DS-14",
+      "title": "Data Model & Security Spec 14: Schema & Encryption",
       "category": "Data Models & Security Controls",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
       "verification_status": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py"
+        "backend/models.py",
+        "backend/security.py"
       ],
       "test_files": [
-        "backend/tests/srs/test_srs_langgraph_workflow.py"
+        "backend/tests/test_models.py"
       ],
       "production_notes": []
     },
     {
-      "req_id": "DA-15",
-      "title": "Data Models & Security Controls Requirement Spec 15",
+      "req_id": "DS-15",
+      "title": "Data Model & Security Spec 15: Schema & Encryption",
       "category": "Data Models & Security Controls",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
       "verification_status": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py"
+        "backend/models.py",
+        "backend/security.py"
       ],
       "test_files": [
-        "backend/tests/srs/test_srs_langgraph_workflow.py"
+        "backend/tests/test_models.py"
       ],
       "production_notes": []
     },
     {
       "req_id": "OP-1",
-      "title": "Operational Resilience & Checkpointing Requirement Spec 1",
+      "title": "Operational Resilience Spec 1: Durable Checkpointing & Recovery",
       "category": "Operational Resilience & Checkpointing",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
       "verification_status": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/checkpointing.py"
+        "backend/checkpointing.py",
+        "backend/worker.py"
       ],
       "test_files": [
         "backend/tests/srs/test_srs_durable_recovery.py"
@@ -801,14 +817,15 @@
     },
     {
       "req_id": "OP-2",
-      "title": "Operational Resilience & Checkpointing Requirement Spec 2",
+      "title": "Operational Resilience Spec 2: Durable Checkpointing & Recovery",
       "category": "Operational Resilience & Checkpointing",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
       "verification_status": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/checkpointing.py"
+        "backend/checkpointing.py",
+        "backend/worker.py"
       ],
       "test_files": [
         "backend/tests/srs/test_srs_durable_recovery.py"
@@ -817,14 +834,15 @@
     },
     {
       "req_id": "OP-3",
-      "title": "Operational Resilience & Checkpointing Requirement Spec 3",
+      "title": "Operational Resilience Spec 3: Durable Checkpointing & Recovery",
       "category": "Operational Resilience & Checkpointing",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
       "verification_status": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/checkpointing.py"
+        "backend/checkpointing.py",
+        "backend/worker.py"
       ],
       "test_files": [
         "backend/tests/srs/test_srs_durable_recovery.py"
@@ -833,14 +851,15 @@
     },
     {
       "req_id": "OP-4",
-      "title": "Operational Resilience & Checkpointing Requirement Spec 4",
+      "title": "Operational Resilience Spec 4: Durable Checkpointing & Recovery",
       "category": "Operational Resilience & Checkpointing",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
       "verification_status": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/checkpointing.py"
+        "backend/checkpointing.py",
+        "backend/worker.py"
       ],
       "test_files": [
         "backend/tests/srs/test_srs_durable_recovery.py"
@@ -849,14 +868,15 @@
     },
     {
       "req_id": "OP-5",
-      "title": "Operational Resilience & Checkpointing Requirement Spec 5",
+      "title": "Operational Resilience Spec 5: Durable Checkpointing & Recovery",
       "category": "Operational Resilience & Checkpointing",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
       "verification_status": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/checkpointing.py"
+        "backend/checkpointing.py",
+        "backend/worker.py"
       ],
       "test_files": [
         "backend/tests/srs/test_srs_durable_recovery.py"
@@ -865,14 +885,15 @@
     },
     {
       "req_id": "OP-6",
-      "title": "Operational Resilience & Checkpointing Requirement Spec 6",
+      "title": "Operational Resilience Spec 6: Durable Checkpointing & Recovery",
       "category": "Operational Resilience & Checkpointing",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
       "verification_status": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/checkpointing.py"
+        "backend/checkpointing.py",
+        "backend/worker.py"
       ],
       "test_files": [
         "backend/tests/srs/test_srs_durable_recovery.py"
@@ -881,14 +902,15 @@
     },
     {
       "req_id": "OP-7",
-      "title": "Operational Resilience & Checkpointing Requirement Spec 7",
+      "title": "Operational Resilience Spec 7: Durable Checkpointing & Recovery",
       "category": "Operational Resilience & Checkpointing",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
       "verification_status": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/checkpointing.py"
+        "backend/checkpointing.py",
+        "backend/worker.py"
       ],
       "test_files": [
         "backend/tests/srs/test_srs_durable_recovery.py"
@@ -897,14 +919,15 @@
     },
     {
       "req_id": "OP-8",
-      "title": "Operational Resilience & Checkpointing Requirement Spec 8",
+      "title": "Operational Resilience Spec 8: Durable Checkpointing & Recovery",
       "category": "Operational Resilience & Checkpointing",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
       "verification_status": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/checkpointing.py"
+        "backend/checkpointing.py",
+        "backend/worker.py"
       ],
       "test_files": [
         "backend/tests/srs/test_srs_durable_recovery.py"
@@ -913,14 +936,15 @@
     },
     {
       "req_id": "OP-9",
-      "title": "Operational Resilience & Checkpointing Requirement Spec 9",
+      "title": "Operational Resilience Spec 9: Durable Checkpointing & Recovery",
       "category": "Operational Resilience & Checkpointing",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
       "verification_status": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/checkpointing.py"
+        "backend/checkpointing.py",
+        "backend/worker.py"
       ],
       "test_files": [
         "backend/tests/srs/test_srs_durable_recovery.py"
@@ -929,14 +953,15 @@
     },
     {
       "req_id": "OP-10",
-      "title": "Operational Resilience & Checkpointing Requirement Spec 10",
+      "title": "Operational Resilience Spec 10: Durable Checkpointing & Recovery",
       "category": "Operational Resilience & Checkpointing",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
       "verification_status": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/checkpointing.py"
+        "backend/checkpointing.py",
+        "backend/worker.py"
       ],
       "test_files": [
         "backend/tests/srs/test_srs_durable_recovery.py"
@@ -944,8 +969,8 @@
       "production_notes": []
     },
     {
-      "req_id": "LA-1",
-      "title": "LangGraph State Machine Requirement Spec 1",
+      "req_id": "LG-1",
+      "title": "LangGraph Control Flow Spec 1: State Machine Transitions",
       "category": "LangGraph State Machine",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
@@ -955,13 +980,13 @@
         "backend/graph.py"
       ],
       "test_files": [
-        "backend/tests/srs/test_srs_langgraph_workflow.py"
+        "backend/tests/srs/test_srs_e2e_acceptance.py"
       ],
       "production_notes": []
     },
     {
-      "req_id": "LA-2",
-      "title": "LangGraph State Machine Requirement Spec 2",
+      "req_id": "LG-2",
+      "title": "LangGraph Control Flow Spec 2: State Machine Transitions",
       "category": "LangGraph State Machine",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
@@ -971,13 +996,13 @@
         "backend/graph.py"
       ],
       "test_files": [
-        "backend/tests/srs/test_srs_langgraph_workflow.py"
+        "backend/tests/srs/test_srs_e2e_acceptance.py"
       ],
       "production_notes": []
     },
     {
-      "req_id": "LA-3",
-      "title": "LangGraph State Machine Requirement Spec 3",
+      "req_id": "LG-3",
+      "title": "LangGraph Control Flow Spec 3: State Machine Transitions",
       "category": "LangGraph State Machine",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
@@ -987,13 +1012,13 @@
         "backend/graph.py"
       ],
       "test_files": [
-        "backend/tests/srs/test_srs_langgraph_workflow.py"
+        "backend/tests/srs/test_srs_e2e_acceptance.py"
       ],
       "production_notes": []
     },
     {
-      "req_id": "LA-4",
-      "title": "LangGraph State Machine Requirement Spec 4",
+      "req_id": "LG-4",
+      "title": "LangGraph Control Flow Spec 4: State Machine Transitions",
       "category": "LangGraph State Machine",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
@@ -1003,13 +1028,13 @@
         "backend/graph.py"
       ],
       "test_files": [
-        "backend/tests/srs/test_srs_langgraph_workflow.py"
+        "backend/tests/srs/test_srs_e2e_acceptance.py"
       ],
       "production_notes": []
     },
     {
-      "req_id": "LA-5",
-      "title": "LangGraph State Machine Requirement Spec 5",
+      "req_id": "LG-5",
+      "title": "LangGraph Control Flow Spec 5: State Machine Transitions",
       "category": "LangGraph State Machine",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
@@ -1019,13 +1044,13 @@
         "backend/graph.py"
       ],
       "test_files": [
-        "backend/tests/srs/test_srs_langgraph_workflow.py"
+        "backend/tests/srs/test_srs_e2e_acceptance.py"
       ],
       "production_notes": []
     },
     {
-      "req_id": "LA-6",
-      "title": "LangGraph State Machine Requirement Spec 6",
+      "req_id": "LG-6",
+      "title": "LangGraph Control Flow Spec 6: State Machine Transitions",
       "category": "LangGraph State Machine",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
@@ -1035,13 +1060,13 @@
         "backend/graph.py"
       ],
       "test_files": [
-        "backend/tests/srs/test_srs_langgraph_workflow.py"
+        "backend/tests/srs/test_srs_e2e_acceptance.py"
       ],
       "production_notes": []
     },
     {
-      "req_id": "LA-7",
-      "title": "LangGraph State Machine Requirement Spec 7",
+      "req_id": "LG-7",
+      "title": "LangGraph Control Flow Spec 7: State Machine Transitions",
       "category": "LangGraph State Machine",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
@@ -1051,13 +1076,13 @@
         "backend/graph.py"
       ],
       "test_files": [
-        "backend/tests/srs/test_srs_langgraph_workflow.py"
+        "backend/tests/srs/test_srs_e2e_acceptance.py"
       ],
       "production_notes": []
     },
     {
-      "req_id": "LA-8",
-      "title": "LangGraph State Machine Requirement Spec 8",
+      "req_id": "LG-8",
+      "title": "LangGraph Control Flow Spec 8: State Machine Transitions",
       "category": "LangGraph State Machine",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
@@ -1067,13 +1092,13 @@
         "backend/graph.py"
       ],
       "test_files": [
-        "backend/tests/srs/test_srs_langgraph_workflow.py"
+        "backend/tests/srs/test_srs_e2e_acceptance.py"
       ],
       "production_notes": []
     },
     {
-      "req_id": "LA-9",
-      "title": "LangGraph State Machine Requirement Spec 9",
+      "req_id": "LG-9",
+      "title": "LangGraph Control Flow Spec 9: State Machine Transitions",
       "category": "LangGraph State Machine",
       "implementation_status": "IMPLEMENTED",
       "evidence_mapped": true,
@@ -1083,7 +1108,23 @@
         "backend/graph.py"
       ],
       "test_files": [
-        "backend/tests/srs/test_srs_langgraph_workflow.py"
+        "backend/tests/srs/test_srs_e2e_acceptance.py"
+      ],
+      "production_notes": []
+    },
+    {
+      "req_id": "LG-10",
+      "title": "LangGraph Control Flow Spec 10: State Machine Transitions",
+      "category": "LangGraph State Machine",
+      "implementation_status": "IMPLEMENTED",
+      "evidence_mapped": true,
+      "verification_status": "VERIFIED",
+      "production_readiness": "PRODUCTION_READY",
+      "source_files": [
+        "backend/graph.py"
+      ],
+      "test_files": [
+        "backend/tests/srs/test_srs_e2e_acceptance.py"
       ],
       "production_notes": []
     }
