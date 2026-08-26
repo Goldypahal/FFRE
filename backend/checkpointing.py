@@ -112,6 +112,26 @@ class DurablePostgresSaver(MemorySaver):
         except Exception as e:
             print(f"Warning: Unable to connect to PostgreSQL checkpointer database: {e}")
 
+    def get_tuple(self, config: Dict[str, Any]) -> Optional[Any]:
+        """Task 24: Fetch checkpoint tuple directly from PostgreSQL DB to ensure multi-pod state synchronization."""
+        thread_id = config.get("configurable", {}).get("thread_id", "default")
+        if psycopg2 is not None:
+            try:
+                with psycopg2.connect(self.db_url) as conn:
+                    with conn.cursor() as cursor:
+                        cursor.execute("SELECT checkpoint_data FROM checkpoints WHERE thread_id = %s;", (thread_id,))
+                        row = cursor.fetchone()
+                        if row and row[0]:
+                            data_blob = row[0]
+                            if isinstance(data_blob, str):
+                                data_blob = base64.b64decode(data_blob)
+                            elif isinstance(data_blob, memoryview):
+                                data_blob = bytes(data_blob)
+                            self.storage[thread_id] = pickle.loads(data_blob)
+            except Exception as e:
+                print(f"Warning: Direct PostgreSQL get_tuple read failed ({e}). Falling back to local cache.")
+        return super().get_tuple(config)
+
     def put(self, config: Dict[str, Any], checkpoint: Dict[str, Any], metadata: Dict[str, Any], new_versions: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Save checkpoint to MemorySaver in-memory storage and persist full thread storage to PostgreSQL."""
         if new_versions is None:

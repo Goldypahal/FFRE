@@ -115,7 +115,7 @@ class DurableWorkerQueue:
         self.transition_job_state(investigation_id, "QUEUED", db=db)
 
     def recover_stale_or_abandoned_jobs(self, db=None, max_age_seconds: int = 300) -> int:
-        """Task 17 & 19: Recover crashed/abandoned worker jobs stuck in RUNNING state."""
+        """Task 17, 19 & 23: Recover crashed/abandoned worker jobs stuck in RUNNING state or Redis pending queue."""
         should_close = False
         if not db:
             db = SessionLocal()
@@ -123,6 +123,25 @@ class DurableWorkerQueue:
 
         recovered_count = 0
         try:
+            # Recover Redis processing queue un-ACKed jobs
+            if self._redis_client:
+                try:
+                    pending_jobs = self._redis_client.lrange("ffre:worker:processing", 0, -1)
+                    now = time.time()
+                    for raw_job in pending_jobs:
+                        try:
+                            job_data = json.loads(raw_job)
+                            enqueued_at = job_data.get("enqueued_at", now)
+                            if now - enqueued_at > max_age_seconds:
+                                self._redis_client.lrem("ffre:worker:processing", 1, raw_job)
+                                self._redis_client.rpush("ffre:worker:queue", raw_job)
+                                recovered_count += 1
+                                print(f"Recovered un-ACKed Redis job {job_data.get('investigation_id')}")
+                        except Exception:
+                            pass
+                except Exception as e:
+                    print(f"Redis pending recovery warning: {e}")
+
             cutoff = datetime.datetime.utcnow() - datetime.timedelta(seconds=max_age_seconds)
             stale_jobs = db.query(models.Investigation).filter(
                 models.Investigation.status == "RUNNING",
@@ -149,16 +168,28 @@ class DurableWorkerQueue:
             if should_close:
                 db.close()
 
+    def ack_job(self, job: Dict[str, Any]):
+        """Task 23: Acknowledge job completion and remove from Redis processing queue."""
+        if self._redis_client and "_raw_str" in job:
+            try:
+                self._redis_client.lrem("ffre:worker:processing", 1, job["_raw_str"])
+            except Exception as e:
+                print(f"Redis ACK lrem failed: {e}")
+
     def process_next_job(self, db=None) -> bool:
-        """Process a single job from the worker queue (Redis or In-Memory)."""
+        """Process a single job from the worker queue with atomic RPOPLPUSH & ACK (Redis or In-Memory)."""
         job = None
+        raw_job_str = None
         if self._redis_client:
             try:
-                raw_job = self._redis_client.lpop("ffre:worker:queue")
+                # Atomic queue pop -> processing list shift for crash safety
+                raw_job = self._redis_client.rpoplpush("ffre:worker:queue", "ffre:worker:processing")
                 if raw_job:
-                    job = json.loads(raw_job)
+                    raw_job_str = raw_job.decode('utf-8') if isinstance(raw_job, bytes) else str(raw_job)
+                    job = json.loads(raw_job_str)
+                    job["_raw_str"] = raw_job_str
             except Exception as e:
-                print(f"Redis lpop failed ({e}). Checking in-memory fallback queue.")
+                print(f"Redis rpoplpush failed ({e}). Checking in-memory fallback queue.")
 
         if not job:
             try:
@@ -196,6 +227,7 @@ class DurableWorkerQueue:
                     )
                     db.add_all([audit, dlq])
                     db.commit()
+                    self.ack_job(job)
                 else:
                     job["retry_count"] = retry_count
                     inv.status = "RETRYING"
@@ -204,6 +236,7 @@ class DurableWorkerQueue:
             else:
                 self.transition_job_state(inv_id, "RUNNING", db=db)
                 run_investigation_task(inv_id, txn_id, db=db)
+                self.ack_job(job)
         except Exception as e:
             print(f"Worker execution failed for {inv_id}: {e}")
             retry_count += 1
@@ -222,6 +255,7 @@ class DurableWorkerQueue:
                 )
                 db.add_all([audit, dlq])
                 db.commit()
+                self.ack_job(job)
             else:
                 job["retry_count"] = retry_count
                 self.transition_job_state(inv_id, "RETRYING", db=db)

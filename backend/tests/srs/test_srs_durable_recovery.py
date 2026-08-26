@@ -135,7 +135,7 @@ def test_worker_dead_letter_queue_after_max_retries(db_session, monkeypatch):
     assert "DEAD_LETTER_QUEUE" in actions
 
 def test_task23_redis_worker_queue_broker_support():
-    """Task 23 Test: Verify DurableWorkerQueue backend resolution and Redis broker fallback mechanism."""
+    """Task 23 Test: Verify DurableWorkerQueue backend resolution, ACK, and Redis broker fallback mechanism."""
     from worker import DurableWorkerQueue
     queue_default = DurableWorkerQueue()
     assert queue_default.get_broker_backend() in ["redis", "in_memory"]
@@ -144,8 +144,12 @@ def test_task23_redis_worker_queue_broker_support():
     queue_invalid = DurableWorkerQueue(redis_url="redis://non_existent_host:6379/0")
     assert queue_invalid.get_broker_backend() == "in_memory"
 
+    # Test ACK helper does not crash when _raw_str is missing or present
+    sample_job = {"investigation_id": "test_inv", "transaction_id": "test_txn"}
+    queue_invalid.ack_job(sample_job)
+
 def test_task24_postgresql_checkpointer_factory(monkeypatch):
-    """Task 24 Test: Verify get_durable_checkpointer selects DurablePostgresSaver when PostgreSQL URL is configured."""
+    """Task 24 Test: Verify get_durable_checkpointer selects DurablePostgresSaver and provides get_tuple DB sync when PostgreSQL URL is configured."""
     from checkpointing import get_durable_checkpointer, DurablePostgresSaver, DurableSqliteSaver
 
     # SQLite default fallback
@@ -157,3 +161,8 @@ def test_task24_postgresql_checkpointer_factory(monkeypatch):
     saver_pg = get_durable_checkpointer()
     assert isinstance(saver_pg, DurablePostgresSaver)
     assert saver_pg.db_url == "postgresql://user:pass@localhost:5432/ffre_db"
+
+    # Test get_tuple fallback path when DB is unreachable
+    config = {"configurable": {"thread_id": "thread_pg_test"}}
+    res = saver_pg.get_tuple(config)
+    assert res is None
