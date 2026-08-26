@@ -1,7 +1,7 @@
 {
   "metadata": {
     "project": "Financial Fraud Investigation Reasoning Engine (FFRE)",
-    "generated_at": "2026-08-26 05:22:33 UTC",
+    "generated_at": "2026-08-26 05:28:09 UTC",
     "audit_engine": "Task 39 Final Evidence Package Engine v13.0",
     "reconciliation": {
       "status": "PASSED",
@@ -30,7 +30,7 @@
       "final_evidence_package_coverage_pct": 100.0,
       "verification_coverage_pct": 100.0,
       "production_readiness_coverage_pct": 100.0,
-      "nfr1_p95_sec": 2.58112,
+      "nfr1_p95_sec": 2.27936,
       "nfr1_target_met": true,
       "srs_reconciliation": {
         "status": "PASSED",
@@ -326,7 +326,7 @@
       "behavior_spec": "Real graph execution benchmark achieves P95 < 8.0s across 1, 5, 10, 20 worker concurrency.",
       "source_snippet": "from metrics import metrics_collector",
       "production_notes": [
-        "P95=2.58112s < 8.0s target (MET)"
+        "P95=2.27936s < 8.0s target (MET)"
       ]
     },
     {
