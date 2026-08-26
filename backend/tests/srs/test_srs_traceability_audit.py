@@ -51,3 +51,17 @@ def test_srs_audit_engine_execution_and_artifacts():
     assert "# FFIRE SRS Evidence-Driven Audit Scorecard" in md_content
     assert "SRS DOCUMENT (FFIRE_SRS.txt) RECONCILIATION SUMMARY" in md_content
     assert "Reconciliation Status:             🟢 PASSED (100% Exact Match)" in md_content
+
+def test_task29_semantic_evidence_verification_matrix():
+    """Task 29 Test: Verify 100% semantic requirement evidence verification (target symbol & dedicated test matching)."""
+    engine = SRSEvidenceAuditEngine()
+    summary = engine.run_audit()
+
+    assert summary["semantic_verification_coverage_pct"] == 100.0
+    assert summary["implementation_coverage_pct"] == 100.0
+    assert summary["verification_coverage_pct"] == 100.0
+
+    for req_res in engine.results:
+        assert req_res["symbol_found"] is True, f"Symbol {req_res['target_symbol']} missing for {req_res['req_id']}"
+        assert req_res["test_found"] is True, f"Test {req_res['target_test']} missing for {req_res['req_id']}"
+        assert req_res["verification_status"] == "VERIFIED"
