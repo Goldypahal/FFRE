@@ -1,7 +1,7 @@
 # FFIRE SRS Evidence-Driven Audit Scorecard
 
-**Generated**: 2026-08-26 04:43:41 UTC  
-**Audit Engine**: Task 30 Runtime Behavioral Acceptance Auditor  
+**Generated**: 2026-08-26 04:50:35 UTC  
+**Audit Engine**: Task 31 Failure Injection & Chaos Auditor  
 
 ## Source-of-Truth SRS Document Reconciliation
 
@@ -28,16 +28,17 @@ FFIRE EVIDENCE-DRIVEN SRS AUDIT SCORECARD
 Total Core Requirements Analyzed:   67
 Implementation Coverage:            🟢 100.0% (67/67 Target Symbols Present)
 Semantic Evidence Verification:     🟢 100.0% (Target Symbol & Test Verified)
-Runtime Behavioral Acceptance:      🟢 100.0% (Positive & Negative Behaviors Verified)
+Runtime Acceptance Evidence:       🟢 100.0% (Positive & Negative Behaviors Verified)
+Chaos Resilience Coverage:          🟢 100.0% (20 Operational Failure Modes Verified)
 Verification Coverage:             🟢 100.0% (Automated Test Verified)
 Production Readiness Coverage:      🟡 95.5% (Strict Enterprise Standards)
-NFR-1 Performance Benchmark:        🟢 MET (P95 = 2.27326s @ 20 concurrency < 8.0s target)
+NFR-1 Performance Benchmark:        🟢 MET (P95 = 1.90313s @ 20 concurrency < 8.0s target)
 =========================================================================
 ```
 
-## 67-Requirement Runtime Behavioral Acceptance Matrix
+## 67-Requirement Failure Injection & Resilience Audit Matrix
 
-| Req ID | Target Symbol | Dedicated Test | Pos Status | Neg Status | Runtime Verdict | Prod Readiness | Behavior & Evidence Snippet |
+| Req ID | Target Symbol | Dedicated Test | Pos Status | Neg Status | Chaos Resilience | Prod Readiness | Behavior & Evidence Snippet |
 |:---:|:---|:---|:---:|:---:|:---:|:---:|:---|
 | **FO-1** | `create_investigation` | `test_create_investigation` | 🟢 | 🟢 | 🟢 | 🟢 | `async def create_investigation(` |
 | **FO-2** | `planner_node` | `test_acceptance_test_f_full_investigation_pipeline_e2e` | 🟢 | 🟢 | 🟢 | 🟢 | `def planner_node(state: AgentState):` |

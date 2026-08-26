@@ -1,8 +1,8 @@
 {
   "metadata": {
     "project": "Financial Fraud Investigation Reasoning Engine (FFRE)",
-    "generated_at": "2026-08-26 04:43:41 UTC",
-    "audit_engine": "Task 30 Runtime Behavioral Acceptance Engine v5.0",
+    "generated_at": "2026-08-26 04:50:35 UTC",
+    "audit_engine": "Task 31 Failure Injection & Chaos Audit Engine v6.0",
     "reconciliation": {
       "status": "PASSED",
       "srs_requirements_found_in_text": 67,
@@ -19,10 +19,11 @@
       "implementation_coverage_pct": 100.0,
       "evidence_mapping_coverage_pct": 100.0,
       "semantic_verification_coverage_pct": 100.0,
-      "runtime_behavioral_acceptance_coverage_pct": 100.0,
+      "runtime_acceptance_evidence_coverage_pct": 100.0,
+      "chaos_resilience_coverage_pct": 100.0,
       "verification_coverage_pct": 100.0,
       "production_readiness_coverage_pct": 95.5,
-      "nfr1_p95_sec": 2.27326,
+      "nfr1_p95_sec": 1.90313,
       "nfr1_target_met": true,
       "srs_reconciliation": {
         "status": "PASSED",
@@ -320,7 +321,7 @@
       "behavior_spec": "Real graph execution benchmark achieves P95 < 8.0s across 1, 5, 10, 20 worker concurrency.",
       "source_snippet": "from metrics import metrics_collector",
       "production_notes": [
-        "P95=2.27326s < 8.0s target (MET)"
+        "P95=1.90313s < 8.0s target (MET)"
       ]
     },
     {
