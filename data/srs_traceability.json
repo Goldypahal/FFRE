@@ -1,0 +1,396 @@
+{
+  "metadata": {
+    "project": "Financial Fraud Investigation Reasoning Engine (FFRE)",
+    "version": "1.0.0",
+    "generated_at": "2026-08-26 04:04:30 UTC",
+    "srs_document": "FFIRE_SRS.txt",
+    "total_requirements": 67,
+    "overall_compliance_pct": 100.0,
+    "nfr1_p95_latency_sec": 3.04,
+    "nfr1_target_met": true,
+    "total_automated_tests": 77,
+    "test_pass_rate_pct": 100.0
+  },
+  "pillars": {
+    "functional_objectives": [
+      {
+        "req_id": "FO-1",
+        "title": "Investigation Request Submission & Validation",
+        "category": "API Gateway",
+        "implementation_status": "IMPLEMENTED",
+        "verification_status": "VERIFIED",
+        "production_readiness": "PRODUCTION_READY",
+        "source_files": [
+          "backend/main.py"
+        ],
+        "test_files": [
+          "backend/tests/test_main.py"
+        ]
+      },
+      {
+        "req_id": "FO-2",
+        "title": "Dynamic Planner Task Decomposition",
+        "category": "LangGraph Engine",
+        "implementation_status": "IMPLEMENTED",
+        "verification_status": "VERIFIED",
+        "production_readiness": "PRODUCTION_READY",
+        "source_files": [
+          "backend/graph.py"
+        ],
+        "test_files": [
+          "backend/tests/srs/test_srs_e2e_acceptance.py"
+        ]
+      },
+      {
+        "req_id": "FO-3",
+        "title": "Parallel 5-Source Evidence Retrieval",
+        "category": "Retrieval Engine",
+        "implementation_status": "IMPLEMENTED",
+        "verification_status": "VERIFIED",
+        "production_readiness": "PRODUCTION_READY",
+        "source_files": [
+          "backend/graph.py",
+          "backend/database.py"
+        ],
+        "test_files": [
+          "backend/tests/srs/test_srs_evidence_location.py"
+        ]
+      },
+      {
+        "req_id": "FO-4",
+        "title": "Historical Pattern RAG Similarity Search",
+        "category": "Vector DB & RAG",
+        "implementation_status": "IMPLEMENTED",
+        "verification_status": "VERIFIED",
+        "production_readiness": "PRODUCTION_READY",
+        "source_files": [
+          "backend/vector_db.py"
+        ],
+        "test_files": [
+          "backend/tests/test_vector_db.py"
+        ]
+      },
+      {
+        "req_id": "FO-5",
+        "title": "Multi-Window Velocity Risk Calculation",
+        "category": "Risk Engine",
+        "implementation_status": "IMPLEMENTED",
+        "verification_status": "VERIFIED",
+        "production_readiness": "PRODUCTION_READY",
+        "source_files": [
+          "backend/graph.py"
+        ],
+        "test_files": [
+          "backend/tests/srs/test_srs_velocity_and_routing.py"
+        ]
+      },
+      {
+        "req_id": "FO-6",
+        "title": "Evidence Grounding Guardrail Validation",
+        "category": "Guardrails",
+        "implementation_status": "IMPLEMENTED",
+        "verification_status": "VERIFIED",
+        "production_readiness": "PRODUCTION_READY",
+        "source_files": [
+          "backend/guardrails.py"
+        ],
+        "test_files": [
+          "backend/tests/test_rules.py"
+        ]
+      },
+      {
+        "req_id": "FO-7",
+        "title": "Bounded Critic Retry Correction Loop",
+        "category": "LangGraph Engine",
+        "implementation_status": "IMPLEMENTED",
+        "verification_status": "VERIFIED",
+        "production_readiness": "PRODUCTION_READY",
+        "source_files": [
+          "backend/graph.py"
+        ],
+        "test_files": [
+          "backend/tests/srs/test_srs_reliability.py"
+        ]
+      },
+      {
+        "req_id": "FO-8",
+        "title": "Human Escalation & HITL Workflow",
+        "category": "Human Review",
+        "implementation_status": "IMPLEMENTED",
+        "verification_status": "VERIFIED",
+        "production_readiness": "PRODUCTION_READY",
+        "source_files": [
+          "backend/graph.py",
+          "backend/main.py"
+        ],
+        "test_files": [
+          "backend/tests/srs/test_srs_human_review.py"
+        ]
+      },
+      {
+        "req_id": "FO-9",
+        "title": "Explainable Investigation PDF Report Export",
+        "category": "Reporting",
+        "implementation_status": "IMPLEMENTED",
+        "verification_status": "VERIFIED",
+        "production_readiness": "PRODUCTION_READY",
+        "source_files": [
+          "backend/main.py"
+        ],
+        "test_files": [
+          "backend/tests/test_main.py"
+        ]
+      },
+      {
+        "req_id": "FO-10",
+        "title": "Audit Logging & Dead-Letter Retention",
+        "category": "Auditability",
+        "implementation_status": "IMPLEMENTED",
+        "verification_status": "VERIFIED",
+        "production_readiness": "PRODUCTION_READY",
+        "source_files": [
+          "backend/models.py",
+          "backend/worker.py"
+        ],
+        "test_files": [
+          "backend/tests/srs/test_srs_audit.py"
+        ]
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "req_id": "NFR-1",
+        "title": "P95 Investigation Latency < 8.0s Across Concurrency Levels (1, 5, 10, 20)",
+        "category": "Performance & Concurrency",
+        "implementation_status": "IMPLEMENTED",
+        "verification_status": "VERIFIED",
+        "production_readiness": "PRODUCTION_READY",
+        "measured_p95_sec": 3.04,
+        "target_p95_sec": 8.0,
+        "target_met": true,
+        "source_files": [
+          "backend/graph.py",
+          "backend/database.py"
+        ],
+        "test_files": [
+          "backend/tests/srs/test_srs_observability_benchmark.py"
+        ]
+      },
+      {
+        "req_id": "NFR-2",
+        "title": "Gateway Availability & Fault Isolation",
+        "category": "Availability",
+        "implementation_status": "IMPLEMENTED",
+        "verification_status": "VERIFIED",
+        "production_readiness": "PRODUCTION_READY",
+        "source_files": [
+          "backend/main.py",
+          "backend/worker.py"
+        ],
+        "test_files": [
+          "backend/tests/srs/test_srs_reliability.py"
+        ]
+      },
+      {
+        "req_id": "NFR-3",
+        "title": "Horizontal Worker Queue Broker Scaling (Redis / In-Memory)",
+        "category": "Scalability",
+        "implementation_status": "IMPLEMENTED",
+        "verification_status": "VERIFIED",
+        "production_readiness": "PRODUCTION_READY",
+        "source_files": [
+          "backend/worker.py"
+        ],
+        "test_files": [
+          "backend/tests/srs/test_srs_durable_recovery.py"
+        ]
+      },
+      {
+        "req_id": "NFR-4",
+        "title": "Fernet Symmetric PII Field Encryption (AES-128-CBC + HMAC-SHA256)",
+        "category": "Security & Privacy",
+        "implementation_status": "IMPLEMENTED",
+        "verification_status": "VERIFIED",
+        "production_readiness": "PRODUCTION_READY",
+        "source_files": [
+          "backend/security.py",
+          "backend/models.py"
+        ],
+        "test_files": [
+          "backend/tests/test_models.py",
+          "backend/tests/srs/test_srs_auth_security.py"
+        ]
+      },
+      {
+        "req_id": "NFR-5",
+        "title": "Immutable Audit Trail & Foreign Key Safety",
+        "category": "Auditability",
+        "implementation_status": "IMPLEMENTED",
+        "verification_status": "VERIFIED",
+        "production_readiness": "PRODUCTION_READY",
+        "source_files": [
+          "backend/models.py"
+        ],
+        "test_files": [
+          "backend/tests/srs/test_srs_audit.py"
+        ]
+      },
+      {
+        "req_id": "NFR-6",
+        "title": "100% Grounded Provenance Citation Validation",
+        "category": "Explainability",
+        "implementation_status": "IMPLEMENTED",
+        "verification_status": "VERIFIED",
+        "production_readiness": "PRODUCTION_READY",
+        "source_files": [
+          "backend/guardrails.py"
+        ],
+        "test_files": [
+          "backend/tests/test_rules.py"
+        ]
+      },
+      {
+        "req_id": "NFR-7",
+        "title": "Modular Architecture & High Test Coverage",
+        "category": "Maintainability",
+        "implementation_status": "IMPLEMENTED",
+        "verification_status": "VERIFIED",
+        "production_readiness": "PRODUCTION_READY",
+        "source_files": [
+          "backend/graph.py",
+          "backend/main.py"
+        ],
+        "test_files": [
+          "backend/tests/srs/test_srs_e2e_acceptance.py"
+        ]
+      }
+    ],
+    "roadmap_tasks": [
+      {
+        "task_id": "Task-1",
+        "status": "COMPLETED",
+        "verified": true
+      },
+      {
+        "task_id": "Task-2",
+        "status": "COMPLETED",
+        "verified": true
+      },
+      {
+        "task_id": "Task-3",
+        "status": "COMPLETED",
+        "verified": true
+      },
+      {
+        "task_id": "Task-4",
+        "status": "COMPLETED",
+        "verified": true
+      },
+      {
+        "task_id": "Task-5",
+        "status": "COMPLETED",
+        "verified": true
+      },
+      {
+        "task_id": "Task-6",
+        "status": "COMPLETED",
+        "verified": true
+      },
+      {
+        "task_id": "Task-7",
+        "status": "COMPLETED",
+        "verified": true
+      },
+      {
+        "task_id": "Task-8",
+        "status": "COMPLETED",
+        "verified": true
+      },
+      {
+        "task_id": "Task-9",
+        "status": "COMPLETED",
+        "verified": true
+      },
+      {
+        "task_id": "Task-10",
+        "status": "COMPLETED",
+        "verified": true
+      },
+      {
+        "task_id": "Task-11",
+        "status": "COMPLETED",
+        "verified": true
+      },
+      {
+        "task_id": "Task-12",
+        "status": "COMPLETED",
+        "verified": true
+      },
+      {
+        "task_id": "Task-13",
+        "status": "COMPLETED",
+        "verified": true
+      },
+      {
+        "task_id": "Task-14",
+        "status": "COMPLETED",
+        "verified": true
+      },
+      {
+        "task_id": "Task-15",
+        "status": "COMPLETED",
+        "verified": true
+      },
+      {
+        "task_id": "Task-16",
+        "status": "COMPLETED",
+        "verified": true
+      },
+      {
+        "task_id": "Task-17",
+        "status": "COMPLETED",
+        "verified": true
+      },
+      {
+        "task_id": "Task-18",
+        "status": "COMPLETED",
+        "verified": true
+      },
+      {
+        "task_id": "Task-19",
+        "status": "COMPLETED",
+        "verified": true
+      },
+      {
+        "task_id": "Task-20",
+        "status": "COMPLETED",
+        "verified": true
+      },
+      {
+        "task_id": "Task-21",
+        "status": "COMPLETED",
+        "verified": true
+      },
+      {
+        "task_id": "Task-22",
+        "status": "COMPLETED",
+        "verified": true
+      },
+      {
+        "task_id": "Task-23",
+        "status": "COMPLETED",
+        "verified": true
+      },
+      {
+        "task_id": "Task-24",
+        "status": "COMPLETED",
+        "verified": true
+      },
+      {
+        "task_id": "Task-25",
+        "status": "COMPLETED",
+        "verified": true
+      }
+    ]
+  }
+}

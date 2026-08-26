@@ -1,3 +1,4 @@
+import os
 import threading
 import time
 import queue
@@ -6,6 +7,12 @@ from typing import Dict, Any, Optional, Set
 import models
 from database import SessionLocal
 from main import run_investigation_task
+
+import json
+try:
+    import redis
+except ImportError:
+    redis = None
 
 VALID_STATES: Set[str] = {
     "QUEUED", "RUNNING", "RETRYING", "WAITING_HUMAN", "ESCALATED", "COMPLETED", "FAILED", "CANCELLED"
@@ -25,11 +32,27 @@ VALID_TRANSITIONS: Dict[str, Set[str]] = {
 MAX_JOB_RETRIES = 3
 
 class DurableWorkerQueue:
-    """Task 17-19: Durable worker queue and state machine manager."""
-    def __init__(self):
+    """Task 17-19 & Task 23: Multi-backend durable worker queue supporting Redis and SQLite/in-memory brokers."""
+    def __init__(self, redis_url: Optional[str] = None):
         self._queue = queue.Queue()
         self._is_running = False
         self._worker_thread = None
+        self.redis_url = redis_url or os.getenv("REDIS_URL")
+        self._redis_client = None
+
+        if self.redis_url and redis is not None:
+            try:
+                client = redis.Redis.from_url(self.redis_url, socket_timeout=2)
+                client.ping()
+                self._redis_client = client
+                print(f"DurableWorkerQueue connected to Redis broker at {self.redis_url}")
+            except Exception as e:
+                print(f"Redis connection unavailable ({e}). Falling back to in-memory queue broker.")
+                self._redis_client = None
+
+    def get_broker_backend(self) -> str:
+        """Return active queue broker backend ('redis' or 'in_memory')."""
+        return "redis" if self._redis_client is not None else "in_memory"
 
     def transition_job_state(self, investigation_id: str, new_status: str, db=None) -> bool:
         """Task 18: Enforce state machine transitions and write audit log."""
@@ -74,14 +97,21 @@ class DurableWorkerQueue:
                 db.close()
 
     def enqueue(self, investigation_id: str, transaction_id: str, db=None):
-        """Enqueue investigation job for worker processing."""
+        """Enqueue investigation job for worker processing (Redis or In-Memory)."""
         job = {
             "investigation_id": investigation_id,
             "transaction_id": transaction_id,
             "enqueued_at": time.time(),
             "retry_count": 0
         }
-        self._queue.put(job)
+        if self._redis_client:
+            try:
+                self._redis_client.rpush("ffre:worker:queue", json.dumps(job))
+            except Exception as e:
+                print(f"Redis rpush failed ({e}). Falling back to in-memory queue.")
+                self._queue.put(job)
+        else:
+            self._queue.put(job)
         self.transition_job_state(investigation_id, "QUEUED", db=db)
 
     def recover_stale_or_abandoned_jobs(self, db=None, max_age_seconds: int = 300) -> int:
@@ -120,11 +150,21 @@ class DurableWorkerQueue:
                 db.close()
 
     def process_next_job(self, db=None) -> bool:
-        """Process a single job from the worker queue."""
-        try:
-            job = self._queue.get(block=False)
-        except queue.Empty:
-            return False
+        """Process a single job from the worker queue (Redis or In-Memory)."""
+        job = None
+        if self._redis_client:
+            try:
+                raw_job = self._redis_client.lpop("ffre:worker:queue")
+                if raw_job:
+                    job = json.loads(raw_job)
+            except Exception as e:
+                print(f"Redis lpop failed ({e}). Checking in-memory fallback queue.")
+
+        if not job:
+            try:
+                job = self._queue.get(block=False)
+            except queue.Empty:
+                return False
 
         inv_id = job["investigation_id"]
         txn_id = job["transaction_id"]
@@ -160,7 +200,7 @@ class DurableWorkerQueue:
                     job["retry_count"] = retry_count
                     inv.status = "RETRYING"
                     db.commit()
-                    self._queue.put(job)
+                    self._requeue_job(job)
             else:
                 self.transition_job_state(inv_id, "RUNNING", db=db)
                 run_investigation_task(inv_id, txn_id, db=db)
@@ -185,12 +225,25 @@ class DurableWorkerQueue:
             else:
                 job["retry_count"] = retry_count
                 self.transition_job_state(inv_id, "RETRYING", db=db)
-                self._queue.put(job)
+                self._requeue_job(job)
         finally:
             if should_close:
                 db.close()
-            self._queue.task_done()
+            try:
+                self._queue.task_done()
+            except ValueError:
+                pass
         return True
+
+    def _requeue_job(self, job: Dict[str, Any]):
+        """Helper to requeue job into Redis or In-Memory queue."""
+        if self._redis_client:
+            try:
+                self._redis_client.rpush("ffre:worker:queue", json.dumps(job))
+            except Exception:
+                self._queue.put(job)
+        else:
+            self._queue.put(job)
 
     def cancel(self, investigation_id: str):
         """Task 14: Cancel enqueued job for an investigation."""

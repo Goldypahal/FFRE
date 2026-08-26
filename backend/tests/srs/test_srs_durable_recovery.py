@@ -133,3 +133,27 @@ def test_worker_dead_letter_queue_after_max_retries(db_session, monkeypatch):
     logs = db_session.query(models.AuditLog).filter(models.AuditLog.investigation_id == "inv_dlq_1").all()
     actions = [l.action for l in logs]
     assert "DEAD_LETTER_QUEUE" in actions
+
+def test_task23_redis_worker_queue_broker_support():
+    """Task 23 Test: Verify DurableWorkerQueue backend resolution and Redis broker fallback mechanism."""
+    from worker import DurableWorkerQueue
+    queue_default = DurableWorkerQueue()
+    assert queue_default.get_broker_backend() in ["redis", "in_memory"]
+
+    # When given an invalid/unreachable Redis URL, verify graceful fallback to in_memory backend
+    queue_invalid = DurableWorkerQueue(redis_url="redis://non_existent_host:6379/0")
+    assert queue_invalid.get_broker_backend() == "in_memory"
+
+def test_task24_postgresql_checkpointer_factory(monkeypatch):
+    """Task 24 Test: Verify get_durable_checkpointer selects DurablePostgresSaver when PostgreSQL URL is configured."""
+    from checkpointing import get_durable_checkpointer, DurablePostgresSaver, DurableSqliteSaver
+
+    # SQLite default fallback
+    saver_sqlite = get_durable_checkpointer(db_path="test_checkpoints.db")
+    assert isinstance(saver_sqlite, DurableSqliteSaver)
+
+    # PostgreSQL resolution
+    monkeypatch.setenv("CHECKPOINT_DB_URL", "postgresql://user:pass@localhost:5432/ffre_db")
+    saver_pg = get_durable_checkpointer()
+    assert isinstance(saver_pg, DurablePostgresSaver)
+    assert saver_pg.db_url == "postgresql://user:pass@localhost:5432/ffre_db"
