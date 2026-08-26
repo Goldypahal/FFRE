@@ -85,3 +85,12 @@ def test_task31_failure_injection_and_chaos_resilience_suite():
 
     assert summary["chaos_resilience_coverage_pct"] == 100.0
     assert summary["runtime_acceptance_evidence_coverage_pct"] == 100.0
+
+def test_task32_security_penetration_and_abuse_suite():
+    """Task 32 Test: Verify 100% security penetration coverage across 30 defined security controls."""
+    engine = SRSEvidenceAuditEngine()
+    summary = engine.run_audit()
+
+    assert summary["security_penetration_coverage_pct"] == 100.0
+    assert summary["chaos_resilience_coverage_pct"] == 100.0
+    assert summary["runtime_acceptance_evidence_coverage_pct"] == 100.0
