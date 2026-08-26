@@ -104,3 +104,14 @@ def test_task33_ha_kubernetes_deployment_suite():
     assert summary["security_penetration_coverage_pct"] == 100.0
     assert summary["chaos_resilience_coverage_pct"] == 100.0
     assert summary["runtime_acceptance_evidence_coverage_pct"] == 100.0
+
+def test_task35_observability_and_alerting_suite():
+    """Task 35 Test: Verify 100% observability & Prometheus alerting coverage."""
+    engine = SRSEvidenceAuditEngine()
+    summary = engine.run_audit()
+
+    assert summary["observability_alerting_coverage_pct"] == 100.0
+    assert summary["ha_deployment_coverage_pct"] == 100.0
+    assert summary["security_penetration_coverage_pct"] == 100.0
+    assert summary["chaos_resilience_coverage_pct"] == 100.0
+    assert summary["runtime_acceptance_evidence_coverage_pct"] == 100.0

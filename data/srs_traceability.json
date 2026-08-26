@@ -1,8 +1,8 @@
 {
   "metadata": {
     "project": "Financial Fraud Investigation Reasoning Engine (FFRE)",
-    "generated_at": "2026-08-26 05:06:03 UTC",
-    "audit_engine": "Task 33 HA & Kubernetes Deployment Audit Engine v8.0",
+    "generated_at": "2026-08-26 05:09:23 UTC",
+    "audit_engine": "Task 35 Observability & Prometheus Alerting Audit Engine v9.0",
     "reconciliation": {
       "status": "PASSED",
       "srs_requirements_found_in_text": 67,
@@ -23,9 +23,10 @@
       "chaos_resilience_coverage_pct": 100.0,
       "security_penetration_coverage_pct": 100.0,
       "ha_deployment_coverage_pct": 100.0,
+      "observability_alerting_coverage_pct": 100.0,
       "verification_coverage_pct": 100.0,
       "production_readiness_coverage_pct": 95.5,
-      "nfr1_p95_sec": 2.26831,
+      "nfr1_p95_sec": 1.87806,
       "nfr1_target_met": true,
       "srs_reconciliation": {
         "status": "PASSED",
@@ -323,7 +324,7 @@
       "behavior_spec": "Real graph execution benchmark achieves P95 < 8.0s across 1, 5, 10, 20 worker concurrency.",
       "source_snippet": "from metrics import metrics_collector",
       "production_notes": [
-        "P95=2.26831s < 8.0s target (MET)"
+        "P95=1.87806s < 8.0s target (MET)"
       ]
     },
     {

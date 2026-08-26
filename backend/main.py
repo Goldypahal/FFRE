@@ -919,6 +919,26 @@ async def get_metrics():
         "investment_outcome_counts": metrics_collector.get_investment_outcome_counts()
     }
 
+@app.get("/metrics")
+async def get_prometheus_metrics():
+    """Endpoint to export performance metrics in standard Prometheus text exposition format."""
+    stats = metrics_collector.get_investigation_duration_stats()
+    outcomes = metrics_collector.get_investment_outcome_counts()
+    lines = [
+        "# HELP ffre_investigation_duration_seconds Investigation duration in seconds",
+        "# TYPE ffre_investigation_duration_seconds gauge",
+        f"ffre_investigation_duration_seconds{{quantile=\"0.50\"}} {stats.get('median', 0.0)}",
+        f"ffre_investigation_duration_seconds{{quantile=\"0.95\"}} {stats.get('p95', 0.0)}",
+        f"ffre_investigation_duration_seconds{{quantile=\"0.99\"}} {stats.get('p99', 0.0)}",
+        "# HELP ffre_investigations_total Total count of investigations by status",
+        "# TYPE ffre_investigations_total counter",
+        f"ffre_investigations_total{{status=\"successful\"}} {outcomes.get('successful', 0)}",
+        f"ffre_investigations_total{{status=\"failed\"}} {outcomes.get('failed', 0)}",
+        f"ffre_investigations_total{{status=\"escalated\"}} {outcomes.get('escalated', 0)}",
+        f"ffre_investigations_total{{status=\"total\"}} {outcomes.get('total', 0)}"
+    ]
+    return Response(content="\n".join(lines) + "\n", media_type="text/plain")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
