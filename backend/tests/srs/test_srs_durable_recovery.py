@@ -148,6 +148,14 @@ def test_task23_redis_worker_queue_broker_support():
     sample_job = {"investigation_id": "test_inv", "transaction_id": "test_txn"}
     queue_invalid.ack_job(sample_job)
 
+def test_task28_strict_enterprise_mode_redis_failure(monkeypatch):
+    """Task 28 Test: Verify STRICT_ENTERPRISE_MODE raises RuntimeError when Redis is unreachable."""
+    from worker import DurableWorkerQueue
+    monkeypatch.setenv("STRICT_ENTERPRISE_MODE", "true")
+    with pytest.raises(RuntimeError) as exc_info:
+        DurableWorkerQueue(redis_url="redis://non_existent_host:6379/0")
+    assert "STRICT_ENTERPRISE_MODE" in str(exc_info.value)
+
 def test_task24_postgresql_checkpointer_factory(monkeypatch):
     """Task 24 Test: Verify get_durable_checkpointer selects DurablePostgresSaver and provides get_tuple DB sync when PostgreSQL URL is configured."""
     from checkpointing import get_durable_checkpointer, DurablePostgresSaver, DurableSqliteSaver

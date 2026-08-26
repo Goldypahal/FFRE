@@ -1,16 +1,38 @@
 {
   "metadata": {
     "project": "Financial Fraud Investigation Reasoning Engine (FFRE)",
-    "generated_at": "2026-08-26 04:16:47 UTC",
-    "audit_engine": "Task 26/27 Evidence-Driven SRS Engine v2.0",
+    "generated_at": "2026-08-26 04:28:14 UTC",
+    "audit_engine": "Task 28 Source-of-Truth Dynamic SRS Engine v3.0",
+    "reconciliation": {
+      "status": "PASSED",
+      "srs_requirements_found_in_text": 67,
+      "audit_catalog_requirements": 67,
+      "exact_id_matches": 67,
+      "missing_from_audit_count": 0,
+      "missing_from_audit": [],
+      "extra_in_audit_count": 0,
+      "extra_in_audit": [],
+      "duplicates_count": 0
+    },
     "scorecard": {
       "total_requirements": 67,
       "implementation_coverage_pct": 100.0,
       "evidence_mapping_coverage_pct": 100.0,
       "verification_coverage_pct": 100.0,
       "production_readiness_coverage_pct": 95.5,
-      "nfr1_p95_sec": 2.04832,
-      "nfr1_target_met": true
+      "nfr1_p95_sec": 2.57812,
+      "nfr1_target_met": true,
+      "srs_reconciliation": {
+        "status": "PASSED",
+        "srs_requirements_found_in_text": 67,
+        "audit_catalog_requirements": 67,
+        "exact_id_matches": 67,
+        "missing_from_audit_count": 0,
+        "missing_from_audit": [],
+        "extra_in_audit_count": 0,
+        "extra_in_audit": [],
+        "duplicates_count": 0
+      }
     }
   },
   "requirements": [
@@ -196,7 +218,7 @@
         "backend/tests/srs/test_srs_observability_benchmark.py"
       ],
       "production_notes": [
-        "P95=2.04832s < 8.0s target (MET)"
+        "P95=2.57812s < 8.0s target (MET)"
       ]
     },
     {

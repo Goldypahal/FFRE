@@ -40,6 +40,11 @@ class DurableWorkerQueue:
         self.redis_url = redis_url or os.getenv("REDIS_URL")
         self._redis_client = None
 
+        strict_enterprise = (
+            os.getenv("STRICT_ENTERPRISE_MODE", "false").lower() == "true" or
+            os.getenv("ENVIRONMENT") == "production"
+        )
+
         if self.redis_url and redis is not None:
             try:
                 client = redis.Redis.from_url(self.redis_url, socket_timeout=2)
@@ -47,8 +52,13 @@ class DurableWorkerQueue:
                 self._redis_client = client
                 print(f"DurableWorkerQueue connected to Redis broker at {self.redis_url}")
             except Exception as e:
+                if strict_enterprise:
+                    raise RuntimeError(f"STRICT_ENTERPRISE_MODE: Redis worker queue broker is unavailable ({e}). In-memory fallback is disabled in production.")
                 print(f"Redis connection unavailable ({e}). Falling back to in-memory queue broker.")
                 self._redis_client = None
+        else:
+            if strict_enterprise:
+                raise RuntimeError("STRICT_ENTERPRISE_MODE: Redis URL/client not configured. In-memory fallback is disabled in production.")
 
     def get_broker_backend(self) -> str:
         """Return active queue broker backend ('redis' or 'in_memory')."""

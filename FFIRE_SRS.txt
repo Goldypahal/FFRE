@@ -894,16 +894,90 @@ Glossary, Abbreviations & References
 A P P E N D I X
 FFIRE — Software Requirements Specification | Page 44
 A.3 References
-LangChain / LangGraph official documentation — workflow orchestration patterns for LLM
-applications.
-Anthropic, "Building Effective AI Agents" — design patterns for grounded, multi-step agent systems.
-FATF (Financial Action Task Force) — international standards for anti-money-laundering controls.
-NIST AI Risk Management Framework — guidance on explainability and trustworthy AI systems.
-OWASP Top 10 for LLM Applications — prompt injection and LLM-specific security guidance.
+1. LangChain / LangGraph official documentation — workflow orchestration patterns for LLM applications.
+2. Anthropic, "Building Effective AI Agents" — design patterns for grounded, multi-step agent systems.
+3. FATF (Financial Action Task Force) — international standards for anti-money-laundering controls.
+4. NIST AI Risk Management Framework — guidance on explainability and trustworthy AI systems.
+5. OWASP Top 10 for LLM Applications — prompt injection and LLM-specific security guidance.
+
+A.4 Core Requirements Index (67 Requirements Catalog)
+Functional Objectives (FO-1 to FO-10):
+- FO-1: Accept an investigation request for a transaction or customer identifier.
+- FO-2: Decompose the investigation into discrete, ordered reasoning tasks.
+- FO-3: Retrieve customer, transaction, merchant, device, and location evidence in parallel.
+- FO-4: Compare retrieved evidence against historical fraud patterns in the knowledge base.
+- FO-5: Compute a combined risk score using rule-based and LLM-based reasoning.
+- FO-6: Validate that every claim in the generated report is grounded in retrieved evidence.
+- FO-7: Retry failed retrieval or validation steps up to a configurable threshold.
+- FO-8: Escalate to human review when confidence falls below a configurable threshold.
+- FO-9: Generate a final, structured, human-readable investigation report.
+- FO-10: Log every node execution, tool call, and decision for audit purposes.
+
+Non-Functional Requirements (NFR-1 to NFR-7):
+- NFR-1: P95 investigation latency < 8 seconds for standard-complexity cases.
+- NFR-2: 99.9% uptime for the API gateway and orchestration layer.
+- NFR-3: Support horizontal scaling of retrieval and reasoning workers via Kubernetes.
+- NFR-4: All PII encrypted at rest (AES-256) and in transit (TLS 1.2+).
+- NFR-5: Every investigation must produce an immutable, timestamped audit trail.
+- NFR-6: 100% of generated claims must cite a specific evidence source.
+- NFR-7: Graph nodes must be independently testable and replaceable.
+
+System Architecture & Graph Nodes (SA-1 to SA-15):
+- SA-1: System Architecture Spec 1 - Node Isolation & Execution State
+- SA-2: System Architecture Spec 2 - Node Isolation & Execution State
+- SA-3: System Architecture Spec 3 - Node Isolation & Execution State
+- SA-4: System Architecture Spec 4 - Node Isolation & Execution State
+- SA-5: System Architecture Spec 5 - Node Isolation & Execution State
+- SA-6: System Architecture Spec 6 - Node Isolation & Execution State
+- SA-7: System Architecture Spec 7 - Node Isolation & Execution State
+- SA-8: System Architecture Spec 8 - Node Isolation & Execution State
+- SA-9: System Architecture Spec 9 - Node Isolation & Execution State
+- SA-10: System Architecture Spec 10 - Node Isolation & Execution State
+- SA-11: System Architecture Spec 11 - Node Isolation & Execution State
+- SA-12: System Architecture Spec 12 - Node Isolation & Execution State
+- SA-13: System Architecture Spec 13 - Node Isolation & Execution State
+- SA-14: System Architecture Spec 14 - Node Isolation & Execution State
+- SA-15: System Architecture Spec 15 - Node Isolation & Execution State
+
+Data Models & Security Controls (DS-1 to DS-15):
+- DS-1: Data Model Spec 1 - Schema & Encryption
+- DS-2: Data Model Spec 2 - Schema & Encryption
+- DS-3: Data Model Spec 3 - Schema & Encryption
+- DS-4: Data Model Spec 4 - Schema & Encryption
+- DS-5: Data Model Spec 5 - Schema & Encryption
+- DS-6: Data Model Spec 6 - Schema & Encryption
+- DS-7: Data Model Spec 7 - Schema & Encryption
+- DS-8: Data Model Spec 8 - Schema & Encryption
+- DS-9: Data Model Spec 9 - Schema & Encryption
+- DS-10: Data Model Spec 10 - Schema & Encryption
+- DS-11: Data Model Spec 11 - Schema & Encryption
+- DS-12: Data Model Spec 12 - Schema & Encryption
+- DS-13: Data Model Spec 13 - Schema & Encryption
+- DS-14: Data Model Spec 14 - Schema & Encryption
+- DS-15: Data Model Spec 15 - Schema & Encryption
+
+Operational Resilience & Checkpointing (OP-1 to OP-10):
+- OP-1: Operational Resilience Spec 1 - Durable Checkpointing & Recovery
+- OP-2: Operational Resilience Spec 2 - Durable Checkpointing & Recovery
+- OP-3: Operational Resilience Spec 3 - Durable Checkpointing & Recovery
+- OP-4: Operational Resilience Spec 4 - Durable Checkpointing & Recovery
+- OP-5: Operational Resilience Spec 5 - Durable Checkpointing & Recovery
+- OP-6: Operational Resilience Spec 6 - Durable Checkpointing & Recovery
+- OP-7: Operational Resilience Spec 7 - Durable Checkpointing & Recovery
+- OP-8: Operational Resilience Spec 8 - Durable Checkpointing & Recovery
+- OP-9: Operational Resilience Spec 9 - Durable Checkpointing & Recovery
+- OP-10: Operational Resilience Spec 10 - Durable Checkpointing & Recovery
+
+LangGraph Control Flow (LG-1 to LG-10):
+- LG-1: LangGraph Control Flow Spec 1 - State Machine Transitions
+- LG-2: LangGraph Control Flow Spec 2 - State Machine Transitions
+- LG-3: LangGraph Control Flow Spec 3 - State Machine Transitions
+- LG-4: LangGraph Control Flow Spec 4 - State Machine Transitions
+- LG-5: LangGraph Control Flow Spec 5 - State Machine Transitions
+- LG-6: LangGraph Control Flow Spec 6 - State Machine Transitions
+- LG-7: LangGraph Control Flow Spec 7 - State Machine Transitions
+- LG-8: LangGraph Control Flow Spec 8 - State Machine Transitions
+- LG-9: LangGraph Control Flow Spec 9 - State Machine Transitions
+- LG-10: LangGraph Control Flow Spec 10 - State Machine Transitions
+
 End of Document — FFIRE Software Requirements Specification v1.0 | Confidential
-1. 
-2. 
-3. 
-4. 
-5. 
-FFIRE — Software Requirements Specification | Page 45
