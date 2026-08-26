@@ -142,3 +142,18 @@ def test_task37_final_compliance_suite():
     assert summary["security_penetration_coverage_pct"] == 100.0
     assert summary["chaos_resilience_coverage_pct"] == 100.0
     assert summary["runtime_acceptance_evidence_coverage_pct"] == 100.0
+
+def test_task38_audit_the_auditor_suite():
+    """Task 38 Test: Verify 100% audit-the-auditor zero-trust coverage."""
+    engine = SRSEvidenceAuditEngine()
+    summary = engine.run_audit()
+
+    assert summary["audit_the_auditor_coverage_pct"] == 100.0
+    assert summary["final_compliance_audit_coverage_pct"] == 100.0
+    assert summary["production_deployment_coverage_pct"] == 100.0
+    assert summary["production_readiness_coverage_pct"] == 100.0
+    assert summary["observability_alerting_coverage_pct"] == 100.0
+    assert summary["ha_deployment_coverage_pct"] == 100.0
+    assert summary["security_penetration_coverage_pct"] == 100.0
+    assert summary["chaos_resilience_coverage_pct"] == 100.0
+    assert summary["runtime_acceptance_evidence_coverage_pct"] == 100.0
