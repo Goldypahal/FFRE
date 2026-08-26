@@ -94,3 +94,13 @@ def test_task32_security_penetration_and_abuse_suite():
     assert summary["security_penetration_coverage_pct"] == 100.0
     assert summary["chaos_resilience_coverage_pct"] == 100.0
     assert summary["runtime_acceptance_evidence_coverage_pct"] == 100.0
+
+def test_task33_ha_kubernetes_deployment_suite():
+    """Task 33 Test: Verify 100% HA deployment coverage across multi-pod gateway & DB sync controls."""
+    engine = SRSEvidenceAuditEngine()
+    summary = engine.run_audit()
+
+    assert summary["ha_deployment_coverage_pct"] == 100.0
+    assert summary["security_penetration_coverage_pct"] == 100.0
+    assert summary["chaos_resilience_coverage_pct"] == 100.0
+    assert summary["runtime_acceptance_evidence_coverage_pct"] == 100.0
