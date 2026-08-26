@@ -1,8 +1,8 @@
 {
   "metadata": {
     "project": "Financial Fraud Investigation Reasoning Engine (FFRE)",
-    "generated_at": "2026-08-26 05:13:37 UTC",
-    "audit_engine": "Task 36 Production Deployment Audit Engine v10.0",
+    "generated_at": "2026-08-26 05:15:54 UTC",
+    "audit_engine": "Task 37 Final 67/67 SRS Compliance Audit Engine v11.0",
     "reconciliation": {
       "status": "PASSED",
       "srs_requirements_found_in_text": 67,
@@ -25,9 +25,10 @@
       "ha_deployment_coverage_pct": 100.0,
       "observability_alerting_coverage_pct": 100.0,
       "production_deployment_coverage_pct": 100.0,
+      "final_compliance_audit_coverage_pct": 100.0,
       "verification_coverage_pct": 100.0,
       "production_readiness_coverage_pct": 100.0,
-      "nfr1_p95_sec": 1.65605,
+      "nfr1_p95_sec": 1.93056,
       "nfr1_target_met": true,
       "srs_reconciliation": {
         "status": "PASSED",
@@ -323,7 +324,7 @@
       "behavior_spec": "Real graph execution benchmark achieves P95 < 8.0s across 1, 5, 10, 20 worker concurrency.",
       "source_snippet": "from metrics import metrics_collector",
       "production_notes": [
-        "P95=1.65605s < 8.0s target (MET)"
+        "P95=1.93056s < 8.0s target (MET)"
       ]
     },
     {
