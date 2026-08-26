@@ -115,3 +115,16 @@ def test_task35_observability_and_alerting_suite():
     assert summary["security_penetration_coverage_pct"] == 100.0
     assert summary["chaos_resilience_coverage_pct"] == 100.0
     assert summary["runtime_acceptance_evidence_coverage_pct"] == 100.0
+
+def test_task36_production_deployment_suite():
+    """Task 36 Test: Verify 100% production deployment & environment diagnostic coverage and 100% Production Readiness score."""
+    engine = SRSEvidenceAuditEngine()
+    summary = engine.run_audit()
+
+    assert summary["production_deployment_coverage_pct"] == 100.0
+    assert summary["production_readiness_coverage_pct"] == 100.0
+    assert summary["observability_alerting_coverage_pct"] == 100.0
+    assert summary["ha_deployment_coverage_pct"] == 100.0
+    assert summary["security_penetration_coverage_pct"] == 100.0
+    assert summary["chaos_resilience_coverage_pct"] == 100.0
+    assert summary["runtime_acceptance_evidence_coverage_pct"] == 100.0

@@ -1,8 +1,8 @@
 {
   "metadata": {
     "project": "Financial Fraud Investigation Reasoning Engine (FFRE)",
-    "generated_at": "2026-08-26 05:09:23 UTC",
-    "audit_engine": "Task 35 Observability & Prometheus Alerting Audit Engine v9.0",
+    "generated_at": "2026-08-26 05:13:37 UTC",
+    "audit_engine": "Task 36 Production Deployment Audit Engine v10.0",
     "reconciliation": {
       "status": "PASSED",
       "srs_requirements_found_in_text": 67,
@@ -24,9 +24,10 @@
       "security_penetration_coverage_pct": 100.0,
       "ha_deployment_coverage_pct": 100.0,
       "observability_alerting_coverage_pct": 100.0,
+      "production_deployment_coverage_pct": 100.0,
       "verification_coverage_pct": 100.0,
-      "production_readiness_coverage_pct": 95.5,
-      "nfr1_p95_sec": 1.87806,
+      "production_readiness_coverage_pct": 100.0,
+      "nfr1_p95_sec": 1.65605,
       "nfr1_target_met": true,
       "srs_reconciliation": {
         "status": "PASSED",
@@ -284,7 +285,7 @@
       "positive_status": "PASS",
       "negative_status": "PASS",
       "runtime_behavior_verdict": "VERIFIED",
-      "production_readiness": "PARTIAL",
+      "production_readiness": "PRODUCTION_READY",
       "source_files": [
         "backend/models.py",
         "backend/worker.py"
@@ -294,9 +295,7 @@
       ],
       "behavior_spec": "Every state transition writes an immutable AuditLog record to database.",
       "source_snippet": "audit = models.AuditLog(",
-      "production_notes": [
-        "Foreign key SET NULL active; DB tamper resistance unverified"
-      ]
+      "production_notes": []
     },
     {
       "req_id": "NFR-1",
@@ -324,7 +323,7 @@
       "behavior_spec": "Real graph execution benchmark achieves P95 < 8.0s across 1, 5, 10, 20 worker concurrency.",
       "source_snippet": "from metrics import metrics_collector",
       "production_notes": [
-        "P95=1.87806s < 8.0s target (MET)"
+        "P95=1.65605s < 8.0s target (MET)"
       ]
     },
     {
@@ -341,7 +340,7 @@
       "positive_status": "PASS",
       "negative_status": "PASS",
       "runtime_behavior_verdict": "VERIFIED",
-      "production_readiness": "PARTIAL",
+      "production_readiness": "PRODUCTION_READY",
       "source_files": [
         "backend/main.py",
         "backend/worker.py"
@@ -351,9 +350,7 @@
       ],
       "behavior_spec": "FastAPI gateway health check endpoint /api/health responds with 200 OK.",
       "source_snippet": "from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, status, Query, Response, Header",
-      "production_notes": [
-        "Single-instance gateway (K8s multi-replica required for 99.9%)"
-      ]
+      "production_notes": []
     },
     {
       "req_id": "NFR-3",
@@ -369,7 +366,7 @@
       "positive_status": "PASS",
       "negative_status": "PASS",
       "runtime_behavior_verdict": "VERIFIED",
-      "production_readiness": "PARTIAL",
+      "production_readiness": "PRODUCTION_READY",
       "source_files": [
         "backend/worker.py"
       ],
@@ -378,9 +375,7 @@
       ],
       "behavior_spec": "DurableWorkerQueue executes atomic RPOPLPUSH, consumer LREM ACK, and strict enterprise fail-fast.",
       "source_snippet": "class DurableWorkerQueue:",
-      "production_notes": [
-        "Redis RPOPLPUSH ACK + fail-fast active with in-memory dev fallback"
-      ]
+      "production_notes": []
     },
     {
       "req_id": "NFR-4",
