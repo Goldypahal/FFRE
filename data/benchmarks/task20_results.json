@@ -1,0 +1,46 @@
+{
+  "1": {
+    "concurrency": 1,
+    "requests": 1,
+    "successful": 1,
+    "success_rate_pct": 100.0,
+    "p50_sec": 3.35491,
+    "p95_sec": 3.35491,
+    "p99_sec": 3.35491,
+    "throughput_ops_sec": 0.3,
+    "batch_duration_sec": 3.3561
+  },
+  "5": {
+    "concurrency": 5,
+    "requests": 5,
+    "successful": 5,
+    "success_rate_pct": 100.0,
+    "p50_sec": 11.93342,
+    "p95_sec": 14.57898,
+    "p99_sec": 14.57898,
+    "throughput_ops_sec": 0.34,
+    "batch_duration_sec": 14.5833
+  },
+  "10": {
+    "concurrency": 10,
+    "requests": 10,
+    "successful": 7,
+    "success_rate_pct": 70.0,
+    "p50_sec": 19.87269,
+    "p95_sec": 23.11511,
+    "p99_sec": 23.11511,
+    "throughput_ops_sec": 0.43,
+    "batch_duration_sec": 23.1167
+  },
+  "20": {
+    "concurrency": 20,
+    "requests": 20,
+    "successful": 17,
+    "success_rate_pct": 85.0,
+    "p50_sec": 26.46274,
+    "p95_sec": 52.99116,
+    "p99_sec": 52.99116,
+    "throughput_ops_sec": 0.36,
+    "batch_duration_sec": 56.3379
+  }
+}

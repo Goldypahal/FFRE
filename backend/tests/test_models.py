@@ -14,12 +14,14 @@ def test_user_creation(db_session):
     db_session.add(user)
     db_session.commit()
 
-    # Retrieve and verify
+    # Retrieve and verify decrypted hybrid property values & raw ciphertext columns
     retrieved_user = db_session.query(User).filter(User.user_id == user_id).first()
     assert retrieved_user is not None
     assert retrieved_user.name == "Test User"
     assert retrieved_user.role == "analyst"
     assert retrieved_user.email == "test@example.com"
+    assert retrieved_user._name != "Test User"
+    assert retrieved_user._email != "test@example.com"
 
 def test_investigation_creation(db_session):
     """Test creating an Investigation model instance"""

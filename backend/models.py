@@ -2,7 +2,9 @@ import uuid
 import datetime
 from sqlalchemy import Column, String, Float, DateTime, ForeignKey, Text, Numeric, Integer
 from sqlalchemy.orm import relationship
+from sqlalchemy.ext.hybrid import hybrid_property
 from database import Base
+import security
 
 def generate_uuid():
     return str(uuid.uuid4())
@@ -11,11 +13,27 @@ class User(Base):
     __tablename__ = "users"
 
     user_id = Column(String, primary_key=True, default=generate_uuid)
-    name = Column(String(100), nullable=False)
-    email = Column(String(255), unique=True, nullable=False, index=True)
+    _name = Column("name", String(255), nullable=False)
+    _email = Column("email", String(255), nullable=False, unique=True, index=True)
     hashed_password = Column(String(255), nullable=True)
     role = Column(String(50), nullable=False, default="investigator")
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    @hybrid_property
+    def name(self):
+        return security.decrypt_data(self._name) if self._name else None
+
+    @name.setter
+    def name(self, value):
+        self._name = security.encrypt_data(value) if value else None
+
+    @hybrid_property
+    def email(self):
+        return security.decrypt_data(self._email) if self._email else None
+
+    @email.setter
+    def email(self, value):
+        self._email = security.encrypt_data(value) if value else None
 
 class Customer(Base):
     __tablename__ = "customer"
@@ -73,11 +91,19 @@ class Device(Base):
 
     device_id = Column(String, primary_key=True, default=generate_uuid)
     customer_id = Column(String, ForeignKey("customer.customer_id"))
-    fingerprint = Column(String(255))
+    _fingerprint = Column("fingerprint", String(255))
     os = Column(String(50))
     ip_address = Column(String(45))
 
     customer = relationship("Customer", back_populates="devices")
+
+    @hybrid_property
+    def fingerprint(self):
+        return security.decrypt_data(self._fingerprint) if self._fingerprint else None
+
+    @fingerprint.setter
+    def fingerprint(self, value):
+        self._fingerprint = security.encrypt_data(value) if value else None
 
 class Location(Base):
     __tablename__ = "location"
@@ -147,7 +173,7 @@ class DeadLetterJob(Base):
     __tablename__ = "dead_letter_job"
 
     id = Column(String, primary_key=True, default=generate_uuid)
-    investigation_id = Column(String, ForeignKey("investigation.investigation_id", ondelete="CASCADE"), nullable=False, index=True)
+    investigation_id = Column(String, ForeignKey("investigation.investigation_id", ondelete="SET NULL"), nullable=True, index=True)
     transaction_id = Column(String, nullable=False)
     failure_reason = Column(Text, nullable=True)
     retry_count = Column(Integer, default=3, nullable=False)

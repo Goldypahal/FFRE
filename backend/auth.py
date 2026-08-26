@@ -7,6 +7,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from database import get_db
 import models
+import security
 import os
 from sqlalchemy import func
 
@@ -60,7 +61,14 @@ def decode_access_token(token: str) -> dict:
 def get_user_by_email(db: Session, email: str) -> Optional[models.User]:
     if not email:
         return None
-    return db.query(models.User).filter(func.lower(models.User.email) == email.lower()).first()
+    enc_email = security.encrypt_data(email.lower())
+    usr = db.query(models.User).filter(models.User._email == enc_email).first()
+    if usr:
+        return usr
+    for user in db.query(models.User).all():
+        if user.email and user.email.lower() == email.lower():
+            return user
+    return None
 
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):

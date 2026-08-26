@@ -813,6 +813,7 @@ def build_graph():
     graph.add_edge("report_generator", END)
     graph.add_edge("human_review", END)
 
-    from checkpointing import get_durable_checkpointer
-    checkpointer = get_durable_checkpointer()
+    if checkpointer is None:
+        from checkpointing import get_durable_checkpointer
+        checkpointer = get_durable_checkpointer()
     return graph.compile(checkpointer=checkpointer)
