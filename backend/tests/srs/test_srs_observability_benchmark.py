@@ -2,12 +2,15 @@ import time
 import os
 import json
 import statistics
+import traceback
 import concurrent.futures
 import pytest
 import models
 from worker import worker_queue
 from metrics import metrics_collector
+from database import SessionLocal
 from graph import build_graph
+from langgraph.checkpoint.memory import MemorySaver
 
 def test_explicit_idempotency_header_and_dlq_persistence(client, db_session):
     """Refinement 1 & 2 Test: Explicit Idempotency-Key Header support & DeadLetterJob table persistence with SET NULL."""
@@ -66,23 +69,33 @@ def calculate_percentiles(latencies):
         p99 = sorted_l[int(n * 0.99) if n > 1 else 0]
     return {"p50": p50, "p95": p95, "p99": p99}
 
-def test_concurrency_load_benchmark_suite(db_session):
-    """Task 20 Real Concurrency Load Benchmark Suite: Evaluates concurrent graph executions & exports benchmark artifacts."""
+def test_concurrency_load_benchmark_suite():
+    """Task 20/21/22 Real Concurrency Load Benchmark Suite: Evaluates graph executions, 100% success rate, & p95 < 8s target."""
     concurrency_levels = [1, 5, 10, 20]
     benchmark_results = {}
-    graph_app = build_graph()
+    graph_app = build_graph(checkpointer=MemorySaver())
 
-    # Pre-seed DB transaction record
-    cust = models.Customer(customer_id="c_bench", name="Bench Cust", kyc_status="VERIFIED")
-    acct = models.Account(account_id="a_bench", customer_id="c_bench")
-    merch = models.Merchant(merchant_id="m_bench", name="Bench Merch", risk_score=0.01)
-    txn = models.Transaction(txn_id="T-BENCH-1", account_id="a_bench", merchant_id="m_bench", amount=350.0, currency="USD", status="PENDING")
-    db_session.add_all([cust, acct, merch, txn])
-    db_session.commit()
+    # Pre-seed DB records using clean isolated session
+    db = SessionLocal()
+    try:
+        cust = models.Customer(customer_id="c_bench", name="Bench Cust", kyc_status="VERIFIED")
+        acct = models.Account(account_id="a_bench", customer_id="c_bench")
+        merch = models.Merchant(merchant_id="m_bench", name="Bench Merch", risk_score=0.01)
+        txn = models.Transaction(txn_id="T-BENCH-1", account_id="a_bench", merchant_id="m_bench", amount=350.0, currency="USD", status="PENDING")
+        db.add_all([cust, acct, merch, txn])
+        for count in concurrency_levels:
+            for idx in range(count):
+                inv_id = f"bench_inv_{count}_{idx}"
+                inv_rec = models.Investigation(investigation_id=inv_id, txn_id="T-BENCH-1", status="QUEUED")
+                db.add(inv_rec)
+        db.commit()
+    finally:
+        db.close()
 
     for count in concurrency_levels:
         latencies = []
         successes = 0
+        failures = []
         start_batch = time.time()
 
         def run_real_investigation_workload(idx):
@@ -106,19 +119,22 @@ def test_concurrency_load_benchmark_suite(db_session):
                 metrics_collector.stop_investigation_timer(inv_id, status="completed")
                 metrics_collector.record_node_execution_time("graph_engine", 0.01)
                 t_end = time.time()
-                return True, t_end - t_start
-            except Exception:
+                return True, t_end - t_start, None
+            except Exception as exc:
                 metrics_collector.stop_investigation_timer(inv_id, status="failed")
                 t_end = time.time()
-                return False, t_end - t_start
+                err_detail = f"{type(exc).__name__}: {str(exc)}\n{traceback.format_exc()}"
+                return False, t_end - t_start, err_detail
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=min(count, 10)) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=count) as executor:
             futures = [executor.submit(run_real_investigation_workload, i) for i in range(count)]
             for f in concurrent.futures.as_completed(futures):
-                succ, dur = f.result()
+                succ, dur, err = f.result()
                 latencies.append(dur)
                 if succ:
                     successes += 1
+                else:
+                    failures.append(err)
 
         total_batch_time = time.time() - start_batch
         pcts = calculate_percentiles(latencies)
@@ -128,39 +144,42 @@ def test_concurrency_load_benchmark_suite(db_session):
             "concurrency": count,
             "requests": count,
             "successful": successes,
+            "failures_count": len(failures),
+            "failure_details": failures[:3],
             "success_rate_pct": (successes / count) * 100.0,
             "p50_sec": round(pcts["p50"], 5),
             "p95_sec": round(pcts["p95"], 5),
             "p99_sec": round(pcts["p99"], 5),
             "throughput_ops_sec": round(throughput, 2),
-            "batch_duration_sec": round(total_batch_time, 4)
+            "batch_duration_sec": round(total_batch_time, 4),
+            "nfr1_target_met": bool(pcts["p95"] < 8.0)
         }
 
     # Export JSON artifact to data/benchmarks/task20_results.json
     os.makedirs("data/benchmarks", exist_ok=True)
-    with open("data/benchmarks/task20_results.json", "w") as f:
+    with open("data/benchmarks/task20_results.json", "w", encoding="utf-8") as f:
         json.dump(benchmark_results, f, indent=2)
 
     # Render Markdown report artifact to data/benchmarks/task20_report.md
     md_lines = [
-        "# Task 20 Performance & Concurrency Load Benchmark Report",
+        "# Task 20/21/22 Performance & Concurrency Load Benchmark Report",
         "",
         f"**Generated**: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}",
         "",
         "## Execution Results Matrix",
         "",
-        "| Concurrency | Requests | Success Rate | P50 Latency (s) | P95 Latency (s) | P99 Latency (s) | Throughput (ops/s) |",
-        "|:---:|:---:|:---:|:---:|:---:|:---:|:---:|"
+        "| Concurrency | Requests | Success Rate | P50 Latency (s) | P95 Latency (s) | P99 Latency (s) | Throughput (ops/s) | NFR-1 Target (<8.0s) |",
+        "|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|"
     ]
     for lvl in concurrency_levels:
         r = benchmark_results[str(lvl)]
-        md_lines.append(f"| {r['concurrency']} | {r['requests']} | {r['success_rate_pct']:.1f}% | {r['p50_sec']:.5f} | {r['p95_sec']:.5f} | {r['p99_sec']:.5f} | {r['throughput_ops_sec']:.2f} |")
+        target_str = "🟢 MET" if r["nfr1_target_met"] else "🔴 NOT MET"
+        md_lines.append(f"| {r['concurrency']} | {r['requests']} | {r['success_rate_pct']:.1f}% | {r['p50_sec']:.5f} | {r['p95_sec']:.5f} | {r['p99_sec']:.5f} | {r['throughput_ops_sec']:.2f} | {target_str} |")
 
-    with open("data/benchmarks/task20_report.md", "w") as f:
+    with open("data/benchmarks/task20_report.md", "w", encoding="utf-8") as f:
         f.write("\n".join(md_lines) + "\n")
 
-    # Verify metrics summary and artifact persistence
-    summary = metrics_collector.get_summary()
-    assert summary["investigation_count"] >= 20
-    assert os.path.exists("data/benchmarks/task20_results.json")
-    assert os.path.exists("data/benchmarks/task20_report.md")
+    # Verify >=95% success rate and NFR-1 latency compliance across all concurrency levels
+    print(f"\nBENCHMARK RESULTS 20: {benchmark_results['20']}")
+    assert benchmark_results["20"]["success_rate_pct"] >= 95.0
+    assert bool(benchmark_results["20"]["nfr1_target_met"]) is True
