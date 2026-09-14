@@ -1,145 +1,209 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { api } from "../../lib/api";
+import { Button } from "../../components/ui/Button";
+
+interface ReportItem {
+  report_id: string;
+  tenant_id: string;
+  investigation_id?: string;
+  title: string;
+  report_type: string;
+  generated_by: string;
+  status: string;
+  file_format: string;
+  file_size: number;
+  description?: string;
+  created_at: string;
+}
 
 export function Reports() {
-  const [reports, setReports] = useState([
-    {
-      id: "rep-001",
-      title: "Suspicious Activity Report - INV-78491",
-      type: "Investigation Report",
-      generatedBy: "System",
-      status: "Completed",
-      date: "2024-01-16",
-      size: "2.4 MB",
-      description: "Suspicious Activity Report for investigation INV-78491 detailing potential money laundering activities"
-    },
-    {
-      id: "rep-002",
-      title: "Daily Fraud Summary",
-      type: "Trend Report",
-      generatedBy: "System",
-      status: "Completed",
-      date: "2024-01-16",
-      size: "1.2 MB",
-      description: "Daily summary of fraud detection metrics and alerts"
-    },
-    {
-      id: "rep-003",
-      title: "Chargeback Analysis Report Q1 2024",
-      type: "Compliance Report",
-      generatedBy: "Maria Garcia (Analyst)",
-      status: "Completed",
-      date: "2024-04-01",
-      size: "5.8 MB",
-      description: "Quarterly analysis of chargeback trends, reasons, and recovery rates"
-    },
-    {
-      id: "rep-004",
-      title: "Investigation Timeline Export - INV-78490",
-      type: "Investigation Report",
-      generatedBy: "Alex Johnson",
-      status: "Completed",
-      date: "2024-01-16",
-      size: "320 KB",
-      description: "Complete investigation timeline with evidence and actions for INV-78490"
-    },
-    {
-      id: "rep-005",
-      title: "Compliance Report - Regulatory Filing",
-      type: "Compliance Report",
-      generatedBy: "Compliance Team",
-      status: "Failed",
-      date: "2024-02-05",
-      size: "0 B",
-      description: "Monthly regulatory filing for financial transactions"
-    }
-  ]);
-
+  const [reports, setReports] = useState<ReportItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [typeFilter, setTypeFilter] = useState("All");
 
-  const filteredReports = reports.filter(report => {
-    const matchesSearch = report.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      report.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "All" || report.status === statusFilter;
-    const matchesType = typeFilter === "All" || report.type === typeFilter;
-    return matchesSearch && matchesStatus && matchesType;
-  });
+  // Modal State
+  const [isNewReportModalOpen, setIsNewReportModalOpen] = useState(false);
+  const [selectedReportForView, setSelectedReportForView] = useState<ReportItem | null>(null);
+
+  // Form State
+  const [newTitle, setNewTitle] = useState("");
+  const [newType, setNewType] = useState("Investigation Report");
+  const [newFormat, setNewFormat] = useState("pdf");
+  const [newInvId, setNewInvId] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  // Notification State
+  const [notification, setNotification] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  function notify(type: "success" | "error", message: string) {
+    setNotification({ type, message });
+    setTimeout(() => setNotification(null), 4000);
+  }
+
+  async function loadReports() {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+      if (statusFilter !== "All") params.append("status", statusFilter);
+      if (typeFilter !== "All") params.append("report_type", typeFilter);
+      if (searchTerm.trim()) params.append("search", searchTerm.trim());
+
+      const res = await api.get<{ reports: ReportItem[]; total: number }>(
+        `/reports?${params.toString()}`
+      );
+      setReports(res.reports || []);
+    } catch (err: any) {
+      console.error("Failed to load reports", err);
+      notify("error", err.message || "Failed to load reports");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadReports();
+  }, [statusFilter, typeFilter, searchTerm]);
+
+  async function handleCreateReport(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      setSubmitting(true);
+      const created = await api.post<ReportItem>("/reports/generate", {
+        title: newTitle.trim(),
+        report_type: newType,
+        investigation_id: newInvId.trim() || undefined,
+        description: newDesc.trim() || undefined,
+        file_format: newFormat,
+      });
+
+      setReports((prev) => [created, ...prev]);
+      notify("success", `Report "${created.title}" successfully generated`);
+      setIsNewReportModalOpen(false);
+      setNewTitle("");
+      setNewDesc("");
+      setNewInvId("");
+    } catch (err: any) {
+      notify("error", err.message || "Failed to generate report");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function handleExport(report: ReportItem) {
+    const token = localStorage.getItem("auth-storage")
+      ? JSON.parse(localStorage.getItem("auth-storage") || "{}")?.state?.token
+      : "";
+    const url = `http://127.0.0.1:8000/api/v1/reports/${report.report_id}/download?format=${report.file_format}`;
+
+    // Fetch with auth to download blob
+    fetch(url, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("Download failed");
+        return res.blob();
+      })
+      .then((blob) => {
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = downloadUrl;
+        a.download = `report_${report.report_id}.${report.file_format}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        notify("success", `Exported ${report.title} (${report.file_format.toUpperCase()})`);
+      })
+      .catch((err) => {
+        notify("error", err.message || "Failed to download report");
+      });
+  }
+
+  async function handleDelete(reportId: string) {
+    if (!window.confirm("Are you sure you want to delete this report?")) return;
+    try {
+      await api.delete(`/reports/${reportId}`);
+      setReports((prev) => prev.filter((r) => r.report_id !== reportId));
+      notify("success", "Report deleted successfully");
+      if (selectedReportForView?.report_id === reportId) {
+        setSelectedReportForView(null);
+      }
+    } catch (err: any) {
+      notify("error", err.message || "Failed to delete report");
+    }
+  }
+
+  function formatSize(bytes: number) {
+    if (!bytes || bytes === 0) return "0 B";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1048576).toFixed(1)} MB`;
+  }
+
+  const completedCount = useMemo(() => reports.filter((r) => r.status === "Completed").length, [reports]);
+  const sarCount = useMemo(() => reports.filter((r) => r.report_type.includes("SAR")).length, [reports]);
+  const failedCount = useMemo(() => reports.filter((r) => r.status === "Failed").length, [reports]);
 
   return (
-    <>
-      {/* Header (same as other pages) */}
-      <header className="bg-surface dark:bg-surface flex justify-between items-center h-16 w-full px-margin border-b border-outline-variant fixed top-0 z-50">
-        <div className="flex items-center gap-stack-md">
-          <span className="font-headline-md text-headline-md font-bold text-investment-gold tracking-tight">FFIRE</span>
-          <div className="hidden md:flex ml-stack-lg gap-gutter h-full items-center">
-            <a href="#" className="text-on-surface-variant hover:text-on-surface transition-colors font-body-md text-body-md h-full flex items-center">
-              Dashboard
-            </a>
-            <a href="#" className="text-on-surface-variant hover:text-on-surface transition-colors font-body-md text-body-md h-full flex items-center">
-              Investigation Queue
-            </a>
-            <a href="#" className="text-on-surface-variant hover:text-on-surface transition-colors font-body-md text-body-md h-full flex items-center">
-              Audit Logs
-            </a>
-            <a href="#" className="text-on-surface-variant hover:text-on-surface transition-colors font-body-md text-body-md h-full flex items-center">
-              Reports
-            </a>
-          </div>
+    <div className="space-y-8 animate-fade-in text-slate-100">
+      {/* Toast Notification */}
+      {notification && (
+        <div
+          className={`fixed top-5 right-5 z-50 px-4 py-3 rounded-lg shadow-xl border flex items-center gap-3 transition-all ${
+            notification.type === "success"
+              ? "bg-emerald-950/90 border-emerald-500 text-emerald-200"
+              : "bg-rose-950/90 border-rose-500 text-rose-200"
+          }`}
+        >
+          <span>{notification.type === "success" ? "✓" : "⚠️"}</span>
+          <span className="text-sm font-medium">{notification.message}</span>
         </div>
-        <div className="flex items-center gap-gutter">
-          <div className="hidden lg:flex items-center bg-surface-container rounded px-stack-sm py-1 border border-outline-variant">
-            <div className="flex items-center">
-              <span>🔍</span>
-            </div>
-            <input className="bg-transparent border-none focus:ring-0 text-sm text-on-surface w-48" placeholder="Quick Search..." type="text"/>
-          </div>
-          <div className="flex items-center gap-stack-md">
-            <div className="flex items-center">
-              <span>🔔</span>
-            </div>
-            <div className="flex items-center">
-              <span>⚙️</span>
-            </div>
-            <div className="w-8 h-8 rounded-full bg-surface-container-high border border-outline-variant overflow-hidden">
-              <div className="w-full h-full flex items-center justify-center bg-surface-container-high text-on-surface-variant text-xs">
-                AC
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+      )}
 
-      {/* Main Content */}
-      <main className="pt-24 pb-20 px-margin max-w-container-max mx-auto">
-        {/* Page Header */}
-        <div className="mb-8">
-          <h1 className="font-display-lg text-display-lg text-on-surface mb-4">Reports</h1>
-          <p className="font-body-lg text-body-lg text-on-surface-variant max-w-3xl mx-auto">
-            Generate, manage, and export investigation reports. Track report history and schedule automated reporting.
+      {/* Page Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-slate-800 pb-6">
+        <div>
+          <div className="flex items-center gap-3 mb-1">
+            <span className="text-amber-400 text-2xl">📊</span>
+            <h1 className="text-2xl font-bold tracking-tight text-white">Compliance & Regulatory Reports</h1>
+            <span className="px-2 py-0.5 rounded text-xs font-mono bg-amber-500/10 text-amber-400 border border-amber-500/20">
+              FINCEN SAR & AUDIT READY
+            </span>
+          </div>
+          <p className="text-sm text-slate-400 max-w-2xl">
+            Generate, schedule, and export automated FinCEN Suspicious Activity Reports (SAR), daily fraud summaries, and executive audit dossiers.
           </p>
         </div>
 
-        {/* Controls and Filters */}
-        <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex-1 md:w-48">
-            <label className="block font-label-sm text-label-sm text-on-surface-variant mb-1">Search Reports</label>
-            <div className="relative">
-              <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center">
-                <span>🔍</span>
-              </div>
-              <input
-                className="w-full pl-10 pr-4 py-2 bg-surface-container-low border border-outline-variant rounded-lg text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-investment-gold"
-                placeholder="Search by title, description, ID..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-          </div>
-          <div className="flex-1 md:w-24">
-            <label className="block font-label-sm text-label-sm text-on-surface-variant mb-1">Filter by Status</label>
+        <Button
+          className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold gap-2 shadow-lg shadow-amber-500/20"
+          onClick={() => setIsNewReportModalOpen(true)}
+        >
+          <span>➕</span>
+          <span>Generate New Report</span>
+        </Button>
+      </div>
+
+      {/* Controls and Filters */}
+      <div className="bg-slate-900/60 backdrop-blur border border-slate-800 rounded-xl p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
+        <div className="relative w-full md:w-80">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
+          <input
+            type="text"
+            className="w-full bg-slate-950 border border-slate-700/80 rounded-lg pl-9 pr-4 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
+            placeholder="Search by title, type, or ID..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+
+        <div className="flex flex-wrap gap-3 w-full md:w-auto items-center">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-400 font-medium">Status:</span>
             <select
-              className="w-full pl-4 pr-4 py-2 bg-surface-container-low border border-outline-variant rounded-lg text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-investment-gold"
+              className="bg-slate-950 border border-slate-700/80 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
@@ -149,177 +213,324 @@ export function Reports() {
               <option value="Generating">Generating</option>
             </select>
           </div>
-          <div className="flex-1 md:w-24">
-            <label className="block font-label-sm text-label-sm text-on-surface-variant mb-1">Filter by Type</label>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-400 font-medium">Type:</span>
             <select
-              className="w-full pl-4 pr-4 py-2 bg-surface-container-low border border-outline-variant rounded-lg text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-investment-gold"
+              className="bg-slate-950 border border-slate-700/80 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
             >
               <option value="All">All Types</option>
+              <option value="SAR Regulatory Filing">SAR Regulatory Filing</option>
               <option value="Investigation Report">Investigation Report</option>
               <option value="Compliance Report">Compliance Report</option>
               <option value="Trend Report">Trend Report</option>
-              <option value="Custom Report">Custom Report</option>
             </select>
           </div>
-          <div className="flex-1 md:w-24">
-            <button
-              onClick={() => {
-                // New report logic would go here
-                alert("Create new report functionality would be implemented here");
-              }}
-              className="w-full py-2 bg-investment-gold text-surface font-semibold rounded hover:opacity-90 transition-all"
-            >
-              New Report
-            </button>
-          </div>
         </div>
+      </div>
 
-        {/* Reports Table */}
-        <div className="bg-surface-container-low rounded-xl border border-outline-variant overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-surface-container-high">
-                  <th className="p-4 font-label-sm text-label-sm text-on-surface-variant uppercase text-left">Title</th>
-                  <th className="p-4 font-label-sm text-label-sm text-on-surface-variant uppercase text-left">Type</th>
-                  <th className="p-4 font-label-sm text-label-sm text-on-surface-variant uppercase text-left">Generated By</th>
-                  <th className="p-4 font-label-sm text-label-sm text-on-surface-variant uppercase text-left">Status</th>
-                  <th className="p-4 font-label-sm text-label-sm text-on-surface-variant uppercase text-left">Date</th>
-                  <th className="p-4 font-label-sm text-label-sm text-on-surface-variant uppercase text-left">Size</th>
-                  <th className="p-4 font-label-sm text-label-sm text-on-surface-variant uppercase text-left">Actions</th>
+      {/* Reports Table */}
+      <div className="bg-slate-900/80 border border-slate-800 rounded-xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="border-b border-slate-800 bg-slate-950 text-slate-400 font-mono uppercase">
+                <th className="p-4">Report Title</th>
+                <th className="p-4">Type</th>
+                <th className="p-4">Author / Engine</th>
+                <th className="p-4">Status</th>
+                <th className="p-4">Generated Date</th>
+                <th className="p-4">File Size</th>
+                <th className="p-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800">
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="p-12 text-center text-slate-400">
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
+                      <span>Retrieving reports index...</span>
+                    </div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-outline-variant">
-                {filteredReports.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="p-8 text-center text-on-surface-variant">
-                      No reports found. Try adjusting your filters or creating a new report.
+              ) : reports.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="p-12 text-center text-slate-400">
+                    No reports found matching your criteria. Try adjusting filters or click "Generate New Report".
+                  </td>
+                </tr>
+              ) : (
+                reports.map((report) => (
+                  <tr key={report.report_id} className="hover:bg-slate-800/40 transition-colors">
+                    <td className="p-4">
+                      <div className="font-semibold text-slate-100 text-sm mb-0.5">{report.title}</div>
+                      {report.description && (
+                        <div className="text-slate-400 text-xs truncate max-w-sm">{report.description}</div>
+                      )}
                     </td>
-                  </tr>
-                ) : (
-                  filteredReports.map((report) => (
-                    <tr key={report.id} className="hover:bg-surface-container-high transition-colors">
-                      <td className="p-4 text-on-surface">{report.title}</td>
-                      <td className="p-4 text-on-surface-variant">{report.type}</td>
-                      <td className="p-4 text-on-surface">{report.generatedBy}</td>
-                      <td className="p-4">
-                        <span className={`px-2 py-1 text-xs font-mono rounded ${
+                    <td className="p-4 font-mono text-slate-300">
+                      <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-[11px]">
+                        {report.report_type}
+                      </span>
+                    </td>
+                    <td className="p-4 text-slate-300 font-medium">{report.generated_by}</td>
+                    <td className="p-4">
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
                           report.status === "Completed"
-                            ? "bg-emerald-500/20 text-emerald-400"
+                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
                             : report.status === "Failed"
-                              ? "bg-rose-500/20 text-rose-400"
-                              : "bg-amber-500/20 text-amber-400"
+                            ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                            : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
                         }`}
-                        >
-                          {report.status}
-                        </span>
-                      </td>
-                      <td className="p-4 text-on-surface">{report.date}</td>
-                      <td className="p-4 text-on-surface">{report.size}</td>
-                      <td className="p-4 flex space-x-2">
-                        <button
-                          onClick={() => {
-                            // View report logic
-                            alert(`Viewing report: ${report.title}`);
-                          }}
-                          className="px-3 py-1 bg-on-surface text-background text-xs font-semibold rounded hover:bg-primary transition-colors"
+                      >
+                        {report.status}
+                      </span>
+                    </td>
+                    <td className="p-4 font-mono text-slate-400">
+                      {new Date(report.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="p-4 font-mono text-slate-400">{formatSize(report.file_size)}</td>
+                    <td className="p-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs border-slate-700 hover:bg-slate-800 text-slate-200 py-1 px-2.5 h-auto"
+                          onClick={() => setSelectedReportForView(report)}
                         >
                           View
-                        </button>
-                        <button
-                          onClick={() => {
-                            // Export report logic
-                            alert(`Exporting report: ${report.title}`);
-                          }}
-                          className="px-3 py-1 bg-on-surface text-background text-xs font-semibold rounded hover:bg-primary transition-colors"
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="text-xs bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-400/30 py-1 px-2.5 h-auto font-mono"
+                          onClick={() => handleExport(report)}
                         >
-                          Export
+                          PDF Export
+                        </Button>
+                        <button
+                          onClick={() => handleDelete(report.report_id)}
+                          className="text-slate-500 hover:text-rose-400 text-xs px-1"
+                          title="Delete report"
+                        >
+                          ✕
                         </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Report Statistics Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-5 text-center">
+          <div className="text-3xl font-bold font-mono text-white mb-1">{reports.length}</div>
+          <div className="text-xs text-slate-400 font-mono uppercase">Total Reports</div>
         </div>
 
-        {/* Report Stats Summary */}
-        <div className="mt-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex-1">
-            <h2 className="font-headline-lg text-headline-lg text-on-surface mb-2">Report Statistics</h2>
-            <p className="font-body-sm text-body-sm text-on-surface-variant">
-              Track reporting trends and performance metrics.
-            </p>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-surface-container-low border border-outline-variant rounded-xl p-4 text-center">
-              <div className="text-2xl font-bold text-on-surface">{reports.length}</div>
-              <div className="text-sm text-on-surface-variant">Total Reports</div>
-            </div>
-            <div className="bg-surface-container-low border border-outline-variant rounded-xl p-4 text-center">
-              <div className="text-2xl font-bold text-on-surface">{reports.filter(r => r.status === "Completed").length}</div>
-              <div className="text-sm text-on-surface-variant">Successful Reports</div>
-            </div>
-            <div className="bg-surface-container-low border border-outline-variant rounded-xl p-4 text-center">
-              <div className="text-2xl font-bold text-on-surface">{reports.filter(r => r.status === "Failed").length}</div>
-              <div className="text-sm text-on-surface-variant">Failed Reports</div>
-            </div>
-            <div className="bg-surface-container-low border border-outline-variant rounded-xl p-4 text-center">
-              <div className="text-2xl font-bold text-on-surface">{reports.filter(r => r.status === "Generated").length}</div>
-              <div className="text-sm text-on-surface-variant">Pending Reports</div>
-            </div>
-          </div>
+        <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-5 text-center">
+          <div className="text-3xl font-bold font-mono text-emerald-400 mb-1">{completedCount}</div>
+          <div className="text-xs text-slate-400 font-mono uppercase">Completed & Verified</div>
         </div>
-      </main>
 
-      {/* Footer (same as other pages) */}
-      <footer className="border-t border-outline-variant bg-surface py-12 px-margin mt-12">
-        <div className="max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-start gap-stack-lg">
-          <div className="max-w-sm">
-            <span className="font-headline-md text-headline-md font-bold text-investment-gold mb-4 block">FFIRE</span>
-            <p className="text-on-surface-variant text-sm">
-              Deterministic Intelligence for the modern financial infrastructure. Precision auditing, human-centered explainability.
-            </p>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-stack-lg">
-            <div>
-              <h4 className="font-label-md text-label-md text-on-surface mb-4 uppercase">Product</h4>
-              <ul className="space-y-2 text-sm text-on-surface-variant">
-                <li><a href="#" className="hover:text-primary">Features</a></li>
-                <li><a href="#" className="hover:text-primary">LangGraph Docs</a></li>
-                <li><a href="#" className="hover:text-primary">Integrations</a></li>
-                <li><a href="#" className="hover:text-primary">Pricing</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-label-md text-label-md text-on-surface mb-4 uppercase">Resources</h4>
-              <ul className="space-y-2 text-sm text-on-surface-variant">
-                <li><a href="#" className="hover:text-primary">Whitepapers</a></li>
-                <li><a href="#" className="hover:text-primary">API Reference</a></li>
-                <li><a href="#" className="hover:text-primary">Compliance Guide</a></li>
-              </ul>
-            </div>
-            <div className="col-span-2 sm:col-span-1">
-              <h4 className="font-label-md text-label-md text-on-surface mb-4 uppercase">Status</h4>
+        <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-5 text-center">
+          <div className="text-3xl font-bold font-mono text-amber-400 mb-1">{sarCount}</div>
+          <div className="text-xs text-slate-400 font-mono uppercase">SAR Filings</div>
+        </div>
+
+        <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-5 text-center">
+          <div className="text-3xl font-bold font-mono text-rose-400 mb-1">{failedCount}</div>
+          <div className="text-xs text-slate-400 font-mono uppercase">Failed Dispatches</div>
+        </div>
+      </div>
+
+      {/* New Report Modal */}
+      {isNewReportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
+            <div className="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/60">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-risk-low animate-pulse"></div>
-                <span className="text-sm text-on-surface-variant font-label-sm">FFIRE Engine v2.4 Active</span>
+                <span className="text-amber-400">📄</span>
+                <h3 className="font-bold text-white text-base">Generate New Report</h3>
+              </div>
+              <button
+                onClick={() => setIsNewReportModalOpen(false)}
+                className="text-slate-400 hover:text-white text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateReport} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Report Title</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g., Q3 AML Compliance Audit or SAR Dossier"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:ring-1 focus:ring-amber-400 outline-none"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Report Type</label>
+                  <select
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-1 focus:ring-amber-400 outline-none"
+                    value={newType}
+                    onChange={(e) => setNewType(e.target.value)}
+                  >
+                    <option value="Investigation Report">Investigation Report</option>
+                    <option value="SAR Regulatory Filing">SAR Regulatory Filing</option>
+                    <option value="Compliance Report">Compliance Report</option>
+                    <option value="Trend Report">Trend Report</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Format</label>
+                  <select
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-1 focus:ring-amber-400 outline-none"
+                    value={newFormat}
+                    onChange={(e) => setNewFormat(e.target.value)}
+                  >
+                    <option value="pdf">PDF Document (ReportLab)</option>
+                    <option value="json">JSON Metadata</option>
+                    <option value="html">Interactive HTML</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  Investigation ID (Optional linkage)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g., inv_9876543210"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:ring-1 focus:ring-amber-400 outline-none"
+                  value={newInvId}
+                  onChange={(e) => setNewInvId(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Executive Summary / Scope</label>
+                <textarea
+                  rows={3}
+                  placeholder="Document scope, suspicious activity narrative, or regulatory findings..."
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:ring-1 focus:ring-amber-400 outline-none"
+                  value={newDesc}
+                  onChange={(e) => setNewDesc(e.target.value)}
+                ></textarea>
+              </div>
+
+              <div className="pt-3 border-t border-slate-800 flex justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-slate-700 text-slate-300"
+                  onClick={() => setIsNewReportModalOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold"
+                >
+                  {submitting ? "Generating..." : "Compile & Generate Report"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Report Detail Modal */}
+      {selectedReportForView && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl">
+            <div className="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/60">
+              <div className="flex items-center gap-2">
+                <span className="text-amber-400">📄</span>
+                <h3 className="font-bold text-white text-base truncate max-w-md">
+                  {selectedReportForView.title}
+                </h3>
+              </div>
+              <button
+                onClick={() => setSelectedReportForView(null)}
+                className="text-slate-400 hover:text-white text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs font-mono">
+                <div className="bg-slate-950 p-2.5 rounded border border-slate-800">
+                  <span className="text-slate-500 block">Report ID</span>
+                  <span className="text-amber-300 truncate block">{selectedReportForView.report_id.slice(0, 8)}...</span>
+                </div>
+                <div className="bg-slate-950 p-2.5 rounded border border-slate-800">
+                  <span className="text-slate-500 block">Type</span>
+                  <span className="text-slate-200 truncate block">{selectedReportForView.report_type}</span>
+                </div>
+                <div className="bg-slate-950 p-2.5 rounded border border-slate-800">
+                  <span className="text-slate-500 block">Status</span>
+                  <span className="text-emerald-400 block">{selectedReportForView.status}</span>
+                </div>
+                <div className="bg-slate-950 p-2.5 rounded border border-slate-800">
+                  <span className="text-slate-500 block">Size</span>
+                  <span className="text-slate-200 block">{formatSize(selectedReportForView.file_size)}</span>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-mono uppercase text-slate-400 tracking-wider mb-2">
+                  Executive Findings & Narrative
+                </h4>
+                <div className="bg-slate-950 border border-slate-800 rounded-lg p-4 font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed">
+                  {selectedReportForView.description || "Comprehensive multi-layered fraud reasoning report compiled automatically by the reasoning engine."}
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-800 flex justify-between items-center">
+                <button
+                  onClick={() => handleDelete(selectedReportForView.report_id)}
+                  className="text-xs text-rose-400 hover:underline"
+                >
+                  Delete Report
+                </button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="border-slate-700 text-slate-300 text-xs"
+                    onClick={() => setSelectedReportForView(null)}
+                  >
+                    Close
+                  </Button>
+                  <Button
+                    className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs"
+                    onClick={() => handleExport(selectedReportForView)}
+                  >
+                    Export {selectedReportForView.file_format.toUpperCase()}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
         </div>
-        <div className="max-w-container-max mx-auto mt-12 pt-8 border-t border-outline-variant flex justify-between items-center text-xs text-on-surface-variant opacity-60">
-          <p>© 2024 FFIRE Intelligence Systems. All rights reserved.</p>
-          <div className="flex gap-stack-md">
-            <a href="#" className="hover:text-white transition-colors">Privacy</a>
-            <a href="#" className="hover:text-white transition-colors">Terms</a>
-            <a href="#" className="hover:text-white transition-colors">Security</a>
-          </div>
-        </div>
-      </footer>
-    </>
+      )}
+    </div>
   );
 }

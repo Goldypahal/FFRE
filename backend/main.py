@@ -276,6 +276,35 @@ class EvidenceVaultListResponse(BaseModel):
     page_size: int
     total_pages: int
 
+class ReportGenerateRequest(BaseModel):
+    title: str
+    report_type: str = "Investigation Report"
+    investigation_id: Optional[str] = None
+    description: Optional[str] = None
+    file_format: str = "pdf"
+
+class ReportRecordResponse(BaseModel):
+    report_id: str
+    tenant_id: str
+    investigation_id: Optional[str] = None
+    title: str
+    report_type: str
+    generated_by: str
+    status: str
+    file_format: str
+    file_size: int
+    description: Optional[str] = None
+    created_at: datetime.datetime
+
+    model_config = {"from_attributes": True}
+
+class ReportListResponse(BaseModel):
+    reports: List[ReportRecordResponse]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
 # Build the LangGraph app once
 graph_app = build_graph()
 
@@ -1242,6 +1271,256 @@ async def delete_evidence(
     db.delete(item)
     db.commit()
     return {"status": "success", "message": f"Evidence {item_id} removed from vault"}
+
+# --- Reports & Regulatory Filing Endpoints (Chapters 32, 96) ---
+
+def seed_default_reports_if_empty(db: Session, tenant_id: str):
+    count = db.query(models.ReportRecord).filter(models.ReportRecord.tenant_id == tenant_id).count()
+    if count > 0:
+        return
+
+    seeds = [
+        models.ReportRecord(
+            tenant_id=tenant_id,
+            title="Suspicious Activity Report - FinCEN SAR Filing",
+            report_type="SAR Regulatory Filing",
+            generated_by="Automated Compliance Engine",
+            status="Completed",
+            file_format="pdf",
+            file_size=2516582,
+            description="Suspicious Activity Report detailing high-velocity layering pattern across offshore neo-bank routing.",
+            content_json="Executive Summary: High-velocity smurfing identified across 14 transactions totaling $420,000.\nFiling Category: BSA/AML FinCEN Form 111.\nRisk Score: 0.96 (CRITICAL).",
+            created_at=datetime.datetime.utcnow() - datetime.timedelta(days=1)
+        ),
+        models.ReportRecord(
+            tenant_id=tenant_id,
+            title="Daily Fraud & Risk Intelligence Summary",
+            report_type="Trend Report",
+            generated_by="System Cron",
+            status="Completed",
+            file_format="pdf",
+            file_size=1258291,
+            description="Daily aggregated metrics on model inference, critic corrections, and velocity anomalies.",
+            content_json="Daily Summary: 1,480 transactions evaluated. 99.2% automated pass rate, 12 human review escalations.",
+            created_at=datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+        ),
+        models.ReportRecord(
+            tenant_id=tenant_id,
+            title="Chargeback Analysis Report Q1",
+            report_type="Compliance Report",
+            generated_by="Maria Garcia (Lead Analyst)",
+            status="Completed",
+            file_format="pdf",
+            file_size=6081740,
+            description="Quarterly analysis of chargeback rates, card network dispute resolution, and synthetic identity exposure.",
+            content_json="Q1 Chargeback Audit: Net dispute recovery rate 74.2%. Synthetic identity exposure mitigated $1.8M.",
+            created_at=datetime.datetime.utcnow() - datetime.timedelta(days=14)
+        ),
+        models.ReportRecord(
+            tenant_id=tenant_id,
+            title="Investigation Timeline & Evidence Dossier",
+            report_type="Investigation Report",
+            generated_by="Alex Johnson (Senior Investigator)",
+            status="Completed",
+            file_format="pdf",
+            file_size=327680,
+            description="Complete multi-source forensic evidence trail, decision reasoning DAG, and analyst resolution notes.",
+            content_json="Forensic Dossier: Verified IP geo-hop across London VPC and Frankfurt exit relays.",
+            created_at=datetime.datetime.utcnow() - datetime.timedelta(days=3)
+        ),
+        models.ReportRecord(
+            tenant_id=tenant_id,
+            title="Cross-Border Wire Compliance Sweep",
+            report_type="Compliance Report",
+            generated_by="Compliance Daemon",
+            status="Failed",
+            file_format="pdf",
+            file_size=0,
+            description="Sanction screening reconciliation failed due to upstream OFAC API socket timeout.",
+            content_json="Failure diagnostic: SocketTimeoutException on sanctions gateway port 443.",
+            created_at=datetime.datetime.utcnow() - datetime.timedelta(days=5)
+        )
+    ]
+    db.add_all(seeds)
+    db.commit()
+
+@app.get("/api/v1/reports", response_model=ReportListResponse)
+async def list_reports(
+    search: Optional[str] = Query(None, description="Search term in title or description"),
+    status: Optional[str] = Query(None, description="Filter by status (Completed, Generating, Failed)"),
+    report_type: Optional[str] = Query(None, description="Filter by report type"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """List regulatory and analytical reports with search, filtering, and tenant scoping."""
+    tenant = getattr(current_user, "tenant_id", "default_tenant")
+    seed_default_reports_if_empty(db, tenant)
+
+    query = db.query(models.ReportRecord)
+    if current_user.role != "admin":
+        query = query.filter(models.ReportRecord.tenant_id == tenant)
+
+    if status and status != "All":
+        query = query.filter(models.ReportRecord.status == status)
+    if report_type and report_type != "All":
+        query = query.filter(models.ReportRecord.report_type == report_type)
+    if search:
+        pattern = f"%{search}%"
+        query = query.filter(
+            (models.ReportRecord.title.ilike(pattern)) |
+            (models.ReportRecord.description.ilike(pattern)) |
+            (models.ReportRecord.report_id.ilike(pattern))
+        )
+
+    total = query.count()
+    offset = (page - 1) * page_size
+    reports = query.order_by(desc(models.ReportRecord.created_at)).offset(offset).limit(page_size).all()
+    total_pages = (total + page_size - 1) // page_size if total > 0 else 1
+
+    return ReportListResponse(
+        reports=reports,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages
+    )
+
+@app.post("/api/v1/reports/generate", response_model=ReportRecordResponse)
+async def generate_report(
+    request_data: ReportGenerateRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Generate a new formal investigation report or regulatory SAR filing."""
+    tenant = getattr(current_user, "tenant_id", "default_tenant")
+    report_id = str(uuid.uuid4())
+
+    inv_details = ""
+    if request_data.investigation_id:
+        inv = db.query(models.Investigation).filter(models.Investigation.investigation_id == request_data.investigation_id).first()
+        if inv:
+            inv_details = f"\nLinked Investigation: {inv.investigation_id} | Status: {inv.status} | Risk: {inv.risk_score}"
+
+    content = f"FFIRE Regulatory & Executive Dossier: {request_data.title}\nReport Type: {request_data.report_type}\nGenerated By: {current_user.name}\nTenant: {tenant}{inv_details}\nDescription: {request_data.description or 'No description provided.'}\nGenerated At: {datetime.datetime.utcnow().isoformat()}"
+    file_size = len(content.encode("utf-8")) + 102400
+
+    report = models.ReportRecord(
+        report_id=report_id,
+        tenant_id=tenant,
+        investigation_id=request_data.investigation_id,
+        title=request_data.title,
+        report_type=request_data.report_type,
+        generated_by=current_user.name,
+        status="Completed",
+        file_format=request_data.file_format.lower(),
+        file_size=file_size,
+        description=request_data.description,
+        content_json=content,
+        created_at=datetime.datetime.utcnow()
+    )
+    db.add(report)
+
+    audit = models.AuditLog(
+        investigation_id=request_data.investigation_id,
+        action="REPORT_GENERATED",
+        details=f"Report '{report.title}' ({report.report_id}) generated by {current_user.name}",
+        tenant_id=tenant
+    )
+    db.add(audit)
+    db.commit()
+    db.refresh(report)
+    return report
+
+@app.get("/api/v1/reports/{report_id}/download")
+async def download_report(
+    report_id: str,
+    format: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Download generated report in PDF, JSON, or HTML format."""
+    report = db.query(models.ReportRecord).filter(models.ReportRecord.report_id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    if current_user.role != "admin" and getattr(current_user, "tenant_id", None):
+        if report.tenant_id != current_user.tenant_id:
+            raise HTTPException(status_code=403, detail="Access denied: Report belongs to another tenant")
+
+    fmt = (format or report.file_format or "pdf").lower()
+    if fmt == "json":
+        return {
+            "report_id": report.report_id,
+            "title": report.title,
+            "report_type": report.report_type,
+            "status": report.status,
+            "generated_by": report.generated_by,
+            "created_at": report.created_at.isoformat(),
+            "content": report.content_json
+        }
+    elif fmt == "html":
+        html = f"""<!DOCTYPE html><html><head><title>{report.title}</title><style>body{{font-family:sans-serif;margin:40px;color:#0f172a;}} h1{{color:#1e293b;}} pre{{background:#f1f5f9;padding:16px;border-radius:6px;}}</style></head><body><h1>{report.title}</h1><p><strong>Type:</strong> {report.report_type} | <strong>Status:</strong> {report.status} | <strong>Author:</strong> {report.generated_by}</p><pre>{report.content_json or report.description}</pre></body></html>"""
+        return Response(content=html, media_type="text/html")
+    else:
+        try:
+            from reportlab.lib.pagesizes import letter
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib import colors
+            import io
+            import html as html_lib
+
+            buffer = io.BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
+            styles = getSampleStyleSheet()
+            title_style = ParagraphStyle('RTitle', parent=styles['Heading1'], fontSize=16, leading=20, textColor=colors.HexColor("#0f172a"))
+            body_style = ParagraphStyle('RBody', parent=styles['Normal'], fontSize=10, leading=14, textColor=colors.HexColor("#334155"))
+
+            elements = [
+                Paragraph(f"FFRE Executive Report: {html_lib.escape(report.title)}", title_style),
+                Spacer(1, 10),
+                Paragraph(f"<b>Report ID:</b> {report.report_id} | <b>Type:</b> {report.report_type}<br/><b>Author:</b> {report.generated_by} | <b>Created:</b> {report.created_at.isoformat()}", body_style),
+                Spacer(1, 15),
+                Paragraph("<b>Executive Summary & Content:</b>", body_style),
+                Spacer(1, 6),
+                Paragraph(html_lib.escape(report.content_json or report.description or "No report content").replace("\n", "<br/>"), body_style)
+            ]
+            doc.build(elements)
+            buffer.seek(0)
+            pdf_bytes = buffer.getvalue()
+            return Response(
+                content=pdf_bytes,
+                media_type="application/pdf",
+                headers={"Content-Disposition": f"attachment; filename=report_{report_id}.pdf"}
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to compile report PDF: {str(e)}")
+
+@app.delete("/api/v1/reports/{report_id}")
+async def delete_report(
+    report_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Delete a report from the archive."""
+    report = db.query(models.ReportRecord).filter(models.ReportRecord.report_id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    if current_user.role != "admin" and getattr(current_user, "tenant_id", None):
+        if report.tenant_id != current_user.tenant_id:
+            raise HTTPException(status_code=403, detail="Access denied: Report belongs to another tenant")
+
+    audit = models.AuditLog(
+        investigation_id=report.investigation_id,
+        action="REPORT_DELETED",
+        details=f"Report '{report.title}' ({report.report_id}) deleted by {current_user.name}",
+        tenant_id=report.tenant_id
+    )
+    db.add(audit)
+    db.delete(report)
+    db.commit()
+    return {"status": "success", "message": f"Report {report_id} removed"}
 
 @app.get("/api/v1/health")
 async def health_check():

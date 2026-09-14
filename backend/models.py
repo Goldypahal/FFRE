@@ -214,3 +214,20 @@ class EvidenceVaultItem(Base):
     metadata_json = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=True)
+
+class ReportRecord(Base):
+    __tablename__ = "reports"
+
+    report_id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(50), nullable=False, default="default_tenant", index=True)
+    investigation_id = Column(String, ForeignKey("investigation.investigation_id", ondelete="SET NULL"), nullable=True, index=True)
+    title = Column(String(255), nullable=False)
+    report_type = Column(String(50), nullable=False, default="Investigation Report")
+    generated_by = Column(String(100), nullable=False, default="System")
+    status = Column(String(50), nullable=False, default="Completed")
+    file_format = Column(String(20), nullable=False, default="pdf")
+    file_size = Column(Integer, default=2400000)
+    description = Column(Text, nullable=True)
+    content_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=True)
