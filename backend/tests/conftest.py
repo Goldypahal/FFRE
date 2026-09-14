@@ -2,8 +2,12 @@ import os
 import sys
 from unittest.mock import MagicMock
 
-# Ensure parent backend directory is on sys.path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Ensure parent backend directory and workspace root are on sys.path
+backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+root_dir = os.path.dirname(backend_dir)
+sys.path.insert(0, backend_dir)
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
 
 # Mock chromadb to prevent network calls/model downloads during tests
 sys.modules['chromadb'] = MagicMock()
@@ -65,7 +69,8 @@ def override_get_current_user():
         user_id="user_1",
         name="Test User",
         email="test@example.com",
-        role="investigator"
+        role="investigator",
+        tenant_id="default_tenant"
     )
 app.dependency_overrides[get_current_user] = override_get_current_user
 

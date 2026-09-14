@@ -13,6 +13,7 @@ class User(Base):
     __tablename__ = "users"
 
     user_id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(50), nullable=False, default="default_tenant", index=True)
     _name = Column("name", String(255), nullable=False)
     _email = Column("email", String(255), nullable=False)
     email_hash = Column(String(64), nullable=True, unique=True, index=True)
@@ -45,6 +46,7 @@ class Customer(Base):
     __tablename__ = "customer"
 
     customer_id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(50), nullable=False, default="default_tenant", index=True)
     name = Column(String(100), nullable=False)
     kyc_status = Column(String(50), default="UNVERIFIED")
     risk_tier = Column(String(20), default="LOW")
@@ -57,6 +59,7 @@ class Account(Base):
     __tablename__ = "account"
 
     account_id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(50), nullable=False, default="default_tenant", index=True)
     customer_id = Column(String, ForeignKey("customer.customer_id"))
     account_type = Column(String(50), default="CHECKING")
     balance = Column(Numeric(12, 2), default=0.0)
@@ -69,6 +72,7 @@ class Merchant(Base):
     __tablename__ = "merchant"
 
     merchant_id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(50), nullable=False, default="default_tenant", index=True)
     name = Column(String(100), nullable=False)
     category = Column(String(50), default="RETAIL")
     risk_score = Column(Numeric(4, 3), default=0.0)
@@ -80,6 +84,7 @@ class Transaction(Base):
     __tablename__ = "transaction"
 
     txn_id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(50), nullable=False, default="default_tenant", index=True)
     account_id = Column(String, ForeignKey("account.account_id"))
     merchant_id = Column(String, ForeignKey("merchant.merchant_id"))
     amount = Column(Numeric(12, 2), nullable=False)
@@ -125,6 +130,7 @@ class Investigation(Base):
     __tablename__ = "investigation"
 
     investigation_id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(50), nullable=False, default="default_tenant", index=True)
     txn_id = Column(String, ForeignKey("transaction.txn_id"))
     created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=True)
@@ -142,6 +148,7 @@ class Evidence(Base):
     __tablename__ = "evidence"
 
     evidence_id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(50), nullable=False, default="default_tenant", index=True)
     investigation_id = Column(String, ForeignKey("investigation.investigation_id"))
     source = Column(String(50), nullable=False)
     snippet = Column(Text, nullable=False)
@@ -168,6 +175,7 @@ class AuditLog(Base):
     __tablename__ = "audit_log"
 
     log_id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(50), nullable=False, default="default_tenant", index=True)
     investigation_id = Column(String, ForeignKey("investigation.investigation_id", ondelete="SET NULL"), nullable=True, index=True)
     action = Column(String(250), nullable=False)
     details = Column(Text, nullable=True)

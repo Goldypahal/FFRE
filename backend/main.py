@@ -120,6 +120,7 @@ class InvestigationResponse(BaseModel):
     customer_name: Optional[str] = None
     risk_score: Optional[float] = None
     created_at: Optional[datetime.datetime] = None
+    tenant_id: Optional[str] = "default_tenant"
 
     model_config = {
         "from_attributes": True,
@@ -152,6 +153,7 @@ class InvestigationResponse(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    tenant_id: Optional[str] = "default_tenant"
 
     model_config = {
         "json_schema_extra": {
@@ -169,6 +171,7 @@ class UserCreate(BaseModel):
     email: str
     password: str
     role: str = "investigator"
+    tenant_id: Optional[str] = "default_tenant"
 
     model_config = {
         "json_schema_extra": {
@@ -334,11 +337,13 @@ async def register_user(user: UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Email already registered")
         
     hashed_password = auth.get_password_hash(user.password)
+    tenant = user.tenant_id or "default_tenant"
     db_user = models.User(
         name=user.name, 
         email=user.email, 
         role=user.role, 
-        hashed_password=hashed_password
+        hashed_password=hashed_password,
+        tenant_id=tenant
     )
     db.add(db_user)
     db.commit()
@@ -346,9 +351,9 @@ async def register_user(user: UserCreate, db: Session = Depends(get_db)):
     
     access_token_expires = datetime.timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = auth.create_access_token(
-        data={"sub": user.email, "role": user.role}, expires_delta=access_token_expires
+        data={"sub": user.email, "role": user.role, "tenant_id": tenant}, expires_delta=access_token_expires
     )
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {"access_token": access_token, "token_type": "bearer", "tenant_id": tenant}
 
 @app.post("/api/v1/auth/login", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
@@ -359,11 +364,12 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    tenant = getattr(user, "tenant_id", "default_tenant")
     access_token_expires = datetime.timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = auth.create_access_token(
-        data={"sub": user.email, "role": user.role}, expires_delta=access_token_expires
+        data={"sub": user.email, "role": user.role, "tenant_id": tenant}, expires_delta=access_token_expires
     )
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {"access_token": access_token, "token_type": "bearer", "tenant_id": tenant}
 
 def build_investigation_response(inv: models.Investigation, db: Session) -> InvestigationResponse:
     evidence_list = [EvidenceResponse(source=ev.source, snippet=ev.snippet) for ev in inv.evidence]
@@ -405,7 +411,8 @@ def build_investigation_response(inv: models.Investigation, db: Session) -> Inve
         currency=currency,
         customer_name=customer_name,
         risk_score=risk_score,
-        created_at=inv.created_at
+        created_at=inv.created_at,
+        tenant_id=getattr(inv, "tenant_id", "default_tenant")
     )
 
 # --- Protected Investigation Routes ---
@@ -486,10 +493,12 @@ async def create_investigation(
         db.add(loc)
         db.commit()
 
+    user_tenant = getattr(current_user, "tenant_id", "default_tenant")
     inv = models.Investigation(
         txn_id=request.transaction_id,
         status="QUEUED",
-        idempotency_key=idemp_key
+        idempotency_key=idemp_key,
+        tenant_id=user_tenant
     )
     db.add(inv)
     db.commit()
@@ -497,7 +506,8 @@ async def create_investigation(
 
     audit_log = models.AuditLog(
         investigation_id=inv.investigation_id,
-        action="Investigation Started"
+        action="Investigation Started",
+        tenant_id=user_tenant
     )
     db.add(audit_log)
     db.commit()
@@ -521,6 +531,9 @@ async def get_investigation(
     inv = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Investigation not found")
+    if current_user.role != "admin" and getattr(current_user, "tenant_id", None) and getattr(inv, "tenant_id", None):
+        if inv.tenant_id != current_user.tenant_id:
+            raise HTTPException(status_code=403, detail="Access denied: Resource belongs to another tenant")
         
     return build_investigation_response(inv, db)
 
@@ -534,6 +547,9 @@ async def cancel_investigation(
     inv = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Investigation not found")
+    if current_user.role != "admin" and getattr(current_user, "tenant_id", None) and getattr(inv, "tenant_id", None):
+        if inv.tenant_id != current_user.tenant_id:
+            raise HTTPException(status_code=403, detail="Access denied: Resource belongs to another tenant")
     if inv.status in ("COMPLETED", "REJECTED"):
         raise HTTPException(status_code=400, detail=f"Cannot cancel investigation in status {inv.status}")
 
@@ -565,6 +581,9 @@ async def review_investigation(
     inv = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Investigation not found")
+    if current_user.role != "admin" and getattr(current_user, "tenant_id", None) and getattr(inv, "tenant_id", None):
+        if inv.tenant_id != current_user.tenant_id:
+            raise HTTPException(status_code=403, detail="Access denied: Resource belongs to another tenant")
 
     if inv.status not in ["COMPLETED", "ESCALATED", "FAILED", "RUNNING"]:
         raise HTTPException(status_code=400, detail=f"Cannot review investigation in status {inv.status}")
@@ -588,7 +607,8 @@ async def review_investigation(
     audit_log = models.AuditLog(
         investigation_id=inv.investigation_id,
         action=f"HUMAN_REVIEW: {action_type}",
-        details=notes_str
+        details=notes_str,
+        tenant_id=getattr(inv, "tenant_id", "default_tenant")
     )
     db.add(audit_log)
     db.commit()
@@ -624,6 +644,8 @@ async def list_investigations(
     """
     # Build the base query
     query = db.query(models.Investigation)
+    if current_user.role != "admin" and getattr(current_user, "tenant_id", None):
+        query = query.filter(models.Investigation.tenant_id == current_user.tenant_id)
 
     # Apply filters
     if status:
@@ -706,6 +728,9 @@ async def export_investigation_report(
     inv = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Investigation not found")
+    if current_user.role != "admin" and getattr(current_user, "tenant_id", None) and getattr(inv, "tenant_id", None):
+        if inv.tenant_id != current_user.tenant_id:
+            raise HTTPException(status_code=403, detail="Access denied: Resource belongs to another tenant")
 
     response_data = build_investigation_response(inv, db)
     audit_logs = db.query(models.AuditLog).filter(models.AuditLog.investigation_id == investigation_id).order_by(models.AuditLog.timestamp).all()
@@ -829,6 +854,9 @@ async def update_investigation(
     inv = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Investigation not found")
+    if current_user.role != "admin" and getattr(current_user, "tenant_id", None) and getattr(inv, "tenant_id", None):
+        if inv.tenant_id != current_user.tenant_id:
+            raise HTTPException(status_code=403, detail="Access denied: Resource belongs to another tenant")
 
     # Update fields if provided
     if status is not None:
@@ -845,7 +873,8 @@ async def update_investigation(
         audit_log = models.AuditLog(
             investigation_id=inv.investigation_id,
             action=f"STATUS_UPDATED: {status}",
-            details=f"Status updated to {status} by {current_user.name}"
+            details=f"Status updated to {status} by {current_user.name}",
+            tenant_id=getattr(inv, "tenant_id", "default_tenant")
         )
         db.add(audit_log)
 
@@ -873,6 +902,9 @@ async def delete_investigation(
     inv = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Investigation not found")
+    if current_user.role != "admin" and getattr(current_user, "tenant_id", None) and getattr(inv, "tenant_id", None):
+        if inv.tenant_id != current_user.tenant_id:
+            raise HTTPException(status_code=403, detail="Access denied: Resource belongs to another tenant")
 
     # Store info for audit log before deletion
     investigation_id_for_log = inv.investigation_id
@@ -885,7 +917,8 @@ async def delete_investigation(
     tombstone_log = models.AuditLog(
         investigation_id=None,
         action=f"INVESTIGATION_DELETED: {investigation_id_for_log}",
-        details=f"Investigation for transaction {txn_id_for_log} deleted by administrator {current_user.name}"
+        details=f"Investigation for transaction {txn_id_for_log} deleted by administrator {current_user.name}",
+        tenant_id=getattr(inv, "tenant_id", "default_tenant")
     )
     db.add(tombstone_log)
 
