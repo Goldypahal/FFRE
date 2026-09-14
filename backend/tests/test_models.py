@@ -22,6 +22,14 @@ def test_user_creation(db_session):
     assert retrieved_user.email == "test@example.com"
     assert retrieved_user._name != "Test User"
     assert retrieved_user._email != "test@example.com"
+    assert retrieved_user.email_hash is not None
+    assert len(retrieved_user.email_hash) == 64
+
+    # Verify O(1) blind index resolution via auth.get_user_by_email
+    import auth
+    indexed_user = auth.get_user_by_email(db_session, "test@example.com")
+    assert indexed_user is not None
+    assert indexed_user.user_id == user_id
 
 def test_investigation_creation(db_session):
     """Test creating an Investigation model instance"""

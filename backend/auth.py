@@ -61,12 +61,22 @@ def decode_access_token(token: str) -> dict:
 def get_user_by_email(db: Session, email: str) -> Optional[models.User]:
     if not email:
         return None
-    enc_email = security.encrypt_data(email.lower())
-    usr = db.query(models.User).filter(models.User._email == enc_email).first()
+    normalized_email = email.strip().lower()
+    email_idx = security.compute_blind_index(normalized_email)
+    
+    # 1. Primary path: O(1) indexed lookup via deterministic blind index
+    usr = db.query(models.User).filter(models.User.email_hash == email_idx).first()
     if usr:
         return usr
+
+    # 2. Resilient fallback for unmigrated legacy database records
     for user in db.query(models.User).all():
-        if user.email and user.email.lower() == email.lower():
+        if user.email and user.email.strip().lower() == normalized_email:
+            try:
+                user.email_hash = email_idx
+                db.commit()
+            except Exception:
+                db.rollback()
             return user
     return None
 

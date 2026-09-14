@@ -14,7 +14,8 @@ class User(Base):
 
     user_id = Column(String, primary_key=True, default=generate_uuid)
     _name = Column("name", String(255), nullable=False)
-    _email = Column("email", String(255), nullable=False, unique=True, index=True)
+    _email = Column("email", String(255), nullable=False)
+    email_hash = Column(String(64), nullable=True, unique=True, index=True)
     hashed_password = Column(String(255), nullable=True)
     role = Column(String(50), nullable=False, default="investigator")
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
@@ -33,7 +34,12 @@ class User(Base):
 
     @email.setter
     def email(self, value):
-        self._email = security.encrypt_data(value) if value else None
+        if value:
+            self._email = security.encrypt_data(value)
+            self.email_hash = security.compute_blind_index(value)
+        else:
+            self._email = None
+            self.email_hash = None
 
 class Customer(Base):
     __tablename__ = "customer"

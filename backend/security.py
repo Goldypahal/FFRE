@@ -5,6 +5,8 @@ Implements symmetric Fernet encryption (AES-128-CBC with HMAC-SHA256 authenticat
 
 import os
 import base64
+import hmac
+import hashlib
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -69,6 +71,19 @@ def decrypt_data(encrypted_data: str) -> str:
     except Exception:
         # If decryption fails (e.g. data was stored in plaintext), return original string safely
         return encrypted_data
+
+def compute_blind_index(data: str) -> str:
+    """
+    Compute a deterministic HMAC-SHA256 blind index hash for searchable encrypted fields.
+    Allows exact O(1) database lookups without compromising PII confidentiality.
+    """
+    if not data:
+        return ""
+    try:
+        key = get_encryption_key()
+        return hmac.new(key, data.strip().lower().encode("utf-8"), hashlib.sha256).hexdigest()
+    except Exception:
+        return hashlib.sha256(data.strip().lower().encode("utf-8")).hexdigest()
 
 # Example usage in SQLAlchemy models:
 #
