@@ -1,6 +1,6 @@
 import uuid
 import datetime
-from sqlalchemy import Column, String, Float, DateTime, ForeignKey, Text, Numeric, Integer
+from sqlalchemy import Column, String, Float, DateTime, ForeignKey, Text, Numeric, Integer, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.hybrid import hybrid_property
 from database import Base
@@ -192,3 +192,25 @@ class DeadLetterJob(Base):
     failure_reason = Column(Text, nullable=True)
     retry_count = Column(Integer, default=3, nullable=False)
     failed_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+
+class EvidenceVaultItem(Base):
+    __tablename__ = "evidence_vault"
+
+    item_id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(50), nullable=False, default="default_tenant", index=True)
+    investigation_id = Column(String, ForeignKey("investigation.investigation_id", ondelete="SET NULL"), nullable=True, index=True)
+    category = Column(String(50), nullable=False, default="IDENTITY_DOCUMENTS")
+    title = Column(String(255), nullable=False)
+    source = Column(String(100), nullable=False)
+    tag = Column(String(50), nullable=True, default="KYC_VERIFIED")
+    file_type = Column(String(50), nullable=False, default="JSON")
+    file_size = Column(Integer, default=1024)
+    sha256_hash = Column(String(64), nullable=False)
+    risk_level = Column(String(20), default="LOW")
+    is_verified = Column(Boolean, default=False)
+    verification_method = Column(String(100), default="Cryptographic Signature")
+    description = Column(Text, nullable=True)
+    storage_path = Column(String(500), nullable=True)
+    metadata_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=True)

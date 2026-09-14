@@ -42,11 +42,23 @@ export const api = {
   get: <T>(path: string, options?: RequestInit) =>
     request<T>(path, { ...options, method: "GET" }),
   post: <T>(path: string, body?: any, options?: RequestInit) =>
-    request<T>(path, { ...options, method: "POST", body: body !== undefined ? JSON.stringify(body) : undefined }),
+    request<T>(path, {
+      ...options,
+      method: "POST",
+      body: body instanceof FormData ? body : (body !== undefined ? JSON.stringify(body) : undefined),
+    }),
   put: <T>(path: string, body?: any, options?: RequestInit) =>
-    request<T>(path, { ...options, method: "PUT", body: body !== undefined ? JSON.stringify(body) : undefined }),
+    request<T>(path, {
+      ...options,
+      method: "PUT",
+      body: body instanceof FormData ? body : (body !== undefined ? JSON.stringify(body) : undefined),
+    }),
   patch: <T>(path: string, body?: any, options?: RequestInit) =>
-    request<T>(path, { ...options, method: "PATCH", body: body !== undefined ? JSON.stringify(body) : undefined }),
+    request<T>(path, {
+      ...options,
+      method: "PATCH",
+      body: body instanceof FormData ? body : (body !== undefined ? JSON.stringify(body) : undefined),
+    }),
   delete: <T>(path: string, options?: RequestInit) =>
     request<T>(path, { ...options, method: "DELETE" }),
 };
