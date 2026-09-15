@@ -19,6 +19,8 @@ class User(Base):
     email_hash = Column(String(64), nullable=True, unique=True, index=True)
     hashed_password = Column(String(255), nullable=True)
     role = Column(String(50), nullable=False, default="investigator")
+    status = Column(String(20), nullable=False, default="active")
+    last_login = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     @hybrid_property
@@ -231,3 +233,28 @@ class ReportRecord(Base):
     content_json = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=True)
+
+class SystemSetting(Base):
+    __tablename__ = "system_settings"
+
+    setting_id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(50), nullable=False, default="default_tenant", index=True)
+    category = Column(String(50), nullable=False, default="general")
+    key = Column(String(100), nullable=False, index=True)
+    value = Column(Text, nullable=False)
+    description = Column(Text, nullable=True)
+    is_sensitive = Column(Boolean, default=False)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+class SystemIntegration(Base):
+    __tablename__ = "system_integrations"
+
+    integration_id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(50), nullable=False, default="default_tenant", index=True)
+    name = Column(String(100), nullable=False)
+    provider = Column(String(50), nullable=False)
+    status = Column(String(20), nullable=False, default="connected")
+    last_sync = Column(DateTime, nullable=True)
+    config_count = Column(Integer, default=3)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
