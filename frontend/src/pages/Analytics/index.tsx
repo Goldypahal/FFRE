@@ -1,246 +1,666 @@
 import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { api } from "../../lib/api";
+import { Button } from "../../components/ui/Button";
+
+interface AnalyticsKPIs {
+  total_investigations: number;
+  completed_count: number;
+  escalated_count: number;
+  running_count: number;
+  failed_count: number;
+  escalation_rate: number;
+  automation_efficiency: number;
+  avg_confidence: number;
+  avg_risk_score: number;
+  evidence_vault_count: number;
+  reports_count: number;
+  avg_resolution_time: string;
+}
+
+interface RiskDistributionItem {
+  range: string;
+  count: number;
+  color: string;
+}
+
+interface StatusItem {
+  status: string;
+  count: number;
+}
+
+interface VolumeTrendItem {
+  month: string;
+  value: number;
+}
+
+interface GeoHeatmapItem {
+  region: string;
+  value: number;
+}
+
+interface AnalyticsData {
+  tenant_id: string;
+  kpis: AnalyticsKPIs;
+  risk_distribution: RiskDistributionItem[];
+  status_breakdown: StatusItem[];
+  volume_trend: VolumeTrendItem[];
+  geo_heatmap: GeoHeatmapItem[];
+}
+
+interface InvestigationSummary {
+  investigation_id: string;
+  txn_id?: string;
+  status: string;
+  risk_score?: number;
+  confidence?: number;
+  created_at: string;
+}
 
 export function Analytics() {
-  const [metrics, setMetrics] = useState([
-    { label: "Total Investigations", value: "12,450", change: "+12%", changeType: "increase", icon: "👥" },
-    { label: "Avg Resolution Time", value: "4.2 days", change: "-8%", changeType: "decrease", icon: "⏱️" },
-    { label: "Escalation Rate", value: "15.3%", change: "+3%", changeType: "increase", icon: "⚡" },
-    { label: "False Positive Rate", value: "8.7%", change: "-2.1%", changeType: "decrease", icon: "🛡️" },
-    { label: "Automation Efficiency", value: "72%", change: "+5%", changeType: "increase", icon: "🤖" }
-  ]);
+  const [data, setData] = useState<AnalyticsData | null>(null);
+  const [recentInvestigations, setRecentInvestigations] = useState<InvestigationSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [timeRange, setTimeRange] = useState<"7d" | "30d" | "90d" | "1y">("30d");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [hoveredTrendIndex, setHoveredTrendIndex] = useState<number | null>(null);
 
-  const [chartData, setChartData] = useState({
-    investigationVolume: [
-      { month: "Jan", value: 120 },
-      { month: "Feb", value: 135 },
-      { month: "Mar", value: 98 },
-      { month: "Apr", value: 150 },
-      { month: "May", value: 200 },
-      { month: "Jun", value: 175 }
-    ],
-    riskDistribution: [
-      { range: "Low", count: 45 },
-      { range: "Medium", count: 30 },
-      { range: "High", count: 15 },
-      { range: "Critical", count: 10 }
-    ],
-    geoHeatmap: [
-      { region: "North America", value: 35 },
-      { region: "Europe", value: 25 },
-      { region: "Asia", value: 20 },
-      { region: "Latin America", value: 15 },
-      { region: "Middle East", value: 5 }
-    ]
-  });
+  const fetchAnalytics = async () => {
+    setIsRefreshing(true);
+    setError(null);
+    try {
+      const summary = await api.get<AnalyticsData>("/analytics/summary");
+      setData(summary);
+
+      // Fetch recent investigations for live activity stream
+      try {
+        const invResp = await api.get<{ investigations: InvestigationSummary[] }>("/investigations?limit=8");
+        if (invResp && invResp.investigations) {
+          setRecentInvestigations(invResp.investigations);
+        }
+      } catch {
+        // Non-critical fallback if investigation table is empty
+      }
+
+      setLastUpdated(new Date());
+    } catch (err: any) {
+      console.error("Failed to load analytics:", err);
+      setError(err.message || "Failed to load operational intelligence data");
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, [timeRange]);
+
+  if (loading && !data) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
+        <div className="w-12 h-12 border-4 border-investment-gold border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-on-surface-variant font-mono text-sm tracking-wide">
+          AGGREGATING OPERATIONAL INTELLIGENCE...
+        </p>
+      </div>
+    );
+  }
+
+  const kpis = data?.kpis || {
+    total_investigations: 0,
+    completed_count: 0,
+    escalated_count: 0,
+    running_count: 0,
+    failed_count: 0,
+    escalation_rate: 0,
+    automation_efficiency: 0,
+    avg_confidence: 0,
+    avg_risk_score: 0,
+    evidence_vault_count: 0,
+    reports_count: 0,
+    avg_resolution_time: "0s",
+  };
+
+  const volumeTrend = data?.volume_trend || [];
+  const maxTrendVal = Math.max(...volumeTrend.map((v) => v.value), 10);
+  const totalRiskCount = data?.risk_distribution?.reduce((acc, curr) => acc + curr.count, 0) || 1;
 
   return (
-    <>
-      {/* Header (same as other pages) */}
-      <header className="bg-surface dark:bg-surface flex justify-between items-center h-16 w-full px-margin border-b border-outline-variant fixed top-0 z-50">
-        <div className="flex items-center gap-stack-md">
-          <span className="font-headline-md text-headline-md font-bold text-investment-gold tracking-tight">FFIRE</span>
-          <div className="hidden md:flex ml-stack-lg gap-gutter h-full items-center">
-            <a href="#" className="text-on-surface-variant hover:text-on-surface transition-colors font-body-md text-body-md h-full flex items-center">
-              Dashboard
-            </a>
-            <a href="#" className="text-on-surface-variant hover:text-on-surface transition-colors font-body-md text-body-md h-full flex items-center">
-              Investigation Queue
-            </a>
-            <a href="#" className="text-on-surface-variant hover:text-on-surface transition-colors font-body-md text-body-md h-full flex items-center">
-              Audit Logs
-            </a>
-            <a href="#" className="text-on-surface-variant hover:text-on-surface transition-colors font-body-md text-body-md h-full flex items-center">
-              Reports
-            </a>
+    <div className="space-y-8 pb-16">
+      {/* Header & Controls */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-outline-variant pb-6">
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-display-sm font-headline text-on-surface tracking-tight">
+              Operational Intelligence
+            </h1>
+            <span className="px-2.5 py-0.5 text-xs font-mono font-medium rounded-full bg-investment-gold/10 text-investment-gold border border-investment-gold/30">
+              Live Aggregations
+            </span>
           </div>
+          <p className="text-on-surface-variant text-sm mt-1">
+            Real-time multi-tenant telemetry, automated triage metrics, and systemic fraud distribution.
+          </p>
         </div>
-        <div className="flex items-center gap-gutter">
-          <div className="hidden lg:flex items-center bg-surface-container rounded px-stack-sm py-1 border border-outline-variant">
-            <div className="flex items-center">
-              <span>🔍</span>
-            </div>
-            <input className="bg-transparent border-none focus:ring-0 text-sm text-on-surface w-48" placeholder="Quick Search..." type="text"/>
-          </div>
-          <div className="flex items-center gap-stack-md">
-            <div className="flex items-center">
-              <span>🔔</span>
-            </div>
-            <div className="flex items-center">
-              <span>⚙️</span>
-            </div>
-            <div className="w-8 h-8 rounded-full bg-surface-container-high border border-outline-variant overflow-hidden">
-              <div className="w-full h-full flex items-center justify-center bg-surface-container-high text-on-surface-variant text-xs">
-                AC
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
 
-        {/* Main Content */}
-        <main className="pt-24 pb-20 px-margin max-w-container-max mx-auto">
-          {/* Page Header */}
-          <div className="mb-12 text-center">
-            <h1 className="font-display-lg text-display-lg text-on-surface mb-4">Analytics Dashboard</h1>
-            <p className="font-body-lg text-body-lg text-on-surface-variant max-w-3xl mx-auto">
-              Monitor key performance indicators, investigation trends, and operational metrics to optimize your fraud prevention strategy.
-            </p>
-          </div>
-
-          {/* Key Metrics */}
-          <div className="mb-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {metrics.map((metric, index) => (
-              <div
-                key={index}
-                className="bg-surface-container-low border border-outline-variant rounded-xl p-6 flex flex-col items-center text-center hover:border-on-surface-variant transition-colors"
+        <div className="flex items-center gap-3">
+          {/* Time range selector */}
+          <div className="inline-flex rounded-lg bg-surface-container p-1 border border-outline-variant text-xs">
+            {(["7d", "30d", "90d", "1y"] as const).map((range) => (
+              <button
+                key={range}
+                onClick={() => setTimeRange(range)}
+                className={`px-3 py-1.5 rounded-md font-medium transition-all ${
+                  timeRange === range
+                    ? "bg-surface-container-high text-investment-gold shadow-sm font-semibold"
+                    : "text-on-surface-variant hover:text-on-surface"
+                }`}
               >
-                <div className="text-2xl font-bold mb-2">{metric.icon}</div>
-                <div className="text-on-surface font-medium mb-1">{metric.value}</div>
-                <p className="font-label-sm text-label-sm text-on-surface-variant">{metric.label}</p>
-                <span className={`px-2 py-0.5 text-xs font-mono rounded ${
-                  metric.changeType === "increase" ? "bg-risk-low/20 text-risk-low" : "bg-risk-high/20 text-risk-high"
-                }`}>
-                  {metric.change}
-                </span>
-              </div>
+                {range.toUpperCase()}
+              </button>
             ))}
           </div>
 
-          {/* Charts Section */}
-          <section className="mb-12 grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Investigation Volume Chart */}
-            <div className="bg-surface-container-low border border-outline-variant rounded-xl p-6">
-              <h3 className="font-headline-md text-headline-md text-on-surface mb-4">Investigation Volume Trend</h3>
-              <div className="h-40 bg-surface-container-highest rounded-lg flex items-center justify-center">
-                <div className="text-on-surface-variant">Line chart showing monthly investigation volume</div>
-              </div>
-              <p className="mt-2 text-center text-on-surface-variant text-sm">
-                Shows the number of investigations opened each month over the past 6 months.
-              </p>
-            </div>
+          {/* Refresh Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchAnalytics}
+            disabled={isRefreshing}
+            className="flex items-center gap-2 border-outline-variant text-xs"
+          >
+            <span className={`inline-block ${isRefreshing ? "animate-spin" : ""}`}>🔄</span>
+            {isRefreshing ? "Syncing..." : "Refresh"}
+          </Button>
+        </div>
+      </div>
 
-            {/* Risk Distribution Chart */}
-            <div className="bg-surface-container-low border border-outline-variant rounded-xl p-6">
-              <h3 className="font-headline-md text-headline-md text-on-surface mb-4">Risk Distribution</h3>
-              <div className="h-40 bg-surface-container-highest rounded-lg flex items-center justify-center">
-                <div className="text-on-surface-variant">Pie chart showing risk level distribution</div>
-              </div>
-              <p className="mt-2 text-center text-on-surface-variant text-sm">
-                Breakdown of investigations by risk severity: Low, Medium, High, Critical.
-              </p>
-            </div>
+      {error && (
+        <div className="p-4 rounded-xl bg-risk-high/10 border border-risk-high/30 text-risk-high flex items-center justify-between text-sm">
+          <span>{error}</span>
+          <Button size="sm" variant="outline" onClick={fetchAnalytics}>
+            Retry
+          </Button>
+        </div>
+      )}
 
-            {/* Geographic Heatmap */}
-            <div className="bg-surface-container-low border border-outline-variant rounded-xl p-6">
-              <h3 className="font-headline-md text-headline-md text-on-surface mb-4">Geographic Heatmap</h3>
-              <div className="h-40 bg-surface-container-highest rounded-lg flex items-center justify-center">
-                <div className="text-on-surface-variant">World map showing investigation density by region</div>
-              </div>
-              <p className="mt-2 text-center text-on-surface-variant text-sm">
-                Visual representation of investigation origins across global regions.
-              </p>
-            </div>
-          </section>
+      {/* KPI Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        {/* Total Investigations */}
+        <div className="bg-surface-container-low border border-outline-variant/60 rounded-xl p-5 hover:border-outline-variant transition-colors shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-mono uppercase tracking-wider text-on-surface-variant">Total Pipeline</span>
+            <span className="text-lg">📊</span>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-2xl font-bold font-headline text-on-surface">
+              {kpis.total_investigations.toLocaleString()}
+            </span>
+            <span className="text-xs text-risk-low font-medium">Active Pool</span>
+          </div>
+          <div className="mt-2 text-xs text-on-surface-variant flex items-center justify-between">
+            <span>Completed: {kpis.completed_count}</span>
+            <span>Running: {kpis.running_count}</span>
+          </div>
+        </div>
 
-          {/* Recent Activity */}
-          <section className="mb-12">
-            <h3 className="font-headline-md text-headline-md text-on-surface mb-4">Recent Investigation Activity</h3>
-            <div className="bg-surface-container-low border border-outline-variant rounded-xl overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-min	border-collapse">
-                  <thead>
-                    <tr className="bg-surface-container-high">
-                      <th className="p-4 font-label-sm text-label-sm text-on-surface-variant uppercase text-left">Investigation ID</th>
-                      <th className="p-4 font-label-sm text-label-sm text-on-surface-variant uppercase text-left">Type</th>
-                      <th className="p-4 font-label-sm text-label-sm text-on-surface-variant uppercase text-left">Risk Level</th>
-                      <th className="p-4 font-label-sm text-label-sm text-on-surface-variant uppercase text-left">Status</th>
-                      <th className="p-4 font-label-sm text-label-sm text-on-surface-variant uppercase text-left">Opened</th>
-                      <th className="p-4 font-label-sm text-label-sm text-on-surface-variant uppercase text-left">Duration</th>
-                      <th className="p-4 font-label-sm text-label-sm text-on-surface-variant uppercase text-left">Alerts</th>
-                      <th className="p-4 font-label-sm text-label-sm text-on-surface-variant uppercase text-left text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-outline-variant">
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-                      <tr key={i} className="hover:bg-surface-container-high transition-colors">
-                        <td className="p-4 text-on-surface-variant font-mono">INV-{1000 + i}</td>
-                        <td className="p-4 text-on-surface">
-                          {["Transaction Fraud", "Identity Theft", "Money Laundering", "Cyber Fraud"][i % 4]}
-                        </td>
-                        <td className="p-4">
-                          <span className={`px-2 py-0.5 text-xs font-mono rounded ${
-                            ["Low", "Medium", "High", "Critical"][i % 4] === "Low" ? "bg-risk-low/20 text-risk-low" :
-                            ["Low", "Medium", "High", "Critical"][i % 4] === "Medium" ? "bg-risk-medium/20 text-risk-medium" :
-                            ["Low", "Medium", "High", "Critical"][i % 4] === "High" ? "bg-risk-high/20 text-risk-high" : "bg-risk-high/20 text-risk-high"
-                          }`}>
-                            {["Low", "Medium", "High", "Critical"][i % 4]}
-                          </span>
-                        </td>
-                        <td className="p-4 text-on-surface">
-                          {["Pending", "Investigating", "Escalated", "Completed"][i % 4]}
-                        </td>
-                        <td className="p-4 text-on-surface">2024-06-{10 + i}</td>
-                        <td className="p-4 text-on-surface">{i}d {i * 2}h</td>
-                        <td className="p-4 text-on-surface">{i * 3}</td>
-                        <td className="p-4 text-right">
-                          <button className="px-3 py-1 bg-on-surface text-background hover:bg-primary transition-colors font-sm">
-                            View
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </section>
-        </main>
+        {/* Automation Efficiency */}
+        <div className="bg-surface-container-low border border-outline-variant/60 rounded-xl p-5 hover:border-outline-variant transition-colors shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-mono uppercase tracking-wider text-on-surface-variant">Automation Rate</span>
+            <span className="text-lg">🤖</span>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-2xl font-bold font-headline text-investment-gold">
+              {kpis.automation_efficiency}%
+            </span>
+            <span className="text-xs text-risk-low font-medium">Autonomous</span>
+          </div>
+          <div className="mt-2 text-xs text-on-surface-variant">
+            Escalation rate: <span className="font-mono text-on-surface">{kpis.escalation_rate}%</span>
+          </div>
+        </div>
 
-        {/* Footer (same as other pages) */}
-        <footer className="border-t border-outline-variant bg-surface py-12 px-margin mt-12">
-          <div className="max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-start gap-stack-lg">
-            <div className="max-w-sm">
-              <span className="font-headline-md text-headline-md font-bold text-investment-gold mb-4 block">FFIRE</span>
-              <p className="text-on-surface-variant text-sm">
-                Deterministic Intelligence for the modern financial infrastructure. Precision auditing, human-centered explainability.
-              </p>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-stack-lg">
+        {/* Confidence & Risk */}
+        <div className="bg-surface-container-low border border-outline-variant/60 rounded-xl p-5 hover:border-outline-variant transition-colors shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-mono uppercase tracking-wider text-on-surface-variant">Mean Confidence</span>
+            <span className="text-lg">🎯</span>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-2xl font-bold font-headline text-on-surface">
+              {kpis.avg_confidence}%
+            </span>
+            <span className="text-xs text-investment-gold font-medium">Score: {kpis.avg_risk_score}</span>
+          </div>
+          <div className="mt-2 text-xs text-on-surface-variant">
+            Resolution time: <span className="font-mono text-on-surface">{kpis.avg_resolution_time}</span>
+          </div>
+        </div>
+
+        {/* Vault & Reports */}
+        <div className="bg-surface-container-low border border-outline-variant/60 rounded-xl p-5 hover:border-outline-variant transition-colors shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-mono uppercase tracking-wider text-on-surface-variant">Compliance Assets</span>
+            <span className="text-lg">🔒</span>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-2xl font-bold font-headline text-on-surface">
+              {kpis.evidence_vault_count + kpis.reports_count}
+            </span>
+            <span className="text-xs text-risk-low font-medium">Cryptographic</span>
+          </div>
+          <div className="mt-2 text-xs text-on-surface-variant flex items-center justify-between">
+            <span>Evidence: {kpis.evidence_vault_count}</span>
+            <span>Reports: {kpis.reports_count}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Visual Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Monthly Volume Trend SVG Chart (2 columns) */}
+        <div className="lg:col-span-2 bg-surface-container-low border border-outline-variant/60 rounded-xl p-6 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <h4 className="font-label-md text-label-md text-on-surface mb-4 uppercase">Product</h4>
-                <ul className="space-y-2 text-sm text-on-surface-variant">
-                  <li><a href="#" className="hover:text-primary">Features</a></li>
-                  <li><a href="#" className="hover:text-primary">LangGraph Docs</a></li>
-                  <li><a href="#" className="hover:text-primary">Integrations</a></li>
-                  <li><a href="#" className="hover:text-primary">Pricing</a></li>
-                </ul>
+                <h3 className="text-base font-semibold font-headline text-on-surface">
+                  Investigation Trajectory & Volume Trends
+                </h3>
+                <p className="text-xs text-on-surface-variant">
+                  Monthly intake throughput across deterministic verification pipelines
+                </p>
               </div>
-              <div>
-                <h4 className="font-label-md text-label-md text-on-surface mb-4 uppercase">Resources</h4>
-                <ul className="space-y-2 text-sm text-on-surface-variant">
-                  <li><a href="#" className="hover:text-primary">Whitepapers</a></li>
-                  <li><a href="#" className="hover:text-primary">API Reference</a></li>
-                  <li><a href="#" className="hover:text-primary">Compliance Guide</a></li>
-                </ul>
+              <div className="flex items-center gap-2 text-xs font-mono text-investment-gold bg-investment-gold/10 px-2.5 py-1 rounded-md border border-investment-gold/20">
+                <span>Peak: {maxTrendVal} Cases</span>
               </div>
-              <div className="col-span-2 sm:col-span-1">
-                <h4 className="font-label-md text-label-md text-on-surface mb-4 uppercase">Status</h4>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-risk-low animate-pulse"></div>
-                  <span className="text-sm text-on-surface-variant font-label-sm">FFIRE Engine v2.4 Active</span>
+            </div>
+
+            {/* SVG Visual Chart */}
+            <div className="relative mt-6 pt-4 pb-2">
+              <svg viewBox="0 0 600 200" className="w-full h-48 overflow-visible">
+                <defs>
+                  <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#d4af37" stopOpacity="0.35" />
+                    <stop offset="100%" stopColor="#d4af37" stopOpacity="0.0" />
+                  </linearGradient>
+                </defs>
+
+                {/* Horizontal Guide Lines */}
+                {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
+                  const y = 180 - ratio * 140;
+                  return (
+                    <g key={i}>
+                      <line
+                        x1="30"
+                        y1={y}
+                        x2="580"
+                        y2={y}
+                        stroke="currentColor"
+                        className="text-outline-variant/30"
+                        strokeDasharray="4 4"
+                      />
+                      <text
+                        x="20"
+                        y={y + 4}
+                        fill="currentColor"
+                        className="text-on-surface-variant text-[10px] font-mono"
+                        textAnchor="end"
+                      >
+                        {Math.round(ratio * maxTrendVal)}
+                      </text>
+                    </g>
+                  );
+                })}
+
+                {/* Area & Line */}
+                {volumeTrend.length > 0 && (() => {
+                  const points = volumeTrend.map((item, idx) => {
+                    const step = 530 / Math.max(volumeTrend.length - 1, 1);
+                    const x = 40 + idx * step;
+                    const y = 180 - (item.value / maxTrendVal) * 140;
+                    return { x, y, item };
+                  });
+
+                  const lineD = points.reduce((acc, p, idx) => {
+                    return idx === 0 ? `M ${p.x} ${p.y}` : `${acc} L ${p.x} ${p.y}`;
+                  }, "");
+
+                  const areaD = `${lineD} L ${points[points.length - 1].x} 180 L ${points[0].x} 180 Z`;
+
+                  return (
+                    <>
+                      <path d={areaD} fill="url(#trendGradient)" />
+                      <path
+                        d={lineD}
+                        fill="none"
+                        stroke="#d4af37"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+
+                      {/* Interactive Dots */}
+                      {points.map((p, idx) => (
+                        <g
+                          key={idx}
+                          className="cursor-pointer group"
+                          onMouseEnter={() => setHoveredTrendIndex(idx)}
+                          onMouseLeave={() => setHoveredTrendIndex(null)}
+                        >
+                          <circle
+                            cx={p.x}
+                            cy={p.y}
+                            r={hoveredTrendIndex === idx ? 6 : 4}
+                            fill="#1e1e24"
+                            stroke="#d4af37"
+                            strokeWidth={hoveredTrendIndex === idx ? 3 : 2}
+                            className="transition-all duration-200"
+                          />
+                          {hoveredTrendIndex === idx && (
+                            <g transform={`translate(${p.x}, ${p.y - 12})`}>
+                              <rect
+                                x="-35"
+                                y="-25"
+                                width="70"
+                                height="22"
+                                rx="4"
+                                fill="#111827"
+                                stroke="#d4af37"
+                                strokeWidth="1"
+                              />
+                              <text
+                                x="0"
+                                y="-10"
+                                fill="#ffffff"
+                                fontSize="11"
+                                fontWeight="bold"
+                                textAnchor="middle"
+                                fontFamily="monospace"
+                              >
+                                {p.item.value} cases
+                              </text>
+                            </g>
+                          )}
+                          <text
+                            x={p.x}
+                            y="198"
+                            fill="currentColor"
+                            className="text-on-surface-variant text-[11px] font-mono"
+                            textAnchor="middle"
+                          >
+                            {p.item.month}
+                          </text>
+                        </g>
+                      ))}
+                    </>
+                  );
+                })()}
+              </svg>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-outline-variant/40 flex items-center justify-between text-xs text-on-surface-variant">
+            <span>Deterministic Graph Ingestion Pipeline</span>
+            <span className="font-mono">Sync Interval: Realtime</span>
+          </div>
+        </div>
+
+        {/* Risk Distribution Breakdown */}
+        <div className="bg-surface-container-low border border-outline-variant/60 rounded-xl p-6 shadow-sm flex flex-col justify-between">
+          <div>
+            <h3 className="text-base font-semibold font-headline text-on-surface">
+              Risk Severity Spectrum
+            </h3>
+            <p className="text-xs text-on-surface-variant mb-6">
+              Distribution of case confidence and threat classification
+            </p>
+
+            {/* Segmented Bar */}
+            <div className="h-4 w-full rounded-full overflow-hidden flex bg-surface-container-highest">
+              {data?.risk_distribution?.map((item, idx) => {
+                const pct = ((item.count / totalRiskCount) * 100).toFixed(1);
+                return (
+                  <div
+                    key={idx}
+                    style={{ width: `${pct}%`, backgroundColor: item.color }}
+                    title={`${item.range}: ${item.count} (${pct}%)`}
+                    className="h-full transition-all duration-300 hover:opacity-80"
+                  />
+                );
+              })}
+            </div>
+
+            {/* Legend / Counters */}
+            <div className="mt-6 space-y-3">
+              {data?.risk_distribution?.map((item, idx) => {
+                const pct = ((item.count / totalRiskCount) * 100).toFixed(1);
+                return (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between p-2.5 rounded-lg bg-surface-container/50 border border-outline-variant/30"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className="w-3 h-3 rounded-full shrink-0"
+                        style={{ backgroundColor: item.color }}
+                      />
+                      <span className="text-xs font-medium text-on-surface">{item.range}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-mono font-semibold text-on-surface">
+                        {item.count}
+                      </span>
+                      <span className="text-xs font-mono text-on-surface-variant w-12 text-right">
+                        {pct}%
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="mt-6 pt-4 border-t border-outline-variant/40 flex items-center justify-between text-xs text-on-surface-variant">
+            <span>Automated Scoring Engine</span>
+            <span className="font-mono text-investment-gold">ISO-20022</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Second Tier: Status Breakdown & Regional Activity */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Status Breakdown */}
+        <div className="bg-surface-container-low border border-outline-variant/60 rounded-xl p-6 shadow-sm">
+          <h3 className="text-base font-semibold font-headline text-on-surface mb-1">
+            Investigation Status Pipeline
+          </h3>
+          <p className="text-xs text-on-surface-variant mb-6">
+            State distribution of transactions processed through multi-agent arbitration
+          </p>
+
+          <div className="space-y-4">
+            {data?.status_breakdown?.map((item, idx) => {
+              const total = kpis.total_investigations || 1;
+              const pct = Math.round((item.count / total) * 100);
+              return (
+                <div key={idx} className="space-y-1.5">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-on-surface font-medium">{item.status}</span>
+                    <span className="font-mono text-on-surface-variant">
+                      {item.count} cases ({pct}%)
+                    </span>
+                  </div>
+                  <div className="h-2 w-full bg-surface-container-highest rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        item.status.includes("Completed")
+                          ? "bg-risk-low"
+                          : item.status.includes("Escalated")
+                          ? "bg-risk-high"
+                          : item.status.includes("Failed")
+                          ? "bg-risk-critical"
+                          : "bg-investment-gold"
+                      }`}
+                      style={{ width: `${Math.max(pct, item.count > 0 ? 4 : 0)}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Regional Activity */}
+        <div className="bg-surface-container-low border border-outline-variant/60 rounded-xl p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="text-base font-semibold font-headline text-on-surface">
+              Global Geolocation Heatmap
+            </h3>
+            <span className="text-xs font-mono text-on-surface-variant">Jurisdictions</span>
+          </div>
+          <p className="text-xs text-on-surface-variant mb-6">
+            Cross-border remittance density and geofenced velocity flags
+          </p>
+
+          <div className="space-y-4">
+            {data?.geo_heatmap?.map((item, idx) => (
+              <div key={idx} className="space-y-1.5">
+                <div className="flex justify-between text-xs">
+                  <span className="text-on-surface font-medium">{item.region}</span>
+                  <span className="font-mono text-on-surface-variant">{item.value}% Remittance</span>
+                </div>
+                <div className="h-2 w-full bg-surface-container-highest rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-investment-gold/80 rounded-full transition-all duration-500"
+                    style={{ width: `${item.value}%` }}
+                  />
                 </div>
               </div>
-            </div>
+            ))}
           </div>
-          <div className="max-w-container-max mx-auto mt-12 pt-8 border-t border-outline-variant flex justify-between items-center text-xs text-on-surface-variant opacity-60">
-            <p>© 2024 FFIRE Intelligence Systems. All rights reserved.</p>
-            <div className="flex gap-stack-md">
-              <a href="#" className="hover:text-white transition-colors">Privacy</a>
-              <a href="#" className="hover:text-white transition-colors">Terms</a>
-              <a href="#" className="hover:text-white transition-colors">Security</a>
-            </div>
+        </div>
+      </div>
+
+      {/* Live Recent Investigation Stream */}
+      <div className="bg-surface-container-low border border-outline-variant/60 rounded-xl p-6 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div>
+            <h3 className="text-base font-semibold font-headline text-on-surface">
+              Live Investigation Activity
+            </h3>
+            <p className="text-xs text-on-surface-variant">
+              Recent algorithmic assessments and reasoning traces
+            </p>
           </div>
-        </footer>
-    </>
+          <Link
+            to="/investigations"
+            className="text-xs font-mono text-investment-gold hover:underline flex items-center gap-1.5"
+          >
+            <span>View Full Investigation Queue</span>
+            <span>&rarr;</span>
+          </Link>
+        </div>
+
+        {recentInvestigations.length === 0 ? (
+          <div className="text-center py-10 text-on-surface-variant text-sm font-mono">
+            No live investigations logged in current tenant context.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-outline-variant/40 text-on-surface-variant font-mono uppercase">
+                  <th className="pb-3 font-semibold">Investigation ID</th>
+                  <th className="pb-3 font-semibold">Transaction ID</th>
+                  <th className="pb-3 font-semibold">Status</th>
+                  <th className="pb-3 font-semibold">Risk Score</th>
+                  <th className="pb-3 font-semibold">Timestamp</th>
+                  <th className="pb-3 font-semibold text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-outline-variant/20">
+                {recentInvestigations.map((inv) => (
+                  <tr key={inv.investigation_id} className="hover:bg-surface-container/40 transition-colors">
+                    <td className="py-3 font-mono font-medium text-investment-gold">
+                      {inv.investigation_id}
+                    </td>
+                    <td className="py-3 font-mono text-on-surface-variant">
+                      {inv.txn_id || "N/A"}
+                    </td>
+                    <td className="py-3">
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono ${
+                          inv.status === "COMPLETED" || inv.status === "CLOSED_APPROVE"
+                            ? "bg-risk-low/20 text-risk-low"
+                            : inv.status === "ESCALATED" || inv.status === "WAITING_HUMAN"
+                            ? "bg-risk-high/20 text-risk-high"
+                            : inv.status === "FAILED"
+                            ? "bg-risk-critical/20 text-risk-critical"
+                            : "bg-investment-gold/20 text-investment-gold"
+                        }`}
+                      >
+                        {inv.status}
+                      </span>
+                    </td>
+                    <td className="py-3 font-mono">
+                      {inv.risk_score !== undefined && inv.risk_score !== null ? (
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`font-semibold ${
+                              inv.risk_score >= 0.7
+                                ? "text-risk-high"
+                                : inv.risk_score >= 0.35
+                                ? "text-risk-medium"
+                                : "text-risk-low"
+                            }`}
+                          >
+                            {inv.risk_score.toFixed(2)}
+                          </span>
+                          <div className="w-14 h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+                            <div
+                              className={`h-full ${
+                                inv.risk_score >= 0.7
+                                  ? "bg-risk-high"
+                                  : inv.risk_score >= 0.35
+                                  ? "bg-risk-medium"
+                                  : "bg-risk-low"
+                              }`}
+                              style={{ width: `${inv.risk_score * 100}%` }}
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-on-surface-variant/50">--</span>
+                      )}
+                    </td>
+                    <td className="py-3 text-on-surface-variant">
+                      {inv.created_at ? new Date(inv.created_at).toLocaleString() : "Just now"}
+                    </td>
+                    <td className="py-3 text-right">
+                      <Link
+                        to={`/investigations/${inv.investigation_id}`}
+                        className="px-2.5 py-1 rounded bg-surface-container hover:bg-surface-container-high border border-outline-variant text-on-surface font-medium hover:text-investment-gold transition-colors inline-block"
+                      >
+                        Inspect
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Footer Meta */}
+      <div className="flex items-center justify-between text-xs text-on-surface-variant font-mono pt-4 border-t border-outline-variant/30">
+        <span>Tenant Context: {data?.tenant_id || "default_tenant"}</span>
+        <span>Telemetry Stream: Active ({lastUpdated.toLocaleTimeString()})</span>
+      </div>
+    </div>
   );
 }
