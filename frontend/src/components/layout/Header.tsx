@@ -5,10 +5,11 @@ import { Link } from "react-router-dom";
 interface HeaderProps {
   title?: string;
   onSearch?: (query: string) => void;
+  onOpenPalette?: () => void;
   rightContent?: React.ReactNode;
 }
 
-export function Header({ title, onSearch, rightContent }: HeaderProps) {
+export function Header({ title, onSearch, onOpenPalette, rightContent }: HeaderProps) {
   return (
     <header className="h-16 flex items-center justify-between px-6 bg-[#081425] border-b border-[#45464d] shrink-0 font-sans w-full z-20">
       {/* Brand & Search */}
@@ -16,16 +17,22 @@ export function Header({ title, onSearch, rightContent }: HeaderProps) {
         <Link to="/" className="font-headline-md text-2xl font-bold text-[#FCD34D] tracking-tight">
           FFIRE
         </Link>
-        <div className="hidden lg:flex items-center bg-[#111c2d] border border-[#45464d] rounded px-3 py-1.5 w-80">
-          <Search size={15} className="text-[#c6c6cd] mr-2 shrink-0" />
-          <input
-            type="text"
-            placeholder="Search signals, cases, or tools..."
-            className="bg-transparent border-none focus:outline-none text-sm text-[#d8e3fb] w-full placeholder:text-[#909097]"
-            onChange={(e) => onSearch && onSearch(e.target.value)}
-          />
+        <div
+          onClick={onOpenPalette}
+          className="hidden lg:flex items-center justify-between bg-[#111c2d] hover:bg-[#152338] border border-[#45464d] hover:border-[#FCD34D]/60 rounded-lg px-3 py-1.5 w-80 cursor-pointer transition-all group"
+        >
+          <div className="flex items-center min-w-0">
+            <Search size={15} className="text-[#c6c6cd] group-hover:text-[#FCD34D] mr-2.5 shrink-0 transition-colors" />
+            <span className="text-sm text-[#728299] group-hover:text-[#d8e3fb] truncate select-none">
+              Universal Search & Commands...
+            </span>
+          </div>
+          <kbd className="text-[10px] font-mono px-1.5 py-0.5 bg-[#081425] border border-[#45464d] rounded text-[#bec6e0] select-none ml-2 shrink-0">
+            ⌘K
+          </kbd>
         </div>
       </div>
+
 
       {/* Right Controls */}
       <div className="flex items-center gap-5">

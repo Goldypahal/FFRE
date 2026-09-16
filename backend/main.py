@@ -1522,7 +1522,85 @@ async def delete_report(
     db.commit()
     return {"status": "success", "message": f"Report {report_id} removed"}
 
-# --- Analytics Aggregation Endpoints (Chapters 34, 95) ---
+# --- Universal Search & Command Palette (Chapter 41) ---
+
+@app.get("/api/v1/search/universal")
+async def universal_search(
+    q: str = Query(..., min_length=1),
+    category: Optional[str] = None,
+    limit: int = 25,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Chapter 41: Global Search & Universal Command Palette search provider across tenant resources."""
+    tenant = getattr(current_user, "tenant_id", "default_tenant")
+    results = []
+    q_lower = q.strip().lower()
+
+    # 1. Investigations
+    if not category or category in ["all", "investigations", "cases"]:
+        invs = db.query(models.Investigation).filter(
+            models.Investigation.tenant_id == tenant
+        ).all()
+        for inv in invs:
+            if (q_lower in inv.investigation_id.lower() or 
+                (inv.txn_id and q_lower in inv.txn_id.lower()) or 
+                (inv.report and q_lower in inv.report.lower())):
+                results.append({
+                    "id": inv.investigation_id,
+                    "type": "investigation",
+                    "title": f"Investigation {inv.investigation_id}",
+                    "subtitle": f"Txn: {inv.txn_id or 'N/A'} • Risk: {inv.risk_score or 0.0}",
+                    "badge": inv.status,
+                    "status": inv.status,
+                    "url": f"/investigations/{inv.investigation_id}"
+                })
+
+    # 2. Evidence Vault Items
+    if not category or category in ["all", "evidence"]:
+        ev_items = db.query(models.EvidenceVaultItem).filter(
+            models.EvidenceVaultItem.tenant_id == tenant
+        ).all()
+        for it in ev_items:
+            if (q_lower in it.title.lower() or 
+                (it.description and q_lower in it.description.lower()) or 
+                (it.tag and q_lower in it.tag.lower()) or
+                q_lower in it.sha256_hash.lower()):
+                results.append({
+                    "id": it.item_id,
+                    "type": "evidence",
+                    "title": it.title,
+                    "subtitle": f"{it.category} • {it.source} • {it.tag}",
+                    "badge": it.risk_level,
+                    "status": "VERIFIED" if it.is_verified else "PENDING",
+                    "url": "/evidence"
+                })
+
+    # 3. Reports
+    if not category or category in ["all", "reports"]:
+        reports = db.query(models.ReportRecord).filter(
+            models.ReportRecord.tenant_id == tenant
+        ).all()
+        for rep in reports:
+            if (q_lower in rep.title.lower() or 
+                (rep.description and q_lower in rep.description.lower()) or 
+                q_lower in rep.report_type.lower()):
+                results.append({
+                    "id": rep.report_id,
+                    "type": "report",
+                    "title": rep.title,
+                    "subtitle": f"{rep.report_type} • Format: {rep.file_format}",
+                    "badge": rep.status,
+                    "status": rep.status,
+                    "url": "/reports"
+                })
+
+    return {
+        "query": q,
+        "total": len(results),
+        "results": results[:limit]
+    }
+
 
 @app.get("/api/v1/analytics/summary")
 async def get_analytics_summary(
