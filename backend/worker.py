@@ -45,11 +45,25 @@ class DurableWorkerQueue:
             os.getenv("ENVIRONMENT") == "production"
         )
 
+        self.processed_count = 0
+        self.failed_count = 0
+        self.recovered_count = 0
+        self.use_streams = os.getenv("USE_REDIS_STREAMS", "false").lower() in ("true", "1", "yes")
+        self.stream_key = "ffre:worker:stream"
+        self.consumer_group = "ffre_worker_group"
+        self.consumer_name = f"worker_{os.getpid()}"
+
         if self.redis_url and redis is not None:
             try:
                 client = redis.Redis.from_url(self.redis_url, socket_timeout=2)
                 client.ping()
                 self._redis_client = client
+                if self.use_streams:
+                    try:
+                        client.xgroup_create(self.stream_key, self.consumer_group, id="0", mkstream=True)
+                    except Exception:
+                        # Group may already exist
+                        pass
                 print(f"DurableWorkerQueue connected to Redis broker at {self.redis_url}")
             except Exception as e:
                 if strict_enterprise:
@@ -61,8 +75,11 @@ class DurableWorkerQueue:
                 raise RuntimeError("STRICT_ENTERPRISE_MODE: Redis URL/client not configured. In-memory fallback is disabled in production.")
 
     def get_broker_backend(self) -> str:
-        """Return active queue broker backend ('redis' or 'in_memory')."""
-        return "redis" if self._redis_client is not None else "in_memory"
+        """Return active queue broker backend ('redis', 'redis_streams', or 'in_memory')."""
+        if self._redis_client is not None:
+            return "redis_streams" if self.use_streams else "redis"
+        return "in_memory"
+
 
     def transition_job_state(self, investigation_id: str, new_status: str, db=None) -> bool:
         """Task 18: Enforce state machine transitions and write audit log."""
@@ -107,7 +124,7 @@ class DurableWorkerQueue:
                 db.close()
 
     def enqueue(self, investigation_id: str, transaction_id: str, db=None):
-        """Enqueue investigation job for worker processing (Redis or In-Memory)."""
+        """Enqueue investigation job for worker processing (Redis Streams, Redis List, or In-Memory)."""
         job = {
             "investigation_id": investigation_id,
             "transaction_id": transaction_id,
@@ -116,9 +133,12 @@ class DurableWorkerQueue:
         }
         if self._redis_client:
             try:
-                self._redis_client.rpush("ffre:worker:queue", json.dumps(job))
+                if self.use_streams:
+                    self._redis_client.xadd(self.stream_key, {"payload": json.dumps(job)})
+                else:
+                    self._redis_client.rpush("ffre:worker:queue", json.dumps(job))
             except Exception as e:
-                print(f"Redis rpush failed ({e}). Falling back to in-memory queue.")
+                print(f"Redis enqueue failed ({e}). Falling back to in-memory queue.")
                 self._queue.put(job)
         else:
             self._queue.put(job)
@@ -134,7 +154,7 @@ class DurableWorkerQueue:
         recovered_count = 0
         try:
             # Recover Redis processing queue un-ACKed jobs
-            if self._redis_client:
+            if self._redis_client and not self.use_streams:
                 try:
                     pending_jobs = self._redis_client.lrange("ffre:worker:processing", 0, -1)
                     now = time.time()
@@ -170,6 +190,7 @@ class DurableWorkerQueue:
                 recovered_count += 1
 
             db.commit()
+            self.recovered_count += recovered_count
             return recovered_count
         except Exception:
             db.rollback()
@@ -179,27 +200,54 @@ class DurableWorkerQueue:
                 db.close()
 
     def ack_job(self, job: Dict[str, Any]):
-        """Task 23: Acknowledge job completion and remove from Redis processing queue."""
-        if self._redis_client and "_raw_str" in job:
-            try:
-                self._redis_client.lrem("ffre:worker:processing", 1, job["_raw_str"])
-            except Exception as e:
-                print(f"Redis ACK lrem failed: {e}")
+        """Task 23: Acknowledge job completion and remove from Redis processing queue or stream."""
+        if self._redis_client:
+            if "_stream_id" in job:
+                try:
+                    self._redis_client.xack(self.stream_key, self.consumer_group, job["_stream_id"])
+                except Exception as e:
+                    print(f"Redis Stream ACK failed: {e}")
+            elif "_raw_str" in job:
+                try:
+                    self._redis_client.lrem("ffre:worker:processing", 1, job["_raw_str"])
+                except Exception as e:
+                    print(f"Redis ACK lrem failed: {e}")
 
     def process_next_job(self, db=None) -> bool:
-        """Process a single job from the worker queue with atomic RPOPLPUSH & ACK (Redis or In-Memory)."""
+        """Process a single job from the worker queue with atomic RPOPLPUSH / XREADGROUP & ACK (Redis or In-Memory)."""
         job = None
         raw_job_str = None
         if self._redis_client:
-            try:
-                # Atomic queue pop -> processing list shift for crash safety
-                raw_job = self._redis_client.rpoplpush("ffre:worker:queue", "ffre:worker:processing")
-                if raw_job:
-                    raw_job_str = raw_job.decode('utf-8') if isinstance(raw_job, bytes) else str(raw_job)
-                    job = json.loads(raw_job_str)
-                    job["_raw_str"] = raw_job_str
-            except Exception as e:
-                print(f"Redis rpoplpush failed ({e}). Checking in-memory fallback queue.")
+            if self.use_streams:
+                try:
+                    entries = self._redis_client.xreadgroup(
+                        self.consumer_group,
+                        self.consumer_name,
+                        {self.stream_key: ">"},
+                        count=1,
+                        block=100
+                    )
+                    if entries:
+                        _, messages = entries[0]
+                        if messages:
+                            msg_id, fields = messages[0]
+                            raw_val = fields.get(b"payload") or fields.get("payload")
+                            if isinstance(raw_val, bytes):
+                                raw_val = raw_val.decode("utf-8")
+                            job = json.loads(raw_val)
+                            job["_stream_id"] = msg_id.decode("utf-8") if isinstance(msg_id, bytes) else str(msg_id)
+                except Exception as e:
+                    print(f"Redis Stream xreadgroup failed ({e}). Checking in-memory fallback queue.")
+            else:
+                try:
+                    # Atomic queue pop -> processing list shift for crash safety
+                    raw_job = self._redis_client.rpoplpush("ffre:worker:queue", "ffre:worker:processing")
+                    if raw_job:
+                        raw_job_str = raw_job.decode('utf-8') if isinstance(raw_job, bytes) else str(raw_job)
+                        job = json.loads(raw_job_str)
+                        job["_raw_str"] = raw_job_str
+                except Exception as e:
+                    print(f"Redis rpoplpush failed ({e}). Checking in-memory fallback queue.")
 
         if not job:
             try:
@@ -238,6 +286,7 @@ class DurableWorkerQueue:
                     db.add_all([audit, dlq])
                     db.commit()
                     self.ack_job(job)
+                    self.failed_count += 1
                 else:
                     job["retry_count"] = retry_count
                     inv.status = "RETRYING"
@@ -247,6 +296,7 @@ class DurableWorkerQueue:
                 self.transition_job_state(inv_id, "RUNNING", db=db)
                 run_investigation_task(inv_id, txn_id, db=db)
                 self.ack_job(job)
+                self.processed_count += 1
         except Exception as e:
             print(f"Worker execution failed for {inv_id}: {e}")
             retry_count += 1
@@ -266,6 +316,7 @@ class DurableWorkerQueue:
                 db.add_all([audit, dlq])
                 db.commit()
                 self.ack_job(job)
+                self.failed_count += 1
             else:
                 job["retry_count"] = retry_count
                 self.transition_job_state(inv_id, "RETRYING", db=db)
@@ -283,11 +334,88 @@ class DurableWorkerQueue:
         """Helper to requeue job into Redis or In-Memory queue."""
         if self._redis_client:
             try:
-                self._redis_client.rpush("ffre:worker:queue", json.dumps(job))
+                if self.use_streams:
+                    self._redis_client.xadd(self.stream_key, {"payload": json.dumps(job)})
+                else:
+                    self._redis_client.rpush("ffre:worker:queue", json.dumps(job))
             except Exception:
                 self._queue.put(job)
         else:
             self._queue.put(job)
+
+    def get_health_status(self, db=None) -> Dict[str, Any]:
+        """Task 49/50: Return comprehensive worker health, broker connectivity, and queue telemetry."""
+        backend = self.get_broker_backend()
+        redis_ok = False
+        queue_size = 0
+        processing_size = 0
+        dlq_count = 0
+
+        if self._redis_client:
+            try:
+                self._redis_client.ping()
+                redis_ok = True
+                if self.use_streams:
+                    if self._redis_client.exists(self.stream_key):
+                        info = self._redis_client.xinfo_stream(self.stream_key)
+                        queue_size = info.get("length", 0) if isinstance(info, dict) else 0
+                    processing_size = 0
+                else:
+                    queue_size = self._redis_client.llen("ffre:worker:queue")
+                    processing_size = self._redis_client.llen("ffre:worker:processing")
+            except Exception:
+                redis_ok = False
+        else:
+            queue_size = self._queue.qsize()
+
+        should_close = False
+        if not db:
+            try:
+                db = SessionLocal()
+                should_close = True
+            except Exception:
+                db = None
+
+        if db:
+            try:
+                dlq_count = db.query(models.DeadLetterJob).count()
+            except Exception:
+                dlq_count = 0
+            finally:
+                if should_close:
+                    db.close()
+
+        strict_enterprise = (
+            os.getenv("STRICT_ENTERPRISE_MODE", "false").lower() == "true" or
+            os.getenv("ENVIRONMENT") == "production"
+        )
+        is_healthy = redis_ok if strict_enterprise else True
+
+        return {
+            "status": "healthy" if is_healthy else "degraded",
+            "broker": backend,
+            "redis_connected": redis_ok,
+            "queue_depth": queue_size,
+            "processing_depth": processing_size,
+            "dead_letter_count": dlq_count,
+            "processed_count": self.processed_count,
+            "failed_count": self.failed_count,
+            "recovered_count": self.recovered_count,
+            "is_running": self._is_running,
+            "max_retries": MAX_JOB_RETRIES,
+            "worker_thread_alive": self._worker_thread.is_alive() if self._worker_thread else False
+        }
+
+    def drain_queue(self, max_jobs: int = 100, db=None) -> int:
+        """Synchronously process up to max_jobs from the queue until empty."""
+        count = 0
+        for _ in range(max_jobs):
+            did_work = self.process_next_job(db=db)
+            if not did_work:
+                break
+            count += 1
+        return count
+
 
     def cancel(self, investigation_id: str):
         """Task 14: Cancel enqueued job for an investigation."""

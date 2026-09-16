@@ -2041,9 +2041,13 @@ async def get_admin_audit_logs(
 
 @app.get("/api/v1/admin/health-metrics")
 async def get_system_health(
+    db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
     """Retrieve runtime diagnostics, memory pressure, and cluster health."""
+    from worker import worker_queue
+    worker_health = worker_queue.get_health_status(db=db)
+
     return {
         "status": "healthy",
         "uptime": "14d 6h 32m",
@@ -2055,12 +2059,46 @@ async def get_system_health(
             "pool_size": 20
         },
         "cache_worker": {
-            "status": "operational",
-            "pending_jobs": 0,
-            "dead_letter_count": 0
+            "status": "operational" if worker_health["status"] == "healthy" else "degraded",
+            "broker": worker_health["broker"],
+            "pending_jobs": worker_health["queue_depth"],
+            "processing_jobs": worker_health["processing_depth"],
+            "dead_letter_count": worker_health["dead_letter_count"],
+            "processed_count": worker_health["processed_count"]
         },
         "model_latency_p95_ms": 142
     }
+
+@app.get("/api/v1/worker/health")
+async def get_worker_health(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Retrieve durable background worker health, queue depth, and broker status."""
+    from worker import worker_queue
+    return worker_queue.get_health_status(db=db)
+
+@app.post("/api/v1/worker/recover")
+async def trigger_worker_recovery(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.check_permissions("admin"))
+):
+    """Trigger administrative crash recovery for stuck or abandoned worker jobs."""
+    from worker import worker_queue
+    recovered = worker_queue.recover_stale_or_abandoned_jobs(db=db)
+    return {"status": "success", "recovered_jobs": recovered}
+
+@app.post("/api/v1/worker/drain")
+async def trigger_worker_drain(
+    max_jobs: int = 50,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.check_permissions("admin"))
+):
+    """Synchronously drain and process jobs from worker queue."""
+    from worker import worker_queue
+    drained = worker_queue.drain_queue(max_jobs=max_jobs, db=db)
+    return {"status": "success", "drained_jobs": drained}
+
 
 @app.get("/api/v1/health")
 async def health_check():
