@@ -89,8 +89,10 @@ def db_session():
 
 @pytest.fixture(autouse=True)
 def clean_db():
+    app.dependency_overrides[get_current_user] = override_get_current_user
     worker.worker_queue._queue = worker.queue.Queue()
     yield
+    app.dependency_overrides[get_current_user] = override_get_current_user
     worker.worker_queue._queue = worker.queue.Queue()
     with engine.connect() as conn:
         for table in reversed(Base.metadata.sorted_tables):

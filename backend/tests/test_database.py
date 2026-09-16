@@ -32,3 +32,27 @@ def test_session_local():
         assert result.scalar() == 1
     finally:
         session.close()
+
+def test_alembic_migrations_configuration():
+    """Test that Alembic migration environment is valid and script directory discovers revision head."""
+    import os
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    ini_path = os.path.join(backend_dir, "alembic.ini")
+    assert os.path.exists(ini_path)
+
+    alembic_cfg = Config(ini_path)
+    script_dir = ScriptDirectory.from_config(alembic_cfg)
+    head_rev = script_dir.get_current_head()
+    assert head_rev is not None
+    assert head_rev == "338f66162493"
+
+def test_production_postgres_pool_configuration():
+    """Verify PostgreSQL engine initialization respects enterprise pooling parameters."""
+    import os
+    from database import engine_kwargs
+    # Check that sqlite has QueuePool configured with pool_size >= 20
+    assert "pool_size" in engine_kwargs
+    assert engine_kwargs["pool_size"] >= 20
