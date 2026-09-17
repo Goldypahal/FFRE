@@ -104,3 +104,56 @@ def validate_claims(draft_explanation: str, evidence_bundle: Dict[str, Any]) -> 
 
     is_validated = len(unsupported_claims) == 0
     return is_validated, unsupported_claims
+
+
+# --- Prompt Injection Defense Guardrails (Chapters 47 & 88) ---
+
+INJECTION_PATTERNS = [
+    r"ignore\s+(?:all\s+)?(?:previous|prior|above)\s+instructions?",
+    r"disregard\s+(?:all\s+)?(?:previous|prior|above)\s+(?:instructions?|prompts?)",
+    r"forget\s+(?:everything|all)\s+(?:you\s+know|above)",
+    r"system\s+prompt\s*:",
+    r"new\s+role\s*:",
+    r"you\s+are\s+now\s+(?:an?\s+)?(?:unrestricted|evil|jailbroken|dan)",
+    r"dan\s+mode",
+    r"developer\s+mode\s+(?:enabled|activated)",
+    r"<\|(?:im_start|im_end|endoftext)\|>",
+    r"\[\/?(?:inst|system|prompt)\]",
+    r"(?:output|print|display|dump)\s+(?:all\s+)?(?:secret|api[_\s]?keys?|environment\s+variables?|passwords?)",
+    r"(?:base64|hex)\s+encode\s+(?:all\s+)?(?:keys?|secrets?|passwords?)"
+]
+
+_COMPILED_PATTERNS = [re.compile(p, re.IGNORECASE) for p in INJECTION_PATTERNS]
+
+def detect_prompt_injection(text: str) -> Tuple[bool, List[str], float]:
+    """
+    Detect adversarial prompt injection, jailbreak attempts, and system override patterns (Chapter 88).
+    Returns (is_injection: bool, matched_patterns: List[str], risk_score: float).
+    """
+    if not text:
+        return False, [], 0.0
+
+    matches = []
+    for pat in _COMPILED_PATTERNS:
+        match = pat.search(text)
+        if match:
+            matches.append(match.group(0))
+
+    if matches:
+        risk_score = min(1.0, 0.5 + (0.25 * len(matches)))
+        return True, matches, risk_score
+
+    return False, [], 0.0
+
+def sanitize_prompt_input(text: str) -> str:
+    """
+    Sanitize user and system inputs before LLM template interpolation:
+    - Neutralize LLM control tokens and instruction delimiters
+    - Strip hazardous control characters
+    """
+    if not text:
+        return ""
+    sanitized = text.replace("<|", "&lt;|").replace("|>", "|&gt;")
+    sanitized = re.sub(r"\[\/?(?:inst|system|prompt)\]", "", sanitized, flags=re.IGNORECASE)
+    return sanitized.strip()
+

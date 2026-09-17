@@ -17,11 +17,16 @@ from graph import build_graph
 import auth
 from security import encrypt_data
 from metrics import metrics_collector
+import guardrails
+from rate_limiter import RateLimitMiddleware
 
 # Initialize database tables
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="FFIRE API Gateway", description="Financial Fraud Investigation Reasoning Engine")
+
+# Enterprise Rate Limiter Middleware (Chapters 47 & 88)
+app.add_middleware(RateLimitMiddleware)
 
 # CORS middleware for frontend access
 app.add_middleware(
@@ -154,6 +159,7 @@ class InvestigationResponse(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    refresh_token: Optional[str] = None
     tenant_id: Optional[str] = "default_tenant"
 
     model_config = {
@@ -161,11 +167,16 @@ class Token(BaseModel):
             "examples": [
                 {
                     "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-                    "token_type": "bearer"
+                    "token_type": "bearer",
+                    "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                 }
             ]
         }
     }
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
 
 class UserCreate(BaseModel):
     name: str
@@ -421,7 +432,10 @@ async def register_user(user: UserCreate, db: Session = Depends(get_db)):
     access_token = auth.create_access_token(
         data={"sub": user.email, "role": user.role, "tenant_id": tenant}, expires_delta=access_token_expires
     )
-    return {"access_token": access_token, "token_type": "bearer", "tenant_id": tenant}
+    refresh_token = auth.create_refresh_token(
+        data={"sub": user.email, "role": user.role, "tenant_id": tenant}
+    )
+    return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer", "tenant_id": tenant}
 
 @app.post("/api/v1/auth/login", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
@@ -437,7 +451,38 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     access_token = auth.create_access_token(
         data={"sub": user.email, "role": user.role, "tenant_id": tenant}, expires_delta=access_token_expires
     )
-    return {"access_token": access_token, "token_type": "bearer", "tenant_id": tenant}
+    refresh_token = auth.create_refresh_token(
+        data={"sub": user.email, "role": user.role, "tenant_id": tenant}
+    )
+    return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer", "tenant_id": tenant}
+
+@app.post("/api/v1/auth/refresh", response_model=Token)
+async def refresh_access_token(payload: RefreshTokenRequest, db: Session = Depends(get_db)):
+    """Exchange a valid refresh token for a fresh access token and rotated refresh token (Chapter 47)."""
+    token_data = auth.decode_refresh_token(payload.refresh_token)
+    email = token_data.get("sub")
+    if not email:
+        raise HTTPException(status_code=401, detail="Invalid refresh token payload")
+
+    user = auth.get_user_by_email(db, email)
+    if not user:
+        raise HTTPException(status_code=401, detail="User associated with refresh token no longer exists")
+
+    tenant = getattr(user, "tenant_id", "default_tenant")
+    new_access_token = auth.create_access_token(
+        data={"sub": user.email, "role": user.role, "tenant_id": tenant},
+        expires_delta=datetime.timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+    new_refresh_token = auth.create_refresh_token(
+        data={"sub": user.email, "role": user.role, "tenant_id": tenant}
+    )
+    return {
+        "access_token": new_access_token,
+        "refresh_token": new_refresh_token,
+        "token_type": "bearer",
+        "tenant_id": tenant
+    }
+
 
 def build_investigation_response(inv: models.Investigation, db: Session) -> InvestigationResponse:
     evidence_list = [EvidenceResponse(source=ev.source, snippet=ev.snippet) for ev in inv.evidence]
@@ -498,6 +543,14 @@ async def create_investigation(
     FO-1: Accept an investigation request for a transaction or customer identifier.
     """
     # Task 15: Explicit Header or Payload-derived Idempotency Key Handling
+    # Prompt injection guardrail defense (Chapters 47 & 88)
+    is_inj, matches, _ = guardrails.detect_prompt_injection(f"{request.transaction_id} {request.user_id}")
+    if is_inj:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Security Alert: Adversarial prompt injection detected in payload: {', '.join(matches)}"
+        )
+
     if idempotency_key_header:
         idemp_key = f"idemp_{idempotency_key_header.strip()}"
     else:
