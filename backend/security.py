@@ -104,30 +104,46 @@ def decrypt_aes256_gcm(encrypted_b64: str) -> str:
 
 def encrypt_data(data: str) -> str:
     """
-    Encrypt string data using AES-256 (via Fernet).
-    Returns encrypted string.
+    Encrypt string data using authentic AES-256-GCM authenticated encryption at rest.
+    Returns Base64-encoded string containing nonce + ciphertext + tag.
     """
-    if not data or not _cipher:
+    if not data:
         return data
-
-    encrypted_bytes = _cipher.encrypt(data.encode('utf-8'))
-    return encrypted_bytes.decode('utf-8')
+    return encrypt_aes256_gcm(data)
 
 def decrypt_data(encrypted_data: str) -> str:
     """
-    Decrypt string data using AES-256 (via Fernet).
-    Expects encrypted string.
-    Returns original string.
+    Decrypt string data.
+    Attempts authentic AES-256-GCM decryption first.
+    Falls back to legacy Fernet (AES-128-CBC) for seamless migration of older database records.
+    If both fail or payload is plaintext, safely returns original string.
     """
-    if not encrypted_data or not _cipher:
+    if not encrypted_data:
         return encrypted_data
 
+    # 1. Attempt AES-256-GCM authenticated decryption
     try:
-        decrypted_bytes = _cipher.decrypt(encrypted_data.encode('utf-8'))
-        return decrypted_bytes.decode('utf-8')
+        raw_key = get_aes256_raw_key()
+        aesgcm = AESGCM(raw_key)
+        raw_payload = base64.b64decode(encrypted_data.encode("utf-8"))
+        if len(raw_payload) >= 28:
+            nonce = raw_payload[:12]
+            ciphertext = raw_payload[12:]
+            decrypted_bytes = aesgcm.decrypt(nonce, ciphertext, None)
+            return decrypted_bytes.decode("utf-8")
     except Exception:
-        # If decryption fails (e.g. data was stored in plaintext), return original string safely
-        return encrypted_data
+        pass
+
+    # 2. Fallback to legacy Fernet (AES-128-CBC) decryption
+    if _cipher:
+        try:
+            decrypted_bytes = _cipher.decrypt(encrypted_data.encode('utf-8'))
+            return decrypted_bytes.decode('utf-8')
+        except Exception:
+            pass
+
+    # 3. Fallback to original string if not encrypted
+    return encrypted_data
 
 def compute_blind_index(data: str) -> str:
     """

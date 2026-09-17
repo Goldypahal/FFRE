@@ -14,7 +14,9 @@ class DurableSqliteSaver(MemorySaver):
         self._load_all_checkpoints()
 
     def _init_db(self):
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, timeout=60.0) as conn:
+            conn.execute("PRAGMA journal_mode=WAL;")
+            conn.execute("PRAGMA busy_timeout=60000;")
             cursor = conn.cursor()
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='checkpoints'")
             if cursor.fetchone():
@@ -32,7 +34,8 @@ class DurableSqliteSaver(MemorySaver):
             conn.commit()
 
     def _load_all_checkpoints(self):
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, timeout=60.0) as conn:
+            conn.execute("PRAGMA busy_timeout=60000;")
             cursor = conn.cursor()
             cursor.execute("SELECT thread_id, checkpoint_data FROM checkpoints")
             for thread_id, data_blob in cursor.fetchall():
@@ -52,7 +55,8 @@ class DurableSqliteSaver(MemorySaver):
         try:
             if thread_id in self.storage:
                 data_blob = pickle.dumps(self.storage[thread_id])
-                with sqlite3.connect(self.db_path) as conn:
+                with sqlite3.connect(self.db_path, timeout=60.0) as conn:
+                    conn.execute("PRAGMA busy_timeout=60000;")
                     conn.execute(
                         "INSERT OR REPLACE INTO checkpoints (thread_id, checkpoint_data) VALUES (?, ?)",
                         (thread_id, sqlite3.Binary(data_blob))

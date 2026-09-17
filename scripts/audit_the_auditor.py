@@ -4,7 +4,10 @@ import ast
 import json
 import hashlib
 import time
+from pathlib import Path
 from typing import Dict, Any, List
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 class IndependentAuditorEngine:
     """
@@ -13,27 +16,39 @@ class IndependentAuditorEngine:
     verifies SHA-256 checksum signatures, and performs metamorphic fault mutation testing.
     """
 
-    def __init__(self, json_path="data/srs_traceability.json", srs_path="FFIRE_SRS.txt"):
-        self.json_path = json_path
-        self.srs_path = srs_path
+    def __init__(self, json_path=None, srs_path=None, repo_root=None):
+        self.repo_root = Path(repo_root) if repo_root else REPO_ROOT
+        self.json_path = Path(json_path) if json_path else (self.repo_root / "data" / "srs_traceability.json")
+        if not self.json_path.is_absolute():
+            self.json_path = self.repo_root / self.json_path
 
-    def calculate_sha256(self, file_path: str) -> str:
+        self.srs_path = Path(srs_path) if srs_path else (self.repo_root / "FFIRE_SRS.txt")
+        if not self.srs_path.is_absolute():
+            self.srs_path = self.repo_root / self.srs_path
+
+    def calculate_sha256(self, file_path) -> str:
         """Calculate SHA-256 digest of a file for tamper evidence."""
-        if not os.path.exists(file_path):
+        target = Path(file_path)
+        if not target.is_absolute():
+            target = self.repo_root / target
+        if not target.exists():
             return ""
         hasher = hashlib.sha256()
-        with open(file_path, "rb") as f:
+        with open(target, "rb") as f:
             while chunk := f.read(8192):
                 hasher.update(chunk)
         return hasher.hexdigest()
 
     def parse_ast_for_symbol(self, file_path: str, symbol_name: str) -> bool:
         """Independently parse Python AST to verify target function/class symbol exists."""
-        if not os.path.exists(file_path):
+        target = Path(file_path)
+        if not target.is_absolute():
+            target = self.repo_root / target
+        if not target.exists():
             return False
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                tree = ast.parse(f.read(), filename=file_path)
+            with open(target, "r", encoding="utf-8") as f:
+                tree = ast.parse(f.read(), filename=str(target))
 
             for node in ast.walk(tree):
                 if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
@@ -45,8 +60,8 @@ class IndependentAuditorEngine:
 
     def reconcile_srs_text_independently(self) -> Dict[str, Any]:
         """Independently extract all SRS IDs from FFIRE_SRS.txt text."""
-        if not os.path.exists(self.srs_path):
-            return {"status": "FAILED", "found_count": 0}
+        if not self.srs_path.exists():
+            return {"status": "FAILED", "found_count": 0, "error": f"SRS not found at {self.srs_path}"}
 
         with open(self.srs_path, "r", encoding="utf-8") as f:
             content = f.read()
@@ -62,7 +77,7 @@ class IndependentAuditorEngine:
 
     def verify_json_artifact_integrity(self) -> Dict[str, Any]:
         """Independently verify JSON traceability artifact contains 67 requirements."""
-        if not os.path.exists(self.json_path):
+        if not self.json_path.exists():
             return {"status": "FAILED", "reason": f"File missing: {self.json_path}"}
 
         with open(self.json_path, "r", encoding="utf-8") as f:
@@ -83,7 +98,8 @@ class IndependentAuditorEngine:
         reconcil = self.reconcile_srs_text_independently()
         artifact_verif = self.verify_json_artifact_integrity()
         json_sha256 = self.calculate_sha256(self.json_path)
-        report_sha256 = self.calculate_sha256("data/srs_audit_report.md")
+        report_path = self.repo_root / "data" / "srs_audit_report.md"
+        report_sha256 = self.calculate_sha256(report_path)
 
         # Create signature file artifact
         signature_data = {
@@ -93,7 +109,9 @@ class IndependentAuditorEngine:
             "reconciliation_status": reconcil["status"],
             "artifact_verification_status": artifact_verif["status"]
         }
-        with open("data/srs_traceability.json.sha256", "w", encoding="utf-8") as f:
+        sig_file = self.repo_root / "data" / "srs_traceability.json.sha256"
+        sig_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(sig_file, "w", encoding="utf-8") as f:
             json.dump(signature_data, f, indent=2)
 
         # Generate independent report
@@ -115,7 +133,8 @@ class IndependentAuditorEngine:
             "- **Python AST Symbol Verification**: 🟢 PASSED (All 67 symbols independently verified in AST)",
             "- **Cryptographic Tamper Resistance**: 🟢 SIGNED (SHA-256 Checksum Artifact Generated)"
         ]
-        with open("data/audit_the_auditor_report.md", "w", encoding="utf-8") as f:
+        out_report = self.repo_root / "data" / "audit_the_auditor_report.md"
+        with open(out_report, "w", encoding="utf-8") as f:
             f.write("\n".join(lines) + "\n")
 
         print("Task 38 Audit-the-Auditor Independent Zero-Trust Verification completed: 100% PASSED!")

@@ -6,12 +6,15 @@ import hashlib
 import time
 from pathlib import Path
 
-def calculate_sha256(file_path: str) -> str:
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+def calculate_sha256(file_path) -> str:
     """Calculate SHA-256 digest of a file."""
-    if not os.path.exists(file_path):
+    target = Path(file_path)
+    if not target.exists():
         return ""
     hasher = hashlib.sha256()
-    with open(file_path, "rb") as f:
+    with open(target, "rb") as f:
         while chunk := f.read(8192):
             hasher.update(chunk)
     return hasher.hexdigest()
@@ -21,39 +24,39 @@ def build_final_evidence_package():
     Task 39: Automated Final Evidence Package Generator.
     Compiles, validates, signs, and exports all audit deliverables into dist/ffre_evidence_package/.
     """
-    repo_root = str(Path(__file__).resolve().parents[1])
-    if repo_root not in sys.path:
-        sys.path.insert(0, repo_root)
+    repo_root = REPO_ROOT
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
 
     from scripts.srs_audit_engine import SRSEvidenceAuditEngine
     from scripts.audit_the_auditor import IndependentAuditorEngine
 
-    audit_engine = SRSEvidenceAuditEngine()
+    audit_engine = SRSEvidenceAuditEngine(repo_root=repo_root)
     summary = audit_engine.run_audit()
 
-    independent_engine = IndependentAuditorEngine()
+    independent_engine = IndependentAuditorEngine(repo_root=repo_root)
     zero_trust_sig = independent_engine.run_zero_trust_verification()
 
-    dist_dir = Path("dist/ffre_evidence_package")
+    dist_dir = repo_root / "dist" / "ffre_evidence_package"
     if dist_dir.exists():
         shutil.rmtree(dist_dir)
     dist_dir.mkdir(parents=True, exist_ok=True)
 
     # 2. Copy artifacts to package
     artifacts_to_copy = [
-        ("data/srs_traceability.json", dist_dir / "srs_traceability.json"),
-        ("data/srs_traceability.json.sha256", dist_dir / "srs_traceability.json.sha256"),
-        ("data/audit_the_auditor_report.md", dist_dir / "audit_the_auditor_report.md"),
-        ("data/benchmarks/task20_results.json", dist_dir / "task20_results.json"),
-        ("FFIRE_SRS.txt", dist_dir / "FFIRE_SRS.txt")
+        (repo_root / "data" / "srs_traceability.json", dist_dir / "srs_traceability.json"),
+        (repo_root / "data" / "srs_traceability.json.sha256", dist_dir / "srs_traceability.json.sha256"),
+        (repo_root / "data" / "audit_the_auditor_report.md", dist_dir / "audit_the_auditor_report.md"),
+        (repo_root / "data" / "benchmarks" / "task20_results.json", dist_dir / "task20_results.json"),
+        (repo_root / "FFIRE_SRS.txt", dist_dir / "FFIRE_SRS.txt")
     ]
 
     for src, dst in artifacts_to_copy:
-        if os.path.exists(src):
+        if src.exists():
             shutil.copy2(src, dst)
 
     # 3. Generate Executive Audit Report
-    report_md_path = "data/srs_audit_report.md"
+    report_md_path = repo_root / "data" / "srs_audit_report.md"
     exec_report_path = dist_dir / "EXECUTIVE_AUDIT_REPORT.md"
 
     exec_lines = [
@@ -130,7 +133,7 @@ def build_final_evidence_package():
         ""
     ])
 
-    if os.path.exists(report_md_path):
+    if report_md_path.exists():
         with open(report_md_path, "r", encoding="utf-8") as f:
             report_content = f.read()
         if "## Final 67/67 SRS Compliance Audit Matrix" in report_content:

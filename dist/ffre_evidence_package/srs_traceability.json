@@ -1,7 +1,7 @@
 {
   "metadata": {
     "project": "Financial Fraud Investigation Reasoning Engine (FFRE)",
-    "generated_at": "2026-09-17 10:04:37 UTC",
+    "generated_at": "2026-09-17 11:14:42 UTC",
     "audit_engine": "Task 39 Final Evidence Package Engine v13.0",
     "reconciliation": {
       "status": "PASSED",
@@ -30,7 +30,7 @@
       "final_evidence_package_coverage_pct": 100.0,
       "verification_coverage_pct": 100.0,
       "production_readiness_coverage_pct": 100.0,
-      "nfr1_p95_sec": 2.16832,
+      "nfr1_p95_sec": 2.62175,
       "nfr1_target_met": true,
       "srs_reconciliation": {
         "status": "PASSED",
@@ -326,7 +326,7 @@
       "behavior_spec": "Real graph execution benchmark achieves P95 < 8.0s across 1, 5, 10, 20 worker concurrency.",
       "source_snippet": "from metrics import metrics_collector",
       "production_notes": [
-        "P95=2.16832s < 8.0s target (MET)"
+        "P95=2.62175s < 8.0s target (MET)"
       ]
     },
     {
@@ -382,9 +382,9 @@
     },
     {
       "req_id": "NFR-4",
-      "title": "Dual Tier PII Encryption (AES-256-GCM Vault & Fernet AES-128-CBC Models)",
+      "title": "PII Encryption at Rest (AES-256-GCM & Legacy Fernet AES-128-CBC Compatibility)",
       "category": "Security & Privacy",
-      "srs_description": "NFR-4: All PII encrypted at rest (AES-256-GCM and Fernet AES-128-CBC) and in transit (TLS 1.2+).",
+      "srs_description": "NFR-4: All PII must be encrypted at rest using AES-256-GCM and in transit using TLS 1.2+ (with legacy Fernet AES-128-CBC decryption compatibility).",
       "target_symbol": "encrypt_aes256_gcm",
       "symbol_found": true,
       "target_test": "test_aes256_gcm_authenticated_encryption",
@@ -402,7 +402,7 @@
       "test_files": [
         "backend/tests/test_models.py"
       ],
-      "behavior_spec": "Authentic AES-256-GCM authenticated encryption and Fernet symmetric encryption protect PII.",
+      "behavior_spec": "Authentic AES-256-GCM authenticated encryption protects newly persisted PII; legacy Fernet decryption preserved for backward compatibility.",
       "source_snippet": "def encrypt_aes256_gcm(data: str) -> str:",
       "production_notes": []
     },

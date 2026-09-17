@@ -2,7 +2,7 @@ import os
 import json
 import pytest
 from pathlib import Path
-from scripts.build_final_evidence_package import build_final_evidence_package, calculate_sha256
+from scripts.build_final_evidence_package import build_final_evidence_package, calculate_sha256, REPO_ROOT
 
 def test_task39_evidence_package_generation():
     """
@@ -12,7 +12,7 @@ def test_task39_evidence_package_generation():
     assert res["status"] == "SUCCESS"
     assert res["production_readiness_pct"] == 100.0
 
-    dist_dir = Path("dist/ffre_evidence_package")
+    dist_dir = REPO_ROOT / "dist" / "ffre_evidence_package"
     assert dist_dir.exists()
 
     expected_files = [
@@ -34,7 +34,7 @@ def test_task39_executive_audit_report_completeness():
     """
     Task 39 Test 2: Verify EXECUTIVE_AUDIT_REPORT.md contains executive summary, 67-requirement matrix, and 100% production readiness verdict.
     """
-    report_path = Path("dist/ffre_evidence_package/EXECUTIVE_AUDIT_REPORT.md")
+    report_path = REPO_ROOT / "dist" / "ffre_evidence_package" / "EXECUTIVE_AUDIT_REPORT.md"
     assert report_path.exists()
 
     with open(report_path, "r", encoding="utf-8") as f:
@@ -50,7 +50,7 @@ def test_task39_package_sha256_cryptographic_verification():
     """
     Task 39 Test 3: Verify CHECKSUMS.sha256 manifest hashes match physical file hashes.
     """
-    manifest_path = Path("dist/ffre_evidence_package/CHECKSUMS.sha256")
+    manifest_path = REPO_ROOT / "dist" / "ffre_evidence_package" / "CHECKSUMS.sha256"
     assert manifest_path.exists()
 
     with open(manifest_path, "r", encoding="utf-8") as f:
@@ -62,7 +62,7 @@ def test_task39_package_sha256_cryptographic_verification():
         parts = line.strip().split()
         if len(parts) == 2:
             expected_hash, fname = parts[0], parts[1]
-            file_path = Path("dist/ffre_evidence_package") / fname
+            file_path = REPO_ROOT / "dist" / "ffre_evidence_package" / fname
             assert file_path.exists()
             computed_hash = calculate_sha256(str(file_path))
             assert computed_hash == expected_hash, f"Hash mismatch for {fname}"
@@ -71,8 +71,8 @@ def test_task39_reviewer_ready_deliverable_validation():
     """
     Task 39 Test 4: Confirm evidence package is self-contained and reviewer-ready.
     """
-    srs_path = Path("dist/ffre_evidence_package/FFIRE_SRS.txt")
-    json_path = Path("dist/ffre_evidence_package/srs_traceability.json")
+    srs_path = REPO_ROOT / "dist" / "ffre_evidence_package" / "FFIRE_SRS.txt"
+    json_path = REPO_ROOT / "dist" / "ffre_evidence_package" / "srs_traceability.json"
 
     assert srs_path.exists()
     assert json_path.exists()
@@ -87,7 +87,7 @@ def test_task39_100_percent_final_milestone_completion():
     """
     Task 39 Test 5: Final Enterprise Milestone Verdict - Assert 100% Production Readiness across all 67 requirements.
     """
-    json_path = Path("dist/ffre_evidence_package/srs_traceability.json")
+    json_path = REPO_ROOT / "dist" / "ffre_evidence_package" / "srs_traceability.json"
     with open(json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 

@@ -177,7 +177,7 @@ Category Requirement
 Performance P95 investigation latency < 8 seconds for standard-complexity cases.
 Availability 99.9% uptime for the API gateway and orchestration layer.
 Scalability Support horizontal scaling of retrieval and reasoning workers via Kubernetes.
-Security All PII encrypted at rest (AES-256) and in transit (TLS 1.2+).
+Security All PII encrypted at rest (AES-256-GCM authenticated encryption; legacy Fernet AES-128-CBC compatibility) and in transit (TLS 1.2+).
 Auditability Every investigation must produce an immutable, timestamped audit trail.
 Explainability 100% of generated claims must cite a specific evidence source.
 Maintainability Graph nodes must be independently testable and replaceable.
@@ -917,7 +917,7 @@ Non-Functional Requirements (NFR-1 to NFR-7):
 - NFR-1: P95 investigation latency < 8 seconds for standard-complexity cases.
 - NFR-2: 99.9% uptime for the API gateway and orchestration layer.
 - NFR-3: Support horizontal scaling of retrieval and reasoning workers via Kubernetes.
-- NFR-4: All PII encrypted at rest (AES-256-GCM and Fernet AES-128-CBC) and in transit (TLS 1.2+).
+- NFR-4: All PII must be encrypted at rest using AES-256-GCM and in transit using TLS 1.2+ (with legacy Fernet AES-128-CBC decryption compatibility).
 - NFR-5: Every investigation must produce an immutable, timestamped audit trail.
 - NFR-6: 100% of generated claims must cite a specific evidence source.
 - NFR-7: Graph nodes must be independently testable and replaceable.

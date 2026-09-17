@@ -56,5 +56,5 @@ def test_auditor_executive_verification_report():
 
     assert res["reconciliation_status"] == "PASSED"
     assert res["artifact_verification_status"] == "PASSED"
-    assert os.path.exists("data/srs_traceability.json.sha256")
-    assert os.path.exists("data/audit_the_auditor_report.md")
+    assert (auditor.repo_root / "data/srs_traceability.json.sha256").exists()
+    assert (auditor.repo_root / "data/audit_the_auditor_report.md").exists()

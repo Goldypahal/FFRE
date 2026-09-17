@@ -33,7 +33,7 @@ def test_srs_audit_engine_execution_and_artifacts():
     assert reconciliation.get("duplicates_count") == 0
 
     # Verify JSON artifact
-    json_path = "data/srs_traceability.json"
+    json_path = Path(repo_root) / "data" / "srs_traceability.json"
     assert os.path.exists(json_path)
     with open(json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -44,7 +44,7 @@ def test_srs_audit_engine_execution_and_artifacts():
     assert len(data["requirements"]) == 67
 
     # Verify Markdown artifact
-    md_path = "data/srs_audit_report.md"
+    md_path = Path(repo_root) / "data" / "srs_audit_report.md"
     assert os.path.exists(md_path)
     with open(md_path, "r", encoding="utf-8") as f:
         md_content = f.read()
@@ -173,3 +173,17 @@ def test_task39_final_evidence_package_suite():
     assert summary["security_penetration_coverage_pct"] == 100.0
     assert summary["chaos_resilience_coverage_pct"] == 100.0
     assert summary["runtime_acceptance_evidence_coverage_pct"] == 100.0
+
+def test_srs_audit_engine_from_arbitrary_cwd(monkeypatch, tmp_path):
+    """Regression Test: Verify SRSEvidenceAuditEngine runs reproducibly from any CWD without path errors."""
+    monkeypatch.chdir(tmp_path)
+    engine = SRSEvidenceAuditEngine()
+    summary = engine.run_audit()
+
+    assert summary is not None
+    assert summary["srs_reconciliation"]["status"] == "PASSED"
+    assert summary["srs_reconciliation"]["exact_id_matches"] == 67
+    assert summary["implementation_coverage_pct"] == 100.0
+    assert summary["semantic_verification_coverage_pct"] == 100.0
+    assert summary["runtime_acceptance_evidence_coverage_pct"] == 100.0
+

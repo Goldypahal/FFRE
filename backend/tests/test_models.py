@@ -257,3 +257,16 @@ def test_audit_log_cryptographic_hash_chain_immutability(db_session):
         queried_logs[1].details
     )
     assert queried_logs[1].entry_hash == expected_hash2
+
+def test_legacy_fernet_decryption_backward_compatibility():
+    """NFR-4 Test: Verify decrypt_data seamlessly decrypts legacy Fernet AES-128-CBC ciphertexts."""
+    import security
+    from cryptography.fernet import Fernet
+
+    legacy_fernet = Fernet(security.get_encryption_key())
+    plaintext = "legacy-customer-pii-ssn-1234"
+    legacy_ciphertext = legacy_fernet.encrypt(plaintext.encode("utf-8")).decode("utf-8")
+
+    # Ensure decrypt_data decrypts the legacy Fernet ciphertext without errors
+    decrypted = security.decrypt_data(legacy_ciphertext)
+    assert decrypted == plaintext

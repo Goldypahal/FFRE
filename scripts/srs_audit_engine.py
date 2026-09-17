@@ -2,6 +2,9 @@ import os
 import json
 import time
 import re
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Definitive 67 SRS Core Requirements Catalog with Verified Exact Symbol & Test Function Mapping
 SRS_REQUIREMENTS = [
@@ -153,14 +156,14 @@ SRS_REQUIREMENTS = [
     },
     {
         "req_id": "NFR-4",
-        "title": "Dual Tier PII Encryption (AES-256-GCM Vault & Fernet AES-128-CBC Models)",
+        "title": "PII Encryption at Rest (AES-256-GCM & Legacy Fernet AES-128-CBC Compatibility)",
         "category": "Security & Privacy",
-        "srs_description": "NFR-4: All PII encrypted at rest (AES-256-GCM and Fernet AES-128-CBC) and in transit (TLS 1.2+).",
+        "srs_description": "NFR-4: All PII must be encrypted at rest using AES-256-GCM and in transit using TLS 1.2+ (with legacy Fernet AES-128-CBC decryption compatibility).",
         "target_symbol": "encrypt_aes256_gcm",
         "target_test": "test_aes256_gcm_authenticated_encryption",
         "sources": ["backend/security.py", "backend/models.py"],
         "tests": ["backend/tests/test_models.py"],
-        "behavior_spec": "Authentic AES-256-GCM authenticated encryption and Fernet symmetric encryption protect PII."
+        "behavior_spec": "Authentic AES-256-GCM authenticated encryption protects newly persisted PII; legacy Fernet decryption preserved for backward compatibility."
     },
     {
         "req_id": "NFR-5",
@@ -770,13 +773,14 @@ SRS_REQUIREMENTS.extend(LG_REQUIREMENTS)
 class SRSEvidenceAuditEngine:
     """Task 26, 27, 28, 29: Evidence-Driven SRS Audit Engine for exactly 67 Core Requirements."""
 
-    def __init__(self):
+    def __init__(self, repo_root=None):
+        self.repo_root = Path(repo_root) if repo_root else REPO_ROOT
         self.results = []
         self.benchmark_data = self._load_benchmark_data()
 
     def _load_benchmark_data(self):
-        bench_file = "data/benchmarks/task20_results.json"
-        if os.path.exists(bench_file):
+        bench_file = self.repo_root / "data" / "benchmarks" / "task20_results.json"
+        if bench_file.exists():
             try:
                 with open(bench_file, "r", encoding="utf-8") as f:
                     return json.load(f)
@@ -798,9 +802,10 @@ class SRSEvidenceAuditEngine:
         source_snippet = ""
 
         for src in sources:
-            if os.path.exists(src):
+            src_path = self.repo_root / src if not os.path.isabs(src) else Path(src)
+            if src_path.exists():
                 source_file_exists = True
-                with open(src, "r", encoding="utf-8") as f:
+                with open(src_path, "r", encoding="utf-8") as f:
                     content = f.read()
                 if target_symbol in content:
                     symbol_found_in_source = True
@@ -814,9 +819,10 @@ class SRSEvidenceAuditEngine:
         test_func_found_in_test = False
 
         for tst in tests:
-            if os.path.exists(tst):
+            tst_path = self.repo_root / tst if not os.path.isabs(tst) else Path(tst)
+            if tst_path.exists():
                 test_file_exists = True
-                with open(tst, "r", encoding="utf-8") as f:
+                with open(tst_path, "r", encoding="utf-8") as f:
                     content = f.read()
                 if target_test in content:
                     test_func_found_in_test = True
@@ -826,7 +832,7 @@ class SRSEvidenceAuditEngine:
         verification_status = "VERIFIED" if semantic_verified else "UNVERIFIED"
 
         # 4. Task 30 Runtime Behavioral Acceptance evaluation
-        negative_test_suite_exists = os.path.exists("backend/tests/srs/test_srs_negative_acceptance.py")
+        negative_test_suite_exists = (self.repo_root / "backend/tests/srs/test_srs_negative_acceptance.py").exists()
         positive_status = "PASS" if semantic_verified else "FAIL"
         negative_status = "PASS" if negative_test_suite_exists else "FAIL"
         runtime_behavior_verdict = "VERIFIED" if (positive_status == "PASS" and negative_status == "PASS") else "UNVERIFIED"
@@ -850,15 +856,16 @@ class SRSEvidenceAuditEngine:
                 prod_notes.append("Benchmark results missing")
 
         elif req_id == "NFR-2":
-            if os.path.exists("backend/tests/srs/test_srs_production_deployment.py") or os.path.exists("backend/tests/srs/test_srs_ha_deployment.py"):
+            if (self.repo_root / "backend/tests/srs/test_srs_production_deployment.py").exists() or (self.repo_root / "backend/tests/srs/test_srs_ha_deployment.py").exists():
                 prod_readiness = "PRODUCTION_READY"
             else:
                 prod_readiness = "PARTIAL"
                 prod_notes.append("Single-instance gateway (K8s multi-replica required for 99.9%)")
 
         elif req_id == "NFR-3":
-            if os.path.exists("backend/worker.py"):
-                with open("backend/worker.py", "r", encoding="utf-8") as f:
+            worker_file = self.repo_root / "backend/worker.py"
+            if worker_file.exists():
+                with open(worker_file, "r", encoding="utf-8") as f:
                     worker_code = f.read()
                 if "rpoplpush" in worker_code.lower() or "brpoplpush" in worker_code.lower() or "ack_job" in worker_code.lower():
                     prod_readiness = "PRODUCTION_READY"
@@ -867,7 +874,7 @@ class SRSEvidenceAuditEngine:
                     prod_notes.append("Simple LPOP without ACK detected")
 
         elif req_id == "FO-10":
-            if os.path.exists("backend/tests/srs/test_srs_production_deployment.py"):
+            if (self.repo_root / "backend/tests/srs/test_srs_production_deployment.py").exists():
                 prod_readiness = "PRODUCTION_READY"
             else:
                 prod_notes.append("Foreign key SET NULL active; DB tamper resistance unverified")
@@ -895,15 +902,19 @@ class SRSEvidenceAuditEngine:
             "production_notes": prod_notes
         }
 
-    def parse_srs_document(self, srs_path="FFIRE_SRS.txt"):
+    def parse_srs_document(self, srs_path=None):
         """Task 28: Dynamically parse the 100-page SRS document text and reconcile requirement IDs."""
-        if not os.path.exists(srs_path):
+        target_srs = Path(srs_path) if srs_path else (self.repo_root / "FFIRE_SRS.txt")
+        if not target_srs.is_absolute():
+            target_srs = self.repo_root / target_srs
+
+        if not target_srs.exists():
             return {
                 "status": "FAILED",
-                "error": f"SRS document file not found at {srs_path}"
+                "error": f"SRS document file not found at {target_srs}"
             }
 
-        with open(srs_path, "r", encoding="utf-8") as f:
+        with open(target_srs, "r", encoding="utf-8") as f:
             content = f.read()
 
         found_raw = re.findall(r"\b(FO|NFR|SA|DS|OP|LG)-(\d+)\b", content)
@@ -941,14 +952,14 @@ class SRSEvidenceAuditEngine:
         impl_count = sum(1 for r in self.results if r["implementation_status"] == "IMPLEMENTED")
         verif_count = sum(1 for r in self.results if r["verification_status"] == "VERIFIED")
         runtime_count = sum(1 for r in self.results if r["runtime_behavior_verdict"] == "VERIFIED")
-        chaos_count = total if os.path.exists("backend/tests/srs/test_srs_failure_injection.py") else 0
-        security_count = total if os.path.exists("backend/tests/srs/test_srs_security_penetration.py") else 0
-        ha_count = total if os.path.exists("backend/tests/srs/test_srs_ha_deployment.py") else 0
-        obs_count = total if os.path.exists("backend/tests/srs/test_srs_observability_alerting.py") else 0
-        prod_deploy_count = total if os.path.exists("backend/tests/srs/test_srs_production_deployment.py") else 0
-        final_comp_count = total if os.path.exists("backend/tests/srs/test_srs_final_compliance.py") else 0
-        audit_auditor_count = total if os.path.exists("backend/tests/srs/test_srs_audit_the_auditor.py") else 0
-        final_pkg_count = total if os.path.exists("backend/tests/srs/test_srs_final_evidence_package.py") else 0
+        chaos_count = total if (self.repo_root / "backend/tests/srs/test_srs_failure_injection.py").exists() else 0
+        security_count = total if (self.repo_root / "backend/tests/srs/test_srs_security_penetration.py").exists() else 0
+        ha_count = total if (self.repo_root / "backend/tests/srs/test_srs_ha_deployment.py").exists() else 0
+        obs_count = total if (self.repo_root / "backend/tests/srs/test_srs_observability_alerting.py").exists() else 0
+        prod_deploy_count = total if (self.repo_root / "backend/tests/srs/test_srs_production_deployment.py").exists() else 0
+        final_comp_count = total if (self.repo_root / "backend/tests/srs/test_srs_final_compliance.py").exists() else 0
+        audit_auditor_count = total if (self.repo_root / "backend/tests/srs/test_srs_audit_the_auditor.py").exists() else 0
+        final_pkg_count = total if (self.repo_root / "backend/tests/srs/test_srs_final_evidence_package.py").exists() else 0
         prod_count = sum(1 for r in self.results if r["production_readiness"] == "PRODUCTION_READY")
 
         summary = {
@@ -973,7 +984,11 @@ class SRSEvidenceAuditEngine:
         }
 
         # Export JSON artifact
-        os.makedirs("data", exist_ok=True)
+        data_dir = self.repo_root / "data"
+        data_dir.mkdir(parents=True, exist_ok=True)
+        json_path = data_dir / "srs_traceability.json"
+        md_path = data_dir / "srs_audit_report.md"
+
         json_output = {
             "metadata": {
                 "project": "Financial Fraud Investigation Reasoning Engine (FFRE)",
@@ -984,15 +999,18 @@ class SRSEvidenceAuditEngine:
             },
             "requirements": self.results
         }
-        with open("data/srs_traceability.json", "w", encoding="utf-8") as f:
+        with open(json_path, "w", encoding="utf-8") as f:
             json.dump(json_output, f, indent=2)
 
         # Export Markdown audit report
-        self._export_markdown_report(summary, reconciliation)
+        self._export_markdown_report(summary, reconciliation, md_path)
         print(f"Task 39 Final Evidence Package Engine completed: {total} requirements reconciled & 100% packaged!")
         return summary
 
-    def _export_markdown_report(self, summary, reconciliation):
+    def _export_markdown_report(self, summary, reconciliation, output_path=None):
+        if output_path is None:
+            output_path = self.repo_root / "data" / "srs_audit_report.md"
+
         lines = [
             "# FFIRE SRS Evidence-Driven Audit Scorecard",
             "",
@@ -1053,7 +1071,7 @@ class SRSEvidenceAuditEngine:
             snippet = f"`{r['source_snippet']}`" if r['source_snippet'] else r['behavior_spec']
             lines.append(f"| **{r['req_id']}** | `{r['target_symbol']}` | `{r['target_test']}` | {pos_icon} | {neg_icon} | {verdict_icon} | {prod_icon} | {snippet} |")
 
-        with open("data/srs_audit_report.md", "w", encoding="utf-8") as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines) + "\n")
 
 if __name__ == "__main__":

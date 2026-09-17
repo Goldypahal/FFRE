@@ -1,7 +1,7 @@
 # Financial Fraud Investigation Reasoning Engine (FFRE)
 ## Reviewer-Ready Executive SRS Compliance & Audit Report
 
-**Generated**: 2026-09-17 10:04:37 UTC  
+**Generated**: 2026-09-17 11:14:42 UTC  
 **System Version**: v1.0 Hardened Production Candidate  
 **Audit Verdict**: 🟢 **CORE SRS VERIFIED (~85–90% COMPLETE, ~70–75% PRODUCTION READINESS DEMONSTRATED)**  
 
@@ -33,7 +33,7 @@ Production Fail-Fast Diagnostics:     🟢 100.0% (Fail-Fast & Ingress TLS Heade
 Final SRS Compliance Audit:           🟢 100.0% (67/67 Reconciled & Qualified)
 Audit-the-Auditor Zero-Trust Audit:    🟢 100.0% (Zero-Trust AST & SHA-256 Signed)
 Reviewer-Ready Evidence Package:       🟢 100.0% (Signed Deliverable Package Exported)
-NFR-1 Latency Benchmark (P95 SLA):     🟢 MET UNDER TEST CONDITIONS (P95 = 2.16832s @ 20 concurrency < 8.0s)
+NFR-1 Latency Benchmark (P95 SLA):     🟢 MET UNDER TEST CONDITIONS (P95 = 2.62175s @ 20 concurrency < 8.0s)
 CORE SRS IMPLEMENTATION SCORE:         🟢 ~85-90% (SUBSTANTIALLY IMPLEMENTED & TESTED)
 DEMONSTRATED PRODUCTION READINESS:     🟡 ~70-75% (QUALIFIED HARDENED CANDIDATE)
 =========================================================================
@@ -45,19 +45,19 @@ DEMONSTRATED PRODUCTION READINESS:     🟡 ~70-75% (QUALIFIED HARDENED CANDIDAT
 
 | Artifact File | Description | SHA-256 Checksum | Verification Verdict |
 |:---|:---|:---|:---:|
-| `audit_the_auditor_report.md` | Reviewer Deliverable File | `ff4330870898bed70133b194ed4f895db0d3cd5bf04c9f1b907bd41126ff343a` | 🟢 VERIFIED |
-| `FFIRE_SRS.txt` | Reviewer Deliverable File | `685b2881e29e40142acd9996e0ff8db75e269be1903d33f2cfb17ad4ac6d4140` | 🟢 VERIFIED |
-| `srs_traceability.json` | Reviewer Deliverable File | `769216c853bd125b89b8e58cbe4c4d374a49af90b8559145b1d2f3ba21c88fcf` | 🟢 VERIFIED |
-| `srs_traceability.json.sha256` | Reviewer Deliverable File | `147cf6efcf17d27668f6b871b4ea73302d03af6c6c579fa6d4be8327868ecd15` | 🟢 VERIFIED |
-| `task20_results.json` | Reviewer Deliverable File | `6911110f40a708e814c179ae727abe236de27cc7acc82ab60a667d2400d412e1` | 🟢 VERIFIED |
+| `audit_the_auditor_report.md` | Reviewer Deliverable File | `d10178e20a196fbe33be446b579c3a8ab12c80e76b2d93608e2060ec89ea4aac` | 🟢 VERIFIED |
+| `FFIRE_SRS.txt` | Reviewer Deliverable File | `c23727e08d9c7fc9e797f8f4f829087f86b70d43046dedd0cf7b06eeb5e2ca36` | 🟢 VERIFIED |
+| `srs_traceability.json` | Reviewer Deliverable File | `1138ceadaf1856ea9ec57b52edb13c13fa313f27ad3ae0c4ec2aa4aac5ed7dbb` | 🟢 VERIFIED |
+| `srs_traceability.json.sha256` | Reviewer Deliverable File | `7f436cc41c16c16abc202cfb1fd8d380d5ef41922b3aaddd7710a2c3999062a4` | 🟢 VERIFIED |
+| `task20_results.json` | Reviewer Deliverable File | `e8ee481b5bed8967f65c29206ea0a246a321bd467c4d659500ac3e5d37108e94` | 🟢 VERIFIED |
 
 ---
 
 ## 3. Cryptographic Tamper-Evidence & Zero-Trust Signatures
 
 ```
-Traceability JSON Hash:   769216c853bd125b89b8e58cbe4c4d374a49af90b8559145b1d2f3ba21c88fcf
-Scorecard MD Hash:        239c34e0e1ab9df0d9c7f1f69b1da93302048edb1c11e920e625a33db665741e
+Traceability JSON Hash:   1138ceadaf1856ea9ec57b52edb13c13fa313f27ad3ae0c4ec2aa4aac5ed7dbb
+Scorecard MD Hash:        15feb5741ce39b37496459e0f116e747cc5044e92add364bafc3d36f1f8a18ce
 Zero-Trust Status:        🟢 PASSED
 ```
 
