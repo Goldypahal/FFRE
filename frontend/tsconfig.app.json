@@ -22,7 +22,10 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
-,
-  "exclude": ["src/components/ComponentLibrary.tsx"]
+  "include": ["src"],
+  "exclude": [
+    "src/components/ComponentLibrary.tsx",
+    "src/**/__tests__/*",
+    "src/test/*"
+  ]
 }

@@ -258,6 +258,19 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
     };
   }, [query, activeCategory]);
 
+  // Global Escape key listener when modal is active
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, [isOpen, onClose]);
+
   const selectItem = (item: SearchResult) => {
     // Record query in recent searches
     if (query.trim()) {
