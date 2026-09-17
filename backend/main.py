@@ -1802,6 +1802,219 @@ async def universal_search(
     }
 
 
+# --- Centralized Prompt Registry & Studio API (Chapters 36 & 85) ---
+
+class PromptCreate(BaseModel):
+    name: str
+    version: str = "v1.0"
+    template_text: str
+    description: Optional[str] = None
+    variables: Optional[str] = None
+    is_active: bool = True
+
+class PromptUpdate(BaseModel):
+    template_text: Optional[str] = None
+    description: Optional[str] = None
+    variables: Optional[str] = None
+    is_active: Optional[bool] = None
+
+@app.get("/api/v1/prompts")
+async def list_prompts(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """List all registered prompts, active versions, and templates for tenant."""
+    import prompt_registry
+    tenant = getattr(current_user, "tenant_id", "default_tenant")
+    prompts = db.query(models.PromptRecord).filter(models.PromptRecord.tenant_id == tenant).order_by(models.PromptRecord.name, models.PromptRecord.created_at.desc()).all()
+
+    if not prompts:
+        prompt_registry.seed_default_prompts(db, tenant_id=tenant)
+        prompts = db.query(models.PromptRecord).filter(models.PromptRecord.tenant_id == tenant).order_by(models.PromptRecord.name, models.PromptRecord.created_at.desc()).all()
+
+    return [
+        {
+            "prompt_id": p.prompt_id,
+            "name": p.name,
+            "version": p.version,
+            "template_text": p.template_text,
+            "description": p.description,
+            "variables": [v.strip() for v in p.variables.split(",")] if p.variables else [],
+            "is_active": p.is_active,
+            "created_by": p.created_by,
+            "created_at": p.created_at.isoformat(),
+            "updated_at": p.updated_at.isoformat() if p.updated_at else p.created_at.isoformat()
+        }
+        for p in prompts
+    ]
+
+@app.get("/api/v1/prompts/{name}")
+async def get_prompt_by_name(
+    name: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Get active prompt template and historical versions for a given prompt name."""
+    import prompt_registry
+    tenant = getattr(current_user, "tenant_id", "default_tenant")
+    records = db.query(models.PromptRecord).filter(
+        models.PromptRecord.tenant_id == tenant,
+        models.PromptRecord.name == name
+    ).order_by(models.PromptRecord.created_at.desc()).all()
+
+    if not records:
+        prompt_registry.seed_default_prompts(db, tenant_id=tenant)
+        records = db.query(models.PromptRecord).filter(
+            models.PromptRecord.tenant_id == tenant,
+            models.PromptRecord.name == name
+        ).order_by(models.PromptRecord.created_at.desc()).all()
+
+    if not records:
+        raise HTTPException(status_code=404, detail=f"Prompt '{name}' not found")
+
+    active_rec = next((r for r in records if r.is_active), records[0])
+
+    return {
+        "name": name,
+        "active_version": active_rec.version,
+        "active_template": active_rec.template_text,
+        "description": active_rec.description,
+        "variables": [v.strip() for v in active_rec.variables.split(",")] if active_rec.variables else [],
+        "versions": [
+            {
+                "prompt_id": r.prompt_id,
+                "version": r.version,
+                "is_active": r.is_active,
+                "created_by": r.created_by,
+                "created_at": r.created_at.isoformat()
+            }
+            for r in records
+        ]
+    }
+
+@app.post("/api/v1/prompts")
+async def create_prompt_version(
+    payload: PromptCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.check_permissions("admin"))
+):
+    """Create a new prompt template or deploy a new version in the registry."""
+    import prompt_registry
+    tenant = getattr(current_user, "tenant_id", "default_tenant")
+
+    if payload.is_active:
+        db.query(models.PromptRecord).filter(
+            models.PromptRecord.tenant_id == tenant,
+            models.PromptRecord.name == payload.name,
+            models.PromptRecord.is_active == True
+        ).update({"is_active": False})
+
+    new_prompt = models.PromptRecord(
+        tenant_id=tenant,
+        name=payload.name,
+        version=payload.version,
+        template_text=payload.template_text.strip(),
+        description=payload.description,
+        variables=payload.variables,
+        is_active=payload.is_active,
+        created_by=current_user.name
+    )
+    db.add(new_prompt)
+    db.commit()
+    db.refresh(new_prompt)
+
+    prompt_registry.invalidate_prompt_cache(payload.name, tenant)
+
+    return {
+        "status": "success",
+        "prompt_id": new_prompt.prompt_id,
+        "name": new_prompt.name,
+        "version": new_prompt.version,
+        "is_active": new_prompt.is_active
+    }
+
+@app.put("/api/v1/prompts/{prompt_id}")
+async def update_prompt_version(
+    prompt_id: str,
+    payload: PromptUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.check_permissions("admin"))
+):
+    """Update prompt template text, description, or activation status."""
+    import prompt_registry
+    tenant = getattr(current_user, "tenant_id", "default_tenant")
+    prompt = db.query(models.PromptRecord).filter(models.PromptRecord.prompt_id == prompt_id).first()
+    if not prompt:
+        raise HTTPException(status_code=404, detail="Prompt record not found")
+    if prompt.tenant_id != tenant:
+        raise HTTPException(status_code=403, detail="Access denied: Prompt belongs to another tenant")
+
+    if payload.template_text is not None:
+        prompt.template_text = payload.template_text.strip()
+    if payload.description is not None:
+        prompt.description = payload.description
+    if payload.variables is not None:
+        prompt.variables = payload.variables
+    if payload.is_active is not None:
+        if payload.is_active:
+            db.query(models.PromptRecord).filter(
+                models.PromptRecord.tenant_id == tenant,
+                models.PromptRecord.name == prompt.name,
+                models.PromptRecord.prompt_id != prompt_id
+            ).update({"is_active": False})
+        prompt.is_active = payload.is_active
+
+    prompt.updated_at = datetime.datetime.utcnow()
+    db.commit()
+    db.refresh(prompt)
+
+    prompt_registry.invalidate_prompt_cache(prompt.name, tenant)
+
+    return {"status": "success", "prompt_id": prompt.prompt_id, "name": prompt.name, "is_active": prompt.is_active}
+
+@app.post("/api/v1/prompts/{prompt_id}/activate")
+async def activate_prompt_version(
+    prompt_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.check_permissions("admin"))
+):
+    """Activate a specific prompt version and invalidate the prompt cache."""
+    import prompt_registry
+    tenant = getattr(current_user, "tenant_id", "default_tenant")
+    prompt = db.query(models.PromptRecord).filter(models.PromptRecord.prompt_id == prompt_id).first()
+    if not prompt:
+        raise HTTPException(status_code=404, detail="Prompt record not found")
+    if prompt.tenant_id != tenant:
+        raise HTTPException(status_code=403, detail="Access denied: Prompt belongs to another tenant")
+
+    db.query(models.PromptRecord).filter(
+        models.PromptRecord.tenant_id == tenant,
+        models.PromptRecord.name == prompt.name
+    ).update({"is_active": False})
+
+    prompt.is_active = True
+    prompt.updated_at = datetime.datetime.utcnow()
+    db.commit()
+
+    prompt_registry.invalidate_prompt_cache(prompt.name, tenant)
+    return {"status": "success", "message": f"Prompt {prompt.name} version {prompt.version} is now active"}
+
+@app.post("/api/v1/prompts/reset")
+async def reset_prompts_to_default(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.check_permissions("admin"))
+):
+    """Reset all prompt templates to system default specifications."""
+    import prompt_registry
+    tenant = getattr(current_user, "tenant_id", "default_tenant")
+    db.query(models.PromptRecord).filter(models.PromptRecord.tenant_id == tenant).delete()
+    db.commit()
+
+    prompt_registry.seed_default_prompts(db, tenant_id=tenant)
+    prompt_registry.invalidate_prompt_cache(tenant_id=tenant)
+    return {"status": "success", "message": "All prompt templates restored to system defaults"}
+
+
 @app.get("/api/v1/analytics/summary")
 async def get_analytics_summary(
     db: Session = Depends(get_db),

@@ -61,51 +61,31 @@ class AgentState(TypedDict):
 
 from langgraph.checkpoint.memory import MemorySaver
 
-PLANNER_PROMPT = """
-You are a financial fraud investigation planner. Given the transaction summary below,
-output a JSON list of evidence-gathering tasks required to investigate it. Only select tasks
-from the approved task catalog: [customer_history, transaction_detail, merchant_reputation,
-device_fingerprint, location_check].
-Transaction: {transaction_summary}
-"""
+from prompt_registry import get_prompt_template, DEFAULT_PROMPTS
 
-REASONER_PROMPT = """
-You are a fraud investigation reasoning engine. Using ONLY the evidence provided below,
-explain whether this transaction is likely fraudulent. Every claim must reference a specific
-evidence field by name. If evidence is insufficient to support a conclusion, state this explicitly.
-Output JSON schema: {{"reasoning": "...", "risk_score": 0.85, "confidence": 0.90}}
-Evidence: {evidence_bundle}
-"""
+# Dynamic Prompt Loaders (Chapters 36 & 85)
+def get_planner_prompt(tenant_id: str = "default_tenant") -> str:
+    return get_prompt_template("planner", tenant_id=tenant_id)
 
-CRITIC_PROMPT = """
-You are an evidence critic. Evaluate the draft explanation below against the evidence bundle and velocity analysis.
-Verify whether claims are logically consistent and evidence-backed.
-Output JSON schema:
-{{
-  "critic_issues": true/false,
-  "critique": "Detailed critique message",
-  "affected_claims": ["claim 1"],
-  "evidence_references": ["customer_evidence.name"],
-  "severity": "LOW" | "MEDIUM" | "HIGH"
-}}
-Draft: {draft_explanation}
-Evidence: {evidence_bundle}
-Velocity Analysis: {velocity_analysis}
-"""
+def get_reasoner_prompt(tenant_id: str = "default_tenant") -> str:
+    return get_prompt_template("reasoner", tenant_id=tenant_id)
 
-VALIDATOR_PROMPT = """
-Review the draft explanation below against the evidence bundle. Flag any sentence that
-is not directly supported by a named evidence field. Output a list of unsupported claims, or an
-empty list if all claims are grounded.
-Draft: {draft_explanation}
-Evidence: {evidence_bundle}
-"""
+def get_critic_prompt(tenant_id: str = "default_tenant") -> str:
+    return get_prompt_template("critic", tenant_id=tenant_id)
 
-REPORT_PROMPT = """
-Format the validated explanation as a structured investigation report with sections:
-Summary, Evidence Table, Risk Factors, Confidence Score, and Recommendation. Use only the
-validated, grounded content provided.
-"""
+def get_validator_prompt(tenant_id: str = "default_tenant") -> str:
+    return get_prompt_template("validator", tenant_id=tenant_id)
+
+def get_report_prompt(tenant_id: str = "default_tenant") -> str:
+    return get_prompt_template("reporter", tenant_id=tenant_id)
+
+# Retain backward-compatible string references
+PLANNER_PROMPT = DEFAULT_PROMPTS["planner"]["template"]
+REASONER_PROMPT = DEFAULT_PROMPTS["reasoner"]["template"]
+CRITIC_PROMPT = DEFAULT_PROMPTS["critic"]["template"]
+VALIDATOR_PROMPT = DEFAULT_PROMPTS["validator"]["template"]
+REPORT_PROMPT = DEFAULT_PROMPTS["reporter"]["template"]
+
 
 def planner_node(state: AgentState):
     """Decompose investigation into sub-tasks with strict schema validation (FO-2 / Task 2)"""
@@ -135,7 +115,8 @@ def planner_node(state: AgentState):
             tasks_to_run = list(dict.fromkeys(validated_existing))
 
     if llm and not existing_tasks:
-        prompt = PLANNER_PROMPT.format(transaction_summary=f"Transaction ID: {state['transaction_id']}")
+        tenant = state.get("tenant_id", "default_tenant")
+        prompt = get_planner_prompt(tenant).format(transaction_summary=f"Transaction ID: {state['transaction_id']}")
         try:
             response = llm.invoke(prompt)
             content = response.content if hasattr(response, "content") else str(response)
@@ -451,7 +432,8 @@ def risk_reasoning_node(state: AgentState):
     reasoning_text = ""
 
     if llm:
-        prompt = REASONER_PROMPT.format(evidence_bundle=json.dumps(evidence_bundle, indent=2))
+        tenant = state.get("tenant_id", "default_tenant")
+        prompt = get_reasoner_prompt(tenant).format(evidence_bundle=json.dumps(evidence_bundle, indent=2))
         if state.get("critic_feedback") and state.get("critic_issues"):
             prompt += f"\n\nCRITICAL CRITIC FEEDBACK TO CORRECT: {state['critic_feedback']}"
         try:
@@ -534,8 +516,9 @@ def critic_node(state: AgentState):
     }
 
     if llm and draft:
+        tenant = state.get("tenant_id", "default_tenant")
         try:
-            prompt = CRITIC_PROMPT.format(
+            prompt = get_critic_prompt(tenant).format(
                 draft_explanation=draft,
                 evidence_bundle=json.dumps(evidence),
                 velocity_analysis=json.dumps(state.get("velocity_evidence"))
@@ -623,7 +606,8 @@ def report_generator_node(state: AgentState):
     rule_factors = "\n".join([f"- {r}" for r in state.get("rule_reasons", [])]) if state.get("rule_reasons") else "- None"
 
     if llm and state.get("draft_explanation"):
-        prompt = REPORT_PROMPT + f"\nDraft: {state['draft_explanation']}\nRule Factors:\n{rule_factors}"
+        tenant = state.get("tenant_id", "default_tenant")
+        prompt = get_report_prompt(tenant) + f"\nDraft: {state['draft_explanation']}\nRule Factors:\n{rule_factors}"
         try:
             response = llm.invoke(prompt)
             report = response.content if hasattr(response, "content") else str(report)

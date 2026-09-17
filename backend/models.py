@@ -258,3 +258,18 @@ class SystemIntegration(Base):
     config_count = Column(Integer, default=3)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+class PromptRecord(Base):
+    __tablename__ = "prompt_registry"
+
+    prompt_id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(50), nullable=False, default="default_tenant", index=True)
+    name = Column(String(100), nullable=False, index=True)
+    version = Column(String(20), nullable=False, default="v1.0")
+    template_text = Column(Text, nullable=False)
+    description = Column(Text, nullable=True)
+    variables = Column(String(255), nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_by = Column(String(100), default="System")
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=True)
