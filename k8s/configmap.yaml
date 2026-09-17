@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ffre-config
+  labels:
+    app.kubernetes.io/name: ffre
+    app.kubernetes.io/component: config
+data:
+  ENV: "production"
+  PORT: "8000"
+  LOG_LEVEL: "INFO"
+  CONFIDENCE_THRESHOLD: "0.85"
+  MAX_RETRIES: "3"
+  STRICT_ENTERPRISE_MODE: "true"
+  METRICS_ENABLED: "true"

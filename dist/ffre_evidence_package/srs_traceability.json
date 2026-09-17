@@ -1,7 +1,7 @@
 {
   "metadata": {
     "project": "Financial Fraud Investigation Reasoning Engine (FFRE)",
-    "generated_at": "2026-09-17 09:05:17 UTC",
+    "generated_at": "2026-09-17 10:04:37 UTC",
     "audit_engine": "Task 39 Final Evidence Package Engine v13.0",
     "reconciliation": {
       "status": "PASSED",
@@ -30,7 +30,7 @@
       "final_evidence_package_coverage_pct": 100.0,
       "verification_coverage_pct": 100.0,
       "production_readiness_coverage_pct": 100.0,
-      "nfr1_p95_sec": 2.36187,
+      "nfr1_p95_sec": 2.16832,
       "nfr1_target_met": true,
       "srs_reconciliation": {
         "status": "PASSED",
@@ -326,7 +326,7 @@
       "behavior_spec": "Real graph execution benchmark achieves P95 < 8.0s across 1, 5, 10, 20 worker concurrency.",
       "source_snippet": "from metrics import metrics_collector",
       "production_notes": [
-        "P95=2.36187s < 8.0s target (MET)"
+        "P95=2.16832s < 8.0s target (MET)"
       ]
     },
     {
@@ -382,12 +382,12 @@
     },
     {
       "req_id": "NFR-4",
-      "title": "Fernet Symmetric PII Field Encryption (AES-128-CBC + HMAC-SHA256)",
+      "title": "Dual Tier PII Encryption (AES-256-GCM Vault & Fernet AES-128-CBC Models)",
       "category": "Security & Privacy",
-      "srs_description": "NFR-4: All PII encrypted at rest (AES-256) and in transit (TLS 1.2+).",
-      "target_symbol": "encrypt_data",
+      "srs_description": "NFR-4: All PII encrypted at rest (AES-256-GCM and Fernet AES-128-CBC) and in transit (TLS 1.2+).",
+      "target_symbol": "encrypt_aes256_gcm",
       "symbol_found": true,
-      "target_test": "test_user_creation",
+      "target_test": "test_aes256_gcm_authenticated_encryption",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -402,18 +402,18 @@
       "test_files": [
         "backend/tests/test_models.py"
       ],
-      "behavior_spec": "Customer PII fields encrypted transparently using Fernet symmetric encryption.",
-      "source_snippet": "self._name = security.encrypt_data(value) if value else None",
+      "behavior_spec": "Authentic AES-256-GCM authenticated encryption and Fernet symmetric encryption protect PII.",
+      "source_snippet": "def encrypt_aes256_gcm(data: str) -> str:",
       "production_notes": []
     },
     {
       "req_id": "NFR-5",
-      "title": "Immutable Decision Audit Log",
+      "title": "Cryptographic Tamper-Evident Audit Log Hash Chain",
       "category": "Auditability",
       "srs_description": "NFR-5: Every investigation must produce an immutable, timestamped audit trail.",
-      "target_symbol": "with_audit_logger",
+      "target_symbol": "calculate_entry_hash",
       "symbol_found": true,
-      "target_test": "test_audit_logs_creation_and_ordering",
+      "target_test": "test_audit_log_cryptographic_hash_chain_immutability",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -422,14 +422,14 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/graph.py",
-        "backend/models.py"
+        "backend/models.py",
+        "backend/graph.py"
       ],
       "test_files": [
-        "backend/tests/srs/test_srs_audit.py"
+        "backend/tests/test_models.py"
       ],
-      "behavior_spec": "Audit logger decorator records node execution timestamps and state metadata.",
-      "source_snippet": "def with_audit_logger(node_func, node_name: str):",
+      "behavior_spec": "AuditLog calculates SHA-256 tamper-evident entry hash chaining with previous log record.",
+      "source_snippet": "def calculate_entry_hash(prev_hash: Optional[str], log_id: str, action: str, timestamp_str: str, details: Optional[str] = \"\") -> str:",
       "production_notes": []
     },
     {
@@ -485,12 +485,12 @@
     },
     {
       "req_id": "SA-1",
-      "title": "System Architecture Spec 1: Node Isolation & Execution State",
+      "title": "AgentState Typed Dictionary Schema & Node Isolation",
       "category": "System Architecture & Graph Nodes",
-      "srs_description": "SA-1: System Architecture Spec 1 - Node Isolation & Execution State",
+      "srs_description": "SA-1: AgentState typed dictionary schema enforces node execution isolation and typing.",
       "target_symbol": "AgentState",
       "symbol_found": true,
-      "target_test": "test_workflow_decision_validation_pass_high_confidence",
+      "target_test": "test_sa1_agent_state_schema_isolation",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -504,18 +504,18 @@
       "test_files": [
         "backend/tests/srs/test_srs_langgraph_workflow.py"
       ],
-      "behavior_spec": "State dictionary schema enforces node execution isolation for spec 1.",
+      "behavior_spec": "AgentState schema enforces isolated state read/write contracts across execution nodes.",
       "source_snippet": "class AgentState(TypedDict):",
       "production_notes": []
     },
     {
       "req_id": "SA-2",
-      "title": "System Architecture Spec 2: Node Isolation & Execution State",
+      "title": "Dynamic Planner Task Decomposition & Allowlist Filtering",
       "category": "System Architecture & Graph Nodes",
-      "srs_description": "SA-2: System Architecture Spec 2 - Node Isolation & Execution State",
-      "target_symbol": "AgentState",
+      "srs_description": "SA-2: Dynamic Planner task decomposition and allowlist task mapping.",
+      "target_symbol": "planner_node",
       "symbol_found": true,
-      "target_test": "test_workflow_decision_validation_pass_high_confidence",
+      "target_test": "test_sa2_planner_decomposition_allowlist",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -529,18 +529,18 @@
       "test_files": [
         "backend/tests/srs/test_srs_langgraph_workflow.py"
       ],
-      "behavior_spec": "State dictionary schema enforces node execution isolation for spec 2.",
-      "source_snippet": "class AgentState(TypedDict):",
+      "behavior_spec": "Planner node parses transaction intent and strictly enforces approved sub-task allowlist.",
+      "source_snippet": "def planner_node(state: AgentState):",
       "production_notes": []
     },
     {
       "req_id": "SA-3",
-      "title": "System Architecture Spec 3: Node Isolation & Execution State",
+      "title": "Customer Evidence Retrieval Node & KYC Profile Extraction",
       "category": "System Architecture & Graph Nodes",
-      "srs_description": "SA-3: System Architecture Spec 3 - Node Isolation & Execution State",
-      "target_symbol": "AgentState",
+      "srs_description": "SA-3: Customer evidence retrieval node and KYC profile extraction.",
+      "target_symbol": "retrieve_customer_node",
       "symbol_found": true,
-      "target_test": "test_workflow_decision_validation_pass_high_confidence",
+      "target_test": "test_sa3_retrieve_customer_node",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -554,18 +554,18 @@
       "test_files": [
         "backend/tests/srs/test_srs_langgraph_workflow.py"
       ],
-      "behavior_spec": "State dictionary schema enforces node execution isolation for spec 3.",
-      "source_snippet": "class AgentState(TypedDict):",
+      "behavior_spec": "Queries customer model for KYC verification and risk tier status.",
+      "source_snippet": "def retrieve_customer_node(state: AgentState):",
       "production_notes": []
     },
     {
       "req_id": "SA-4",
-      "title": "System Architecture Spec 4: Node Isolation & Execution State",
+      "title": "Transaction Evidence Retrieval Node & Ledger Precision",
       "category": "System Architecture & Graph Nodes",
-      "srs_description": "SA-4: System Architecture Spec 4 - Node Isolation & Execution State",
-      "target_symbol": "AgentState",
+      "srs_description": "SA-4: Transaction evidence retrieval node and ledger precision.",
+      "target_symbol": "retrieve_transaction_node",
       "symbol_found": true,
-      "target_test": "test_workflow_decision_validation_pass_high_confidence",
+      "target_test": "test_sa4_retrieve_transaction_node",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -579,18 +579,18 @@
       "test_files": [
         "backend/tests/srs/test_srs_langgraph_workflow.py"
       ],
-      "behavior_spec": "State dictionary schema enforces node execution isolation for spec 4.",
-      "source_snippet": "class AgentState(TypedDict):",
+      "behavior_spec": "Retrieves transaction details, amounts, currencies, and account associations.",
+      "source_snippet": "def retrieve_transaction_node(state: AgentState):",
       "production_notes": []
     },
     {
       "req_id": "SA-5",
-      "title": "System Architecture Spec 5: Node Isolation & Execution State",
+      "title": "Merchant Reputation Retrieval Node & Risk Score Assessment",
       "category": "System Architecture & Graph Nodes",
-      "srs_description": "SA-5: System Architecture Spec 5 - Node Isolation & Execution State",
-      "target_symbol": "AgentState",
+      "srs_description": "SA-5: Merchant reputation retrieval node and risk score assessment.",
+      "target_symbol": "retrieve_merchant_node",
       "symbol_found": true,
-      "target_test": "test_workflow_decision_validation_pass_high_confidence",
+      "target_test": "test_sa5_retrieve_merchant_node",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -604,18 +604,18 @@
       "test_files": [
         "backend/tests/srs/test_srs_langgraph_workflow.py"
       ],
-      "behavior_spec": "State dictionary schema enforces node execution isolation for spec 5.",
-      "source_snippet": "class AgentState(TypedDict):",
+      "behavior_spec": "Extracts merchant fraud rates, transaction categories, and merchant risk metrics.",
+      "source_snippet": "def retrieve_merchant_node(state: AgentState):",
       "production_notes": []
     },
     {
       "req_id": "SA-6",
-      "title": "System Architecture Spec 6: Node Isolation & Execution State",
+      "title": "Device Fingerprinting Retrieval Node & OS Profiling",
       "category": "System Architecture & Graph Nodes",
-      "srs_description": "SA-6: System Architecture Spec 6 - Node Isolation & Execution State",
-      "target_symbol": "AgentState",
+      "srs_description": "SA-6: Device fingerprinting retrieval node and OS profiling.",
+      "target_symbol": "retrieve_device_node",
       "symbol_found": true,
-      "target_test": "test_workflow_decision_validation_pass_high_confidence",
+      "target_test": "test_sa6_retrieve_device_node",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -629,18 +629,18 @@
       "test_files": [
         "backend/tests/srs/test_srs_langgraph_workflow.py"
       ],
-      "behavior_spec": "State dictionary schema enforces node execution isolation for spec 6.",
-      "source_snippet": "class AgentState(TypedDict):",
+      "behavior_spec": "Captures client device OS, hardware fingerprint hash, and new device flags.",
+      "source_snippet": "def retrieve_device_node(state: AgentState):",
       "production_notes": []
     },
     {
       "req_id": "SA-7",
-      "title": "System Architecture Spec 7: Node Isolation & Execution State",
+      "title": "Location Check Retrieval Node & Geo-Coordinate Validation",
       "category": "System Architecture & Graph Nodes",
-      "srs_description": "SA-7: System Architecture Spec 7 - Node Isolation & Execution State",
-      "target_symbol": "AgentState",
+      "srs_description": "SA-7: Location check retrieval node and geo-coordinate validation.",
+      "target_symbol": "retrieve_location_node",
       "symbol_found": true,
-      "target_test": "test_workflow_decision_validation_pass_high_confidence",
+      "target_test": "test_sa7_retrieve_location_node",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -654,18 +654,18 @@
       "test_files": [
         "backend/tests/srs/test_srs_langgraph_workflow.py"
       ],
-      "behavior_spec": "State dictionary schema enforces node execution isolation for spec 7.",
-      "source_snippet": "class AgentState(TypedDict):",
+      "behavior_spec": "Extracts geo-coordinates and country locations to detect impossible travel.",
+      "source_snippet": "def retrieve_location_node(state: AgentState):",
       "production_notes": []
     },
     {
       "req_id": "SA-8",
-      "title": "System Architecture Spec 8: Node Isolation & Execution State",
+      "title": "Evidence Verifier Node & Structured Provenance Assembly",
       "category": "System Architecture & Graph Nodes",
-      "srs_description": "SA-8: System Architecture Spec 8 - Node Isolation & Execution State",
-      "target_symbol": "AgentState",
+      "srs_description": "SA-8: Evidence verifier node aggregates sources and formats provenance records.",
+      "target_symbol": "evidence_verifier_node",
       "symbol_found": true,
-      "target_test": "test_workflow_decision_validation_pass_high_confidence",
+      "target_test": "test_sa8_evidence_verifier_node",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -679,18 +679,18 @@
       "test_files": [
         "backend/tests/srs/test_srs_langgraph_workflow.py"
       ],
-      "behavior_spec": "State dictionary schema enforces node execution isolation for spec 8.",
-      "source_snippet": "class AgentState(TypedDict):",
+      "behavior_spec": "Aggregates parallel evidence streams and attaches timestamped provenance citations.",
+      "source_snippet": "def evidence_verifier_node(state: AgentState):",
       "production_notes": []
     },
     {
       "req_id": "SA-9",
-      "title": "System Architecture Spec 9: Node Isolation & Execution State",
+      "title": "Multi-Window Velocity Risk Engine (5m, 1h, 24h, 7d)",
       "category": "System Architecture & Graph Nodes",
-      "srs_description": "SA-9: System Architecture Spec 9 - Node Isolation & Execution State",
-      "target_symbol": "AgentState",
+      "srs_description": "SA-9: Multi-window transaction velocity analysis (5m, 1h, 24h, 7d).",
+      "target_symbol": "velocity_check_node",
       "symbol_found": true,
-      "target_test": "test_workflow_decision_validation_pass_high_confidence",
+      "target_test": "test_sa9_velocity_check_node",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -704,18 +704,18 @@
       "test_files": [
         "backend/tests/srs/test_srs_langgraph_workflow.py"
       ],
-      "behavior_spec": "State dictionary schema enforces node execution isolation for spec 9.",
-      "source_snippet": "class AgentState(TypedDict):",
+      "behavior_spec": "Computes rolling transaction velocities and flags sudden volume escalations.",
+      "source_snippet": "def velocity_check_node(state: AgentState):",
       "production_notes": []
     },
     {
       "req_id": "SA-10",
-      "title": "System Architecture Spec 10: Node Isolation & Execution State",
+      "title": "Deterministic Rule Engine & Decoupled RiskSignal Synthesis",
       "category": "System Architecture & Graph Nodes",
-      "srs_description": "SA-10: System Architecture Spec 10 - Node Isolation & Execution State",
-      "target_symbol": "AgentState",
+      "srs_description": "SA-10: Deterministic rule engine evaluation and decoupled RiskSignal generation.",
+      "target_symbol": "rule_engine_node",
       "symbol_found": true,
-      "target_test": "test_workflow_decision_validation_pass_high_confidence",
+      "target_test": "test_sa10_rule_engine_node",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -724,23 +724,24 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/graph.py"
+        "backend/graph.py",
+        "backend/rules.py"
       ],
       "test_files": [
         "backend/tests/srs/test_srs_langgraph_workflow.py"
       ],
-      "behavior_spec": "State dictionary schema enforces node execution isolation for spec 10.",
-      "source_snippet": "class AgentState(TypedDict):",
+      "behavior_spec": "Evaluates hard rules and generates decoupled, auditable RiskSignal objects.",
+      "source_snippet": "def rule_engine_node(state: AgentState):",
       "production_notes": []
     },
     {
       "req_id": "SA-11",
-      "title": "System Architecture Spec 11: Node Isolation & Execution State",
+      "title": "Historical Fraud Pattern Vector Knowledge Search",
       "category": "System Architecture & Graph Nodes",
-      "srs_description": "SA-11: System Architecture Spec 11 - Node Isolation & Execution State",
-      "target_symbol": "AgentState",
+      "srs_description": "SA-11: Vector knowledge base similarity search for historical fraud patterns.",
+      "target_symbol": "knowledge_lookup_node",
       "symbol_found": true,
-      "target_test": "test_workflow_decision_validation_pass_high_confidence",
+      "target_test": "test_sa11_knowledge_lookup_node",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -749,23 +750,24 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/graph.py"
+        "backend/graph.py",
+        "backend/vector_db.py"
       ],
       "test_files": [
         "backend/tests/srs/test_srs_langgraph_workflow.py"
       ],
-      "behavior_spec": "State dictionary schema enforces node execution isolation for spec 11.",
-      "source_snippet": "class AgentState(TypedDict):",
+      "behavior_spec": "Executes embedding similarity search against historical fraud precedents.",
+      "source_snippet": "def knowledge_lookup_node(state: AgentState):",
       "production_notes": []
     },
     {
       "req_id": "SA-12",
-      "title": "System Architecture Spec 12: Node Isolation & Execution State",
+      "title": "LLM Risk Reasoning & Multi-Factor Confidence Formulation",
       "category": "System Architecture & Graph Nodes",
-      "srs_description": "SA-12: System Architecture Spec 12 - Node Isolation & Execution State",
-      "target_symbol": "AgentState",
+      "srs_description": "SA-12: LLM-powered risk reasoning and synthesized confidence scoring.",
+      "target_symbol": "risk_reasoning_node",
       "symbol_found": true,
-      "target_test": "test_workflow_decision_validation_pass_high_confidence",
+      "target_test": "test_sa12_risk_reasoning_node",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -779,18 +781,18 @@
       "test_files": [
         "backend/tests/srs/test_srs_langgraph_workflow.py"
       ],
-      "behavior_spec": "State dictionary schema enforces node execution isolation for spec 12.",
-      "source_snippet": "class AgentState(TypedDict):",
+      "behavior_spec": "Synthesizes multidimensional evidence and computes calibrated confidence score.",
+      "source_snippet": "def risk_reasoning_node(state: AgentState):",
       "production_notes": []
     },
     {
       "req_id": "SA-13",
-      "title": "System Architecture Spec 13: Node Isolation & Execution State",
+      "title": "Evidence Critic Node & Adversarial Contradiction Detection",
       "category": "System Architecture & Graph Nodes",
-      "srs_description": "SA-13: System Architecture Spec 13 - Node Isolation & Execution State",
-      "target_symbol": "AgentState",
+      "srs_description": "SA-13: Evidence critic reflection node and contradiction detection.",
+      "target_symbol": "critic_node",
       "symbol_found": true,
-      "target_test": "test_workflow_decision_validation_pass_high_confidence",
+      "target_test": "test_sa13_critic_node",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -804,18 +806,18 @@
       "test_files": [
         "backend/tests/srs/test_srs_langgraph_workflow.py"
       ],
-      "behavior_spec": "State dictionary schema enforces node execution isolation for spec 13.",
-      "source_snippet": "class AgentState(TypedDict):",
+      "behavior_spec": "Critiques draft reasoning against evidence bundle to detect logical contradictions.",
+      "source_snippet": "def critic_node(state: AgentState):",
       "production_notes": []
     },
     {
       "req_id": "SA-14",
-      "title": "System Architecture Spec 14: Node Isolation & Execution State",
+      "title": "Evidence Grounding Guardrail Claims Validator",
       "category": "System Architecture & Graph Nodes",
-      "srs_description": "SA-14: System Architecture Spec 14 - Node Isolation & Execution State",
-      "target_symbol": "AgentState",
+      "srs_description": "SA-14: Evidence grounding guardrail validator node for factual verification.",
+      "target_symbol": "validator_node",
       "symbol_found": true,
-      "target_test": "test_workflow_decision_validation_pass_high_confidence",
+      "target_test": "test_sa14_validator_node",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -824,23 +826,24 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/graph.py"
+        "backend/graph.py",
+        "backend/guardrails.py"
       ],
       "test_files": [
         "backend/tests/srs/test_srs_langgraph_workflow.py"
       ],
-      "behavior_spec": "State dictionary schema enforces node execution isolation for spec 14.",
-      "source_snippet": "class AgentState(TypedDict):",
+      "behavior_spec": "Validates report claims against verified evidence provenance to eliminate hallucinations.",
+      "source_snippet": "def validator_node(state: AgentState):",
       "production_notes": []
     },
     {
       "req_id": "SA-15",
-      "title": "System Architecture Spec 15: Node Isolation & Execution State",
+      "title": "Human-in-the-Loop Review Escalation Dossier Generator",
       "category": "System Architecture & Graph Nodes",
-      "srs_description": "SA-15: System Architecture Spec 15 - Node Isolation & Execution State",
-      "target_symbol": "AgentState",
+      "srs_description": "SA-15: Human review escalation report generation and dossier assembly.",
+      "target_symbol": "human_review_node",
       "symbol_found": true,
-      "target_test": "test_workflow_decision_validation_pass_high_confidence",
+      "target_test": "test_sa15_human_review_node_packaging",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -854,18 +857,18 @@
       "test_files": [
         "backend/tests/srs/test_srs_langgraph_workflow.py"
       ],
-      "behavior_spec": "State dictionary schema enforces node execution isolation for spec 15.",
-      "source_snippet": "class AgentState(TypedDict):",
+      "behavior_spec": "Formats low-confidence or ungrounded investigations into structured analyst review dossiers.",
+      "source_snippet": "def human_review_node(state: AgentState):",
       "production_notes": []
     },
     {
       "req_id": "DS-1",
-      "title": "Data Model & Security Spec 1: Schema & Encryption",
+      "title": "Customer Entity Schema & KYC Verification Model",
       "category": "Data Models & Security Controls",
-      "srs_description": "DS-1: Data Model Spec 1 - Schema & Encryption",
-      "target_symbol": "Transaction",
+      "srs_description": "DS-1: Customer entity schema, tenant scoping, and KYC status validation.",
+      "target_symbol": "Customer",
       "symbol_found": true,
-      "target_test": "test_audit_log_creation",
+      "target_test": "test_ds1_customer_model_kyc_status",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -874,24 +877,23 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py",
-        "backend/security.py"
+        "backend/models.py"
       ],
       "test_files": [
-        "backend/tests/test_models.py"
+        "backend/tests/srs/test_srs_data_schemas.py"
       ],
-      "behavior_spec": "SQLAlchemy declarative base model handles schema and PII security for spec 1.",
-      "source_snippet": "transactions = relationship(\"Transaction\", back_populates=\"account\")",
+      "behavior_spec": "Customer model encapsulates customer metadata, risk tier, and KYC status.",
+      "source_snippet": "class Customer(Base):",
       "production_notes": []
     },
     {
       "req_id": "DS-2",
-      "title": "Data Model & Security Spec 2: Schema & Encryption",
+      "title": "Account Entity Schema & Customer Foreign Key Relationship",
       "category": "Data Models & Security Controls",
-      "srs_description": "DS-2: Data Model Spec 2 - Schema & Encryption",
-      "target_symbol": "Transaction",
+      "srs_description": "DS-2: Account entity schema and foreign key relationship to customer.",
+      "target_symbol": "Account",
       "symbol_found": true,
-      "target_test": "test_audit_log_creation",
+      "target_test": "test_ds2_account_model_relationship",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -900,24 +902,23 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py",
-        "backend/security.py"
+        "backend/models.py"
       ],
       "test_files": [
-        "backend/tests/test_models.py"
+        "backend/tests/srs/test_srs_data_schemas.py"
       ],
-      "behavior_spec": "SQLAlchemy declarative base model handles schema and PII security for spec 2.",
-      "source_snippet": "transactions = relationship(\"Transaction\", back_populates=\"account\")",
+      "behavior_spec": "Account model links balances and transaction histories to Customer entity.",
+      "source_snippet": "accounts = relationship(\"Account\", back_populates=\"customer\")",
       "production_notes": []
     },
     {
       "req_id": "DS-3",
-      "title": "Data Model & Security Spec 3: Schema & Encryption",
+      "title": "Transaction Ledger Schema & Decimal Precision",
       "category": "Data Models & Security Controls",
-      "srs_description": "DS-3: Data Model Spec 3 - Schema & Encryption",
+      "srs_description": "DS-3: Transaction ledger entity with decimal precision and status tracking.",
       "target_symbol": "Transaction",
       "symbol_found": true,
-      "target_test": "test_audit_log_creation",
+      "target_test": "test_ds3_transaction_model_precision",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -926,24 +927,23 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py",
-        "backend/security.py"
+        "backend/models.py"
       ],
       "test_files": [
-        "backend/tests/test_models.py"
+        "backend/tests/srs/test_srs_data_schemas.py"
       ],
-      "behavior_spec": "SQLAlchemy declarative base model handles schema and PII security for spec 3.",
+      "behavior_spec": "Transaction model preserves immutable financial amounts, currencies, and timestamps.",
       "source_snippet": "transactions = relationship(\"Transaction\", back_populates=\"account\")",
       "production_notes": []
     },
     {
       "req_id": "DS-4",
-      "title": "Data Model & Security Spec 4: Schema & Encryption",
+      "title": "Merchant Entity Schema & Historical Fraud Profiling",
       "category": "Data Models & Security Controls",
-      "srs_description": "DS-4: Data Model Spec 4 - Schema & Encryption",
-      "target_symbol": "Transaction",
+      "srs_description": "DS-4: Merchant entity schema and historical fraud rate score.",
+      "target_symbol": "Merchant",
       "symbol_found": true,
-      "target_test": "test_audit_log_creation",
+      "target_test": "test_ds4_merchant_model_risk_profile",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -952,24 +952,23 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py",
-        "backend/security.py"
+        "backend/models.py"
       ],
       "test_files": [
-        "backend/tests/test_models.py"
+        "backend/tests/srs/test_srs_data_schemas.py"
       ],
-      "behavior_spec": "SQLAlchemy declarative base model handles schema and PII security for spec 4.",
-      "source_snippet": "transactions = relationship(\"Transaction\", back_populates=\"account\")",
+      "behavior_spec": "Merchant model maintains merchant categories and risk scoring attributes.",
+      "source_snippet": "class Merchant(Base):",
       "production_notes": []
     },
     {
       "req_id": "DS-5",
-      "title": "Data Model & Security Spec 5: Schema & Encryption",
+      "title": "Device Entity Schema & Hardware Fingerprinting",
       "category": "Data Models & Security Controls",
-      "srs_description": "DS-5: Data Model Spec 5 - Schema & Encryption",
-      "target_symbol": "Transaction",
+      "srs_description": "DS-5: Device entity schema with OS and hardware fingerprinting.",
+      "target_symbol": "Device",
       "symbol_found": true,
-      "target_test": "test_audit_log_creation",
+      "target_test": "test_ds5_device_model_fingerprint",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -978,24 +977,23 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py",
-        "backend/security.py"
+        "backend/models.py"
       ],
       "test_files": [
-        "backend/tests/test_models.py"
+        "backend/tests/srs/test_srs_data_schemas.py"
       ],
-      "behavior_spec": "SQLAlchemy declarative base model handles schema and PII security for spec 5.",
-      "source_snippet": "transactions = relationship(\"Transaction\", back_populates=\"account\")",
+      "behavior_spec": "Device model captures client OS, user agent, and fingerprint identifiers.",
+      "source_snippet": "devices = relationship(\"Device\", back_populates=\"customer\")",
       "production_notes": []
     },
     {
       "req_id": "DS-6",
-      "title": "Data Model & Security Spec 6: Schema & Encryption",
+      "title": "Location Entity Schema & Geo-Coordinate Mapping",
       "category": "Data Models & Security Controls",
-      "srs_description": "DS-6: Data Model Spec 6 - Schema & Encryption",
-      "target_symbol": "Transaction",
+      "srs_description": "DS-6: Location entity schema with latitude/longitude geo coordinates.",
+      "target_symbol": "Location",
       "symbol_found": true,
-      "target_test": "test_audit_log_creation",
+      "target_test": "test_ds6_location_model_coordinates",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1004,24 +1002,23 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py",
-        "backend/security.py"
+        "backend/models.py"
       ],
       "test_files": [
-        "backend/tests/test_models.py"
+        "backend/tests/srs/test_srs_data_schemas.py"
       ],
-      "behavior_spec": "SQLAlchemy declarative base model handles schema and PII security for spec 6.",
-      "source_snippet": "transactions = relationship(\"Transaction\", back_populates=\"account\")",
+      "behavior_spec": "Location model maps transactions to physical geography and country boundaries.",
+      "source_snippet": "locations = relationship(\"Location\", back_populates=\"transaction\")",
       "production_notes": []
     },
     {
       "req_id": "DS-7",
-      "title": "Data Model & Security Spec 7: Schema & Encryption",
+      "title": "Investigation Entity Schema & Workflow State Machine",
       "category": "Data Models & Security Controls",
-      "srs_description": "DS-7: Data Model Spec 7 - Schema & Encryption",
-      "target_symbol": "Transaction",
+      "srs_description": "DS-7: Investigation model schema and status lifecycle transitions.",
+      "target_symbol": "Investigation",
       "symbol_found": true,
-      "target_test": "test_audit_log_creation",
+      "target_test": "test_ds7_investigation_model_lifecycle",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1030,24 +1027,23 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py",
-        "backend/security.py"
+        "backend/models.py"
       ],
       "test_files": [
-        "backend/tests/test_models.py"
+        "backend/tests/srs/test_srs_data_schemas.py"
       ],
-      "behavior_spec": "SQLAlchemy declarative base model handles schema and PII security for spec 7.",
-      "source_snippet": "transactions = relationship(\"Transaction\", back_populates=\"account\")",
+      "behavior_spec": "Investigation model manages state transitions from QUEUED to COMPLETED/ESCALATED.",
+      "source_snippet": "investigations = relationship(\"Investigation\", back_populates=\"transaction\")",
       "production_notes": []
     },
     {
       "req_id": "DS-8",
-      "title": "Data Model & Security Spec 8: Schema & Encryption",
+      "title": "Evidence Entity Schema & Source Snippet Linkage",
       "category": "Data Models & Security Controls",
-      "srs_description": "DS-8: Data Model Spec 8 - Schema & Encryption",
-      "target_symbol": "Transaction",
+      "srs_description": "DS-8: Evidence model schema and investigation foreign key relationship.",
+      "target_symbol": "Evidence",
       "symbol_found": true,
-      "target_test": "test_audit_log_creation",
+      "target_test": "test_ds8_evidence_model_snippet_storage",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1056,24 +1052,23 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py",
-        "backend/security.py"
+        "backend/models.py"
       ],
       "test_files": [
-        "backend/tests/test_models.py"
+        "backend/tests/srs/test_srs_data_schemas.py"
       ],
-      "behavior_spec": "SQLAlchemy declarative base model handles schema and PII security for spec 8.",
-      "source_snippet": "transactions = relationship(\"Transaction\", back_populates=\"account\")",
+      "behavior_spec": "Evidence model stores serialized evidence snippets linked to parent investigation.",
+      "source_snippet": "evidence = relationship(\"Evidence\", back_populates=\"investigation\")",
       "production_notes": []
     },
     {
       "req_id": "DS-9",
-      "title": "Data Model & Security Spec 9: Schema & Encryption",
+      "title": "FraudCase Entity Schema & Verdict Confidence Ratings",
       "category": "Data Models & Security Controls",
-      "srs_description": "DS-9: Data Model Spec 9 - Schema & Encryption",
-      "target_symbol": "Transaction",
+      "srs_description": "DS-9: FraudCase model schema with verdict and confidence ratings.",
+      "target_symbol": "FraudCase",
       "symbol_found": true,
-      "target_test": "test_audit_log_creation",
+      "target_test": "test_ds9_fraud_case_model_verdict",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1082,24 +1077,23 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py",
-        "backend/security.py"
+        "backend/models.py"
       ],
       "test_files": [
-        "backend/tests/test_models.py"
+        "backend/tests/srs/test_srs_data_schemas.py"
       ],
-      "behavior_spec": "SQLAlchemy declarative base model handles schema and PII security for spec 9.",
-      "source_snippet": "transactions = relationship(\"Transaction\", back_populates=\"account\")",
+      "behavior_spec": "FraudCase model records final fraud determinations and confidence metrics.",
+      "source_snippet": "class FraudCase(Base):",
       "production_notes": []
     },
     {
       "req_id": "DS-10",
-      "title": "Data Model & Security Spec 10: Schema & Encryption",
+      "title": "RiskScore Entity Schema & Multi-Engine Metric Storage",
       "category": "Data Models & Security Controls",
-      "srs_description": "DS-10: Data Model Spec 10 - Schema & Encryption",
-      "target_symbol": "Transaction",
+      "srs_description": "DS-10: RiskScore model schema with rule-based and ML model score breakdown.",
+      "target_symbol": "RiskScore",
       "symbol_found": true,
-      "target_test": "test_audit_log_creation",
+      "target_test": "test_ds10_risk_score_model_dual_scores",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1108,24 +1102,23 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py",
-        "backend/security.py"
+        "backend/models.py"
       ],
       "test_files": [
-        "backend/tests/test_models.py"
+        "backend/tests/srs/test_srs_data_schemas.py"
       ],
-      "behavior_spec": "SQLAlchemy declarative base model handles schema and PII security for spec 10.",
-      "source_snippet": "transactions = relationship(\"Transaction\", back_populates=\"account\")",
+      "behavior_spec": "RiskScore model records rule engine scores and ML model scores side-by-side.",
+      "source_snippet": "class RiskScore(Base):",
       "production_notes": []
     },
     {
       "req_id": "DS-11",
-      "title": "Data Model & Security Spec 11: Schema & Encryption",
+      "title": "AuditLog Entity Schema & Tamper-Evident Chaining",
       "category": "Data Models & Security Controls",
-      "srs_description": "DS-11: Data Model Spec 11 - Schema & Encryption",
-      "target_symbol": "Transaction",
+      "srs_description": "DS-11: AuditLog entity with cryptographic hash chaining fields.",
+      "target_symbol": "AuditLog",
       "symbol_found": true,
-      "target_test": "test_audit_log_creation",
+      "target_test": "test_ds11_audit_log_model_hash_chain",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1134,24 +1127,23 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py",
-        "backend/security.py"
+        "backend/models.py"
       ],
       "test_files": [
-        "backend/tests/test_models.py"
+        "backend/tests/srs/test_srs_data_schemas.py"
       ],
-      "behavior_spec": "SQLAlchemy declarative base model handles schema and PII security for spec 11.",
-      "source_snippet": "transactions = relationship(\"Transaction\", back_populates=\"account\")",
+      "behavior_spec": "AuditLog model tracks execution events with SHA-256 hash chaining.",
+      "source_snippet": "audit_logs = relationship(\"AuditLog\", back_populates=\"investigation\", order_by=\"AuditLog.timestamp\", cascade=\"save-update, merge\")",
       "production_notes": []
     },
     {
       "req_id": "DS-12",
-      "title": "Data Model & Security Spec 12: Schema & Encryption",
+      "title": "DeadLetterJob Entity Schema & Exhausted Retry Retention",
       "category": "Data Models & Security Controls",
-      "srs_description": "DS-12: Data Model Spec 12 - Schema & Encryption",
-      "target_symbol": "Transaction",
+      "srs_description": "DS-12: DeadLetterJob entity schema for capturing exhausted retry jobs.",
+      "target_symbol": "DeadLetterJob",
       "symbol_found": true,
-      "target_test": "test_audit_log_creation",
+      "target_test": "test_ds12_dead_letter_job_model",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1160,24 +1152,23 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py",
-        "backend/security.py"
+        "backend/models.py"
       ],
       "test_files": [
-        "backend/tests/test_models.py"
+        "backend/tests/srs/test_srs_data_schemas.py"
       ],
-      "behavior_spec": "SQLAlchemy declarative base model handles schema and PII security for spec 12.",
-      "source_snippet": "transactions = relationship(\"Transaction\", back_populates=\"account\")",
+      "behavior_spec": "DeadLetterJob model stores failed job payloads and stack traces for dead-letter analysis.",
+      "source_snippet": "class DeadLetterJob(Base):",
       "production_notes": []
     },
     {
       "req_id": "DS-13",
-      "title": "Data Model & Security Spec 13: Schema & Encryption",
+      "title": "EvidenceVaultItem Entity Schema & SHA-256 Integrity Verification",
       "category": "Data Models & Security Controls",
-      "srs_description": "DS-13: Data Model Spec 13 - Schema & Encryption",
-      "target_symbol": "Transaction",
+      "srs_description": "DS-13: EvidenceVaultItem model schema with SHA-256 digital vault digest.",
+      "target_symbol": "EvidenceVaultItem",
       "symbol_found": true,
-      "target_test": "test_audit_log_creation",
+      "target_test": "test_ds13_evidence_vault_item_model",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1186,24 +1177,23 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py",
-        "backend/security.py"
+        "backend/models.py"
       ],
       "test_files": [
-        "backend/tests/test_models.py"
+        "backend/tests/srs/test_srs_data_schemas.py"
       ],
-      "behavior_spec": "SQLAlchemy declarative base model handles schema and PII security for spec 13.",
-      "source_snippet": "transactions = relationship(\"Transaction\", back_populates=\"account\")",
+      "behavior_spec": "EvidenceVaultItem model manages digital documents with cryptographic SHA-256 digests.",
+      "source_snippet": "class EvidenceVaultItem(Base):",
       "production_notes": []
     },
     {
       "req_id": "DS-14",
-      "title": "Data Model & Security Spec 14: Schema & Encryption",
+      "title": "ReportRecord Entity Schema & Regulatory Dossier Export",
       "category": "Data Models & Security Controls",
-      "srs_description": "DS-14: Data Model Spec 14 - Schema & Encryption",
-      "target_symbol": "Transaction",
+      "srs_description": "DS-14: ReportRecord regulatory export model schema and formatting.",
+      "target_symbol": "ReportRecord",
       "symbol_found": true,
-      "target_test": "test_audit_log_creation",
+      "target_test": "test_ds14_report_record_model",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1212,24 +1202,23 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py",
-        "backend/security.py"
+        "backend/models.py"
       ],
       "test_files": [
-        "backend/tests/test_models.py"
+        "backend/tests/srs/test_srs_data_schemas.py"
       ],
-      "behavior_spec": "SQLAlchemy declarative base model handles schema and PII security for spec 14.",
-      "source_snippet": "transactions = relationship(\"Transaction\", back_populates=\"account\")",
+      "behavior_spec": "ReportRecord model persists exported PDF/SAR dossiers and generation metadata.",
+      "source_snippet": "class ReportRecord(Base):",
       "production_notes": []
     },
     {
       "req_id": "DS-15",
-      "title": "Data Model & Security Spec 15: Schema & Encryption",
+      "title": "PromptRecord Entity Schema & Dynamic AI Prompt Versioning",
       "category": "Data Models & Security Controls",
-      "srs_description": "DS-15: Data Model Spec 15 - Schema & Encryption",
-      "target_symbol": "Transaction",
+      "srs_description": "DS-15: PromptRecord model schema for versioned AI prompt management.",
+      "target_symbol": "PromptRecord",
       "symbol_found": true,
-      "target_test": "test_audit_log_creation",
+      "target_test": "test_ds15_prompt_record_model",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1238,24 +1227,23 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/models.py",
-        "backend/security.py"
+        "backend/models.py"
       ],
       "test_files": [
-        "backend/tests/test_models.py"
+        "backend/tests/srs/test_srs_data_schemas.py"
       ],
-      "behavior_spec": "SQLAlchemy declarative base model handles schema and PII security for spec 15.",
-      "source_snippet": "transactions = relationship(\"Transaction\", back_populates=\"account\")",
+      "behavior_spec": "PromptRecord model enables multi-tenant prompt template versioning and runtime activation.",
+      "source_snippet": "class PromptRecord(Base):",
       "production_notes": []
     },
     {
       "req_id": "OP-1",
-      "title": "Operational Resilience Spec 1: Durable Checkpointing & Recovery",
+      "title": "Durable SQLite Checkpointer State Save",
       "category": "Operational Resilience & Checkpointing",
-      "srs_description": "OP-1: Operational Resilience Spec 1 - Durable Checkpointing & Recovery",
-      "target_symbol": "DurablePostgresSaver",
+      "srs_description": "OP-1: Durable SQLite-backed checkpointer state save.",
+      "target_symbol": "DurableSqliteSaver",
       "symbol_found": true,
-      "target_test": "test_task24_postgresql_checkpointer_factory",
+      "target_test": "test_op1_sqlite_checkpoint_persistence",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1264,24 +1252,23 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/checkpointing.py",
-        "backend/worker.py"
+        "backend/checkpointing.py"
       ],
       "test_files": [
         "backend/tests/srs/test_srs_durable_recovery.py"
       ],
-      "behavior_spec": "Multi-instance PostgreSQL state saver supports direct get_tuple DB query for spec 1.",
-      "source_snippet": "class DurablePostgresSaver(MemorySaver):",
+      "behavior_spec": "DurableSqliteSaver writes serialized graph checkpoint blobs to SQLite disk.",
+      "source_snippet": "class DurableSqliteSaver(MemorySaver):",
       "production_notes": []
     },
     {
       "req_id": "OP-2",
-      "title": "Operational Resilience Spec 2: Durable Checkpointing & Recovery",
+      "title": "Durable Checkpoint State Recovery Across Restarts",
       "category": "Operational Resilience & Checkpointing",
-      "srs_description": "OP-2: Operational Resilience Spec 2 - Durable Checkpointing & Recovery",
-      "target_symbol": "DurablePostgresSaver",
+      "srs_description": "OP-2: Durable checkpoint state recovery after process restart.",
+      "target_symbol": "DurableSqliteSaver",
       "symbol_found": true,
-      "target_test": "test_task24_postgresql_checkpointer_factory",
+      "target_test": "test_op2_checkpoint_recovery_after_restart",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1290,24 +1277,23 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/checkpointing.py",
-        "backend/worker.py"
+        "backend/checkpointing.py"
       ],
       "test_files": [
         "backend/tests/srs/test_srs_durable_recovery.py"
       ],
-      "behavior_spec": "Multi-instance PostgreSQL state saver supports direct get_tuple DB query for spec 2.",
-      "source_snippet": "class DurablePostgresSaver(MemorySaver):",
+      "behavior_spec": "Restores investigation execution state seamlessly across process termination.",
+      "source_snippet": "class DurableSqliteSaver(MemorySaver):",
       "production_notes": []
     },
     {
       "req_id": "OP-3",
-      "title": "Operational Resilience Spec 3: Durable Checkpointing & Recovery",
+      "title": "Durable PostgreSQL Checkpointer Factory Resolution",
       "category": "Operational Resilience & Checkpointing",
-      "srs_description": "OP-3: Operational Resilience Spec 3 - Durable Checkpointing & Recovery",
-      "target_symbol": "DurablePostgresSaver",
+      "srs_description": "OP-3: Durable PostgreSQL checkpointer factory resolution.",
+      "target_symbol": "get_durable_checkpointer",
       "symbol_found": true,
-      "target_test": "test_task24_postgresql_checkpointer_factory",
+      "target_test": "test_op3_postgres_checkpointer_factory",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1316,24 +1302,23 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/checkpointing.py",
-        "backend/worker.py"
+        "backend/checkpointing.py"
       ],
       "test_files": [
         "backend/tests/srs/test_srs_durable_recovery.py"
       ],
-      "behavior_spec": "Multi-instance PostgreSQL state saver supports direct get_tuple DB query for spec 3.",
-      "source_snippet": "class DurablePostgresSaver(MemorySaver):",
+      "behavior_spec": "Factory automatically binds DurablePostgresSaver when PostgreSQL connection URL is configured.",
+      "source_snippet": "def get_durable_checkpointer(db_path: str = \"ffire_checkpoints.db\", db_url: Optional[str] = None):",
       "production_notes": []
     },
     {
       "req_id": "OP-4",
-      "title": "Operational Resilience Spec 4: Durable Checkpointing & Recovery",
+      "title": "Direct Database get_tuple State Synchronization Across Pods",
       "category": "Operational Resilience & Checkpointing",
-      "srs_description": "OP-4: Operational Resilience Spec 4 - Durable Checkpointing & Recovery",
+      "srs_description": "OP-4: Direct database get_tuple state synchronization across worker pods.",
       "target_symbol": "DurablePostgresSaver",
       "symbol_found": true,
-      "target_test": "test_task24_postgresql_checkpointer_factory",
+      "target_test": "test_op4_cross_instance_state_visibility",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1342,24 +1327,23 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/checkpointing.py",
-        "backend/worker.py"
+        "backend/checkpointing.py"
       ],
       "test_files": [
         "backend/tests/srs/test_srs_durable_recovery.py"
       ],
-      "behavior_spec": "Multi-instance PostgreSQL state saver supports direct get_tuple DB query for spec 4.",
+      "behavior_spec": "Direct DB reads in get_tuple bypass local cache for cross-pod state consistency.",
       "source_snippet": "class DurablePostgresSaver(MemorySaver):",
       "production_notes": []
     },
     {
       "req_id": "OP-5",
-      "title": "Operational Resilience Spec 5: Durable Checkpointing & Recovery",
+      "title": "Checkpoint Database Reconnection & Resiliency",
       "category": "Operational Resilience & Checkpointing",
-      "srs_description": "OP-5: Operational Resilience Spec 5 - Durable Checkpointing & Recovery",
-      "target_symbol": "DurablePostgresSaver",
+      "srs_description": "OP-5: Checkpoint database schema re-initialization and reconnection resiliency.",
+      "target_symbol": "DurableSqliteSaver",
       "symbol_found": true,
-      "target_test": "test_task24_postgresql_checkpointer_factory",
+      "target_test": "test_op5_database_reconnection_resiliency",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1368,24 +1352,23 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/checkpointing.py",
-        "backend/worker.py"
+        "backend/checkpointing.py"
       ],
       "test_files": [
         "backend/tests/srs/test_srs_durable_recovery.py"
       ],
-      "behavior_spec": "Multi-instance PostgreSQL state saver supports direct get_tuple DB query for spec 5.",
-      "source_snippet": "class DurablePostgresSaver(MemorySaver):",
+      "behavior_spec": "Handles database schema initialization and connection drops without corrupting storage.",
+      "source_snippet": "class DurableSqliteSaver(MemorySaver):",
       "production_notes": []
     },
     {
       "req_id": "OP-6",
-      "title": "Operational Resilience Spec 6: Durable Checkpointing & Recovery",
+      "title": "Worker Crash Recovery & Stale Job Detection",
       "category": "Operational Resilience & Checkpointing",
-      "srs_description": "OP-6: Operational Resilience Spec 6 - Durable Checkpointing & Recovery",
-      "target_symbol": "DurablePostgresSaver",
+      "srs_description": "OP-6: Worker crash recovery identifies and resets stale running jobs.",
+      "target_symbol": "recover_stale_or_abandoned_jobs",
       "symbol_found": true,
-      "target_test": "test_task24_postgresql_checkpointer_factory",
+      "target_test": "test_op6_worker_crash_recovery_stale_jobs",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1394,24 +1377,23 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/checkpointing.py",
         "backend/worker.py"
       ],
       "test_files": [
         "backend/tests/srs/test_srs_durable_recovery.py"
       ],
-      "behavior_spec": "Multi-instance PostgreSQL state saver supports direct get_tuple DB query for spec 6.",
-      "source_snippet": "class DurablePostgresSaver(MemorySaver):",
+      "behavior_spec": "Periodic sweep detects orphaned RUNNING jobs and transitions them to RETRYING.",
+      "source_snippet": "def recover_stale_or_abandoned_jobs(self, db=None, max_age_seconds: int = 300) -> int:",
       "production_notes": []
     },
     {
       "req_id": "OP-7",
-      "title": "Operational Resilience Spec 7: Durable Checkpointing & Recovery",
+      "title": "Worker State Machine Transition Validation",
       "category": "Operational Resilience & Checkpointing",
-      "srs_description": "OP-7: Operational Resilience Spec 7 - Durable Checkpointing & Recovery",
-      "target_symbol": "DurablePostgresSaver",
+      "srs_description": "OP-7: Worker state machine transition validation and audit logging.",
+      "target_symbol": "transition_job_state",
       "symbol_found": true,
-      "target_test": "test_task24_postgresql_checkpointer_factory",
+      "target_test": "test_op7_retry_state_persistence",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1420,24 +1402,23 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/checkpointing.py",
         "backend/worker.py"
       ],
       "test_files": [
         "backend/tests/srs/test_srs_durable_recovery.py"
       ],
-      "behavior_spec": "Multi-instance PostgreSQL state saver supports direct get_tuple DB query for spec 7.",
-      "source_snippet": "class DurablePostgresSaver(MemorySaver):",
+      "behavior_spec": "Validates state transitions and rejects illegal modifications.",
+      "source_snippet": "def transition_job_state(self, investigation_id: str, new_status: str, db=None) -> bool:",
       "production_notes": []
     },
     {
       "req_id": "OP-8",
-      "title": "Operational Resilience Spec 8: Durable Checkpointing & Recovery",
+      "title": "Redis Broker Failure Detection & Resilient Fallback",
       "category": "Operational Resilience & Checkpointing",
-      "srs_description": "OP-8: Operational Resilience Spec 8 - Durable Checkpointing & Recovery",
-      "target_symbol": "DurablePostgresSaver",
+      "srs_description": "OP-8: Redis broker failure detection and graceful fallback mechanism.",
+      "target_symbol": "DurableWorkerQueue",
       "symbol_found": true,
-      "target_test": "test_task24_postgresql_checkpointer_factory",
+      "target_test": "test_op8_redis_broker_recovery",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1446,24 +1427,23 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/checkpointing.py",
         "backend/worker.py"
       ],
       "test_files": [
         "backend/tests/srs/test_srs_durable_recovery.py"
       ],
-      "behavior_spec": "Multi-instance PostgreSQL state saver supports direct get_tuple DB query for spec 8.",
-      "source_snippet": "class DurablePostgresSaver(MemorySaver):",
+      "behavior_spec": "Gracefully switches between Redis Stream broker and in-memory queue.",
+      "source_snippet": "class DurableWorkerQueue:",
       "production_notes": []
     },
     {
       "req_id": "OP-9",
-      "title": "Operational Resilience Spec 9: Durable Checkpointing & Recovery",
+      "title": "Dead-Letter Queue Routing Upon Max Retry Exhaustion",
       "category": "Operational Resilience & Checkpointing",
-      "srs_description": "OP-9: Operational Resilience Spec 9 - Durable Checkpointing & Recovery",
-      "target_symbol": "DurablePostgresSaver",
+      "srs_description": "OP-9: Dead-letter queue routing upon exceeding maximum retry budget.",
+      "target_symbol": "process_next_job",
       "symbol_found": true,
-      "target_test": "test_task24_postgresql_checkpointer_factory",
+      "target_test": "test_op9_dead_letter_queue_behavior",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1472,24 +1452,23 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/checkpointing.py",
         "backend/worker.py"
       ],
       "test_files": [
         "backend/tests/srs/test_srs_durable_recovery.py"
       ],
-      "behavior_spec": "Multi-instance PostgreSQL state saver supports direct get_tuple DB query for spec 9.",
-      "source_snippet": "class DurablePostgresSaver(MemorySaver):",
+      "behavior_spec": "Moves jobs exceeding retry budget (3 attempts) to DeadLetterJob store.",
+      "source_snippet": "def process_next_job(self, db=None) -> bool:",
       "production_notes": []
     },
     {
       "req_id": "OP-10",
-      "title": "Operational Resilience Spec 10: Durable Checkpointing & Recovery",
+      "title": "Worker Job Recovery Idempotency",
       "category": "Operational Resilience & Checkpointing",
-      "srs_description": "OP-10: Operational Resilience Spec 10 - Durable Checkpointing & Recovery",
-      "target_symbol": "DurablePostgresSaver",
+      "srs_description": "OP-10: Worker crash recovery process execution is strictly idempotent.",
+      "target_symbol": "recover_stale_or_abandoned_jobs",
       "symbol_found": true,
-      "target_test": "test_task24_postgresql_checkpointer_factory",
+      "target_test": "test_op10_recovery_idempotency",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1498,24 +1477,23 @@
       "runtime_behavior_verdict": "VERIFIED",
       "production_readiness": "PRODUCTION_READY",
       "source_files": [
-        "backend/checkpointing.py",
         "backend/worker.py"
       ],
       "test_files": [
         "backend/tests/srs/test_srs_durable_recovery.py"
       ],
-      "behavior_spec": "Multi-instance PostgreSQL state saver supports direct get_tuple DB query for spec 10.",
-      "source_snippet": "class DurablePostgresSaver(MemorySaver):",
+      "behavior_spec": "Repeated executions of worker crash recovery produce deterministic, idempotent results.",
+      "source_snippet": "def recover_stale_or_abandoned_jobs(self, db=None, max_age_seconds: int = 300) -> int:",
       "production_notes": []
     },
     {
       "req_id": "LG-1",
-      "title": "LangGraph Control Flow Spec 1: State Machine Transitions",
+      "title": "LangGraph State Machine Compilation & Entry Point",
       "category": "LangGraph State Machine",
-      "srs_description": "LG-1: LangGraph Control Flow Spec 1 - State Machine Transitions",
+      "srs_description": "LG-1: LangGraph compilation with planner as entry point.",
       "target_symbol": "build_graph",
       "symbol_found": true,
-      "target_test": "test_acceptance_test_f_full_investigation_pipeline_e2e",
+      "target_test": "test_lg1_entry_point_compilation",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1529,18 +1507,18 @@
       "test_files": [
         "backend/tests/srs/test_srs_e2e_acceptance.py"
       ],
-      "behavior_spec": "State graph conditional routing defines deterministic state machine transitions for spec 1.",
+      "behavior_spec": "LangGraph state machine initializes and sets entry point to planner node.",
       "source_snippet": "def build_graph(checkpointer=None):",
       "production_notes": []
     },
     {
       "req_id": "LG-2",
-      "title": "LangGraph Control Flow Spec 2: State Machine Transitions",
+      "title": "Dynamic Conditional Task Fan-Out From Planner",
       "category": "LangGraph State Machine",
-      "srs_description": "LG-2: LangGraph Control Flow Spec 2 - State Machine Transitions",
-      "target_symbol": "build_graph",
+      "srs_description": "LG-2: Dynamic conditional edge fan-out from planner based on decomposed tasks.",
+      "target_symbol": "route_planner_tasks",
       "symbol_found": true,
-      "target_test": "test_acceptance_test_f_full_investigation_pipeline_e2e",
+      "target_test": "test_lg2_conditional_planner_fan_out",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1554,18 +1532,18 @@
       "test_files": [
         "backend/tests/srs/test_srs_e2e_acceptance.py"
       ],
-      "behavior_spec": "State graph conditional routing defines deterministic state machine transitions for spec 2.",
-      "source_snippet": "def build_graph(checkpointer=None):",
+      "behavior_spec": "Routes planner execution to only the sub-tasks dynamically requested.",
+      "source_snippet": "def route_planner_tasks(state: AgentState):",
       "production_notes": []
     },
     {
       "req_id": "LG-3",
-      "title": "LangGraph Control Flow Spec 3: State Machine Transitions",
+      "title": "Parallel Retrieval Stream Fan-In to Evidence Verifier",
       "category": "LangGraph State Machine",
-      "srs_description": "LG-3: LangGraph Control Flow Spec 3 - State Machine Transitions",
+      "srs_description": "LG-3: Parallel evidence retrieval branches converge at evidence verifier.",
       "target_symbol": "build_graph",
       "symbol_found": true,
-      "target_test": "test_acceptance_test_f_full_investigation_pipeline_e2e",
+      "target_test": "test_lg3_parallel_retrieval_fan_in",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1579,18 +1557,18 @@
       "test_files": [
         "backend/tests/srs/test_srs_e2e_acceptance.py"
       ],
-      "behavior_spec": "State graph conditional routing defines deterministic state machine transitions for spec 3.",
+      "behavior_spec": "All retrieval branches converge at evidence verifier prior to risk analysis.",
       "source_snippet": "def build_graph(checkpointer=None):",
       "production_notes": []
     },
     {
       "req_id": "LG-4",
-      "title": "LangGraph Control Flow Spec 4: State Machine Transitions",
+      "title": "Sequential Reasoning Pipeline Chaining",
       "category": "LangGraph State Machine",
-      "srs_description": "LG-4: LangGraph Control Flow Spec 4 - State Machine Transitions",
+      "srs_description": "LG-4: Sequential pipeline chaining from velocity analysis to risk reasoning.",
       "target_symbol": "build_graph",
       "symbol_found": true,
-      "target_test": "test_acceptance_test_f_full_investigation_pipeline_e2e",
+      "target_test": "test_lg4_sequential_reasoning_pipeline",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1604,18 +1582,18 @@
       "test_files": [
         "backend/tests/srs/test_srs_e2e_acceptance.py"
       ],
-      "behavior_spec": "State graph conditional routing defines deterministic state machine transitions for spec 4.",
+      "behavior_spec": "Strictly chains execution order: verifier -> velocity -> rules -> knowledge -> reasoning.",
       "source_snippet": "def build_graph(checkpointer=None):",
       "production_notes": []
     },
     {
       "req_id": "LG-5",
-      "title": "LangGraph Control Flow Spec 5: State Machine Transitions",
+      "title": "Critic Reflection Feedback Loop to Validator",
       "category": "LangGraph State Machine",
-      "srs_description": "LG-5: LangGraph Control Flow Spec 5 - State Machine Transitions",
-      "target_symbol": "build_graph",
+      "srs_description": "LG-5: Critic node feeds evaluation feedback into validator routing.",
+      "target_symbol": "critic_node",
       "symbol_found": true,
-      "target_test": "test_acceptance_test_f_full_investigation_pipeline_e2e",
+      "target_test": "test_lg5_critic_feedback_evaluation",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1629,18 +1607,18 @@
       "test_files": [
         "backend/tests/srs/test_srs_e2e_acceptance.py"
       ],
-      "behavior_spec": "State graph conditional routing defines deterministic state machine transitions for spec 5.",
-      "source_snippet": "def build_graph(checkpointer=None):",
+      "behavior_spec": "Critic feedback is routed into validator to guide correction and escalation.",
+      "source_snippet": "def critic_node(state: AgentState):",
       "production_notes": []
     },
     {
       "req_id": "LG-6",
-      "title": "LangGraph Control Flow Spec 6: State Machine Transitions",
+      "title": "Validator Conditional Routing Branch",
       "category": "LangGraph State Machine",
-      "srs_description": "LG-6: LangGraph Control Flow Spec 6 - State Machine Transitions",
-      "target_symbol": "build_graph",
+      "srs_description": "LG-6: Validator conditional branching based on evidence grounding status.",
+      "target_symbol": "should_retry_or_human_review",
       "symbol_found": true,
-      "target_test": "test_acceptance_test_f_full_investigation_pipeline_e2e",
+      "target_test": "test_lg6_validator_conditional_branching",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1654,18 +1632,18 @@
       "test_files": [
         "backend/tests/srs/test_srs_e2e_acceptance.py"
       ],
-      "behavior_spec": "State graph conditional routing defines deterministic state machine transitions for spec 6.",
-      "source_snippet": "def build_graph(checkpointer=None):",
+      "behavior_spec": "Branches to report_generator if grounded and confident, or initiates retry/escalation.",
+      "source_snippet": "def should_retry_or_human_review(state: AgentState):",
       "production_notes": []
     },
     {
       "req_id": "LG-7",
-      "title": "LangGraph Control Flow Spec 7: State Machine Transitions",
+      "title": "Targeted Retry Routing to Failed Evidence Source",
       "category": "LangGraph State Machine",
-      "srs_description": "LG-7: LangGraph Control Flow Spec 7 - State Machine Transitions",
-      "target_symbol": "build_graph",
+      "srs_description": "LG-7: Failed evidence retrieval nodes trigger targeted retry routing.",
+      "target_symbol": "should_retry_or_human_review",
       "symbol_found": true,
-      "target_test": "test_acceptance_test_f_full_investigation_pipeline_e2e",
+      "target_test": "test_lg7_targeted_retry_routing",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1679,18 +1657,18 @@
       "test_files": [
         "backend/tests/srs/test_srs_e2e_acceptance.py"
       ],
-      "behavior_spec": "State graph conditional routing defines deterministic state machine transitions for spec 7.",
-      "source_snippet": "def build_graph(checkpointer=None):",
+      "behavior_spec": "Re-routes execution directly to failed retrieval nodes rather than restarting full graph.",
+      "source_snippet": "def should_retry_or_human_review(state: AgentState):",
       "production_notes": []
     },
     {
       "req_id": "LG-8",
-      "title": "LangGraph Control Flow Spec 8: State Machine Transitions",
+      "title": "Bounded Critic Cycle Limit Escalation",
       "category": "LangGraph State Machine",
-      "srs_description": "LG-8: LangGraph Control Flow Spec 8 - State Machine Transitions",
-      "target_symbol": "build_graph",
+      "srs_description": "LG-8: Exceeding maximum critic correction cycles escalates to human review.",
+      "target_symbol": "should_retry_or_human_review",
       "symbol_found": true,
-      "target_test": "test_acceptance_test_f_full_investigation_pipeline_e2e",
+      "target_test": "test_lg8_bounded_critic_cycle_escalation",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1704,18 +1682,18 @@
       "test_files": [
         "backend/tests/srs/test_srs_e2e_acceptance.py"
       ],
-      "behavior_spec": "State graph conditional routing defines deterministic state machine transitions for spec 8.",
-      "source_snippet": "def build_graph(checkpointer=None):",
+      "behavior_spec": "Escalates to human_review if critic detects issues after 2 retry cycles.",
+      "source_snippet": "def should_retry_or_human_review(state: AgentState):",
       "production_notes": []
     },
     {
       "req_id": "LG-9",
-      "title": "LangGraph Control Flow Spec 9: State Machine Transitions",
+      "title": "Low Confidence Score Human Escalation Branch",
       "category": "LangGraph State Machine",
-      "srs_description": "LG-9: LangGraph Control Flow Spec 9 - State Machine Transitions",
-      "target_symbol": "build_graph",
+      "srs_description": "LG-9: Low confidence score below threshold triggers human review escalation.",
+      "target_symbol": "should_retry_or_human_review",
       "symbol_found": true,
-      "target_test": "test_acceptance_test_f_full_investigation_pipeline_e2e",
+      "target_test": "test_lg9_low_confidence_human_escalation",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1729,18 +1707,18 @@
       "test_files": [
         "backend/tests/srs/test_srs_e2e_acceptance.py"
       ],
-      "behavior_spec": "State graph conditional routing defines deterministic state machine transitions for spec 9.",
-      "source_snippet": "def build_graph(checkpointer=None):",
+      "behavior_spec": "Transitions to human_review when confidence falls below 0.85 threshold.",
+      "source_snippet": "def should_retry_or_human_review(state: AgentState):",
       "production_notes": []
     },
     {
       "req_id": "LG-10",
-      "title": "LangGraph Control Flow Spec 10: State Machine Transitions",
+      "title": "Terminal State Graph Completion to END",
       "category": "LangGraph State Machine",
-      "srs_description": "LG-10: LangGraph Control Flow Spec 10 - State Machine Transitions",
+      "srs_description": "LG-10: Terminal nodes transition deterministically to graph completion END.",
       "target_symbol": "build_graph",
       "symbol_found": true,
-      "target_test": "test_acceptance_test_f_full_investigation_pipeline_e2e",
+      "target_test": "test_lg10_terminal_node_transition",
       "test_found": true,
       "implementation_status": "IMPLEMENTED",
       "verification_status": "VERIFIED",
@@ -1754,7 +1732,7 @@
       "test_files": [
         "backend/tests/srs/test_srs_e2e_acceptance.py"
       ],
-      "behavior_spec": "State graph conditional routing defines deterministic state machine transitions for spec 10.",
+      "behavior_spec": "report_generator and human_review terminal nodes route directly to END.",
       "source_snippet": "def build_graph(checkpointer=None):",
       "production_notes": []
     }

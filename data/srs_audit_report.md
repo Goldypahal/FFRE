@@ -1,6 +1,6 @@
 # FFIRE SRS Evidence-Driven Audit Scorecard
 
-**Generated**: 2026-09-17 09:05:32 UTC  
+**Generated**: 2026-09-17 10:04:55 UTC  
 **Audit Engine**: Task 39 Final Evidence Package Auditor  
 
 ## Source-of-Truth SRS Document Reconciliation
@@ -39,7 +39,7 @@ Audit-the-Auditor Evidence:        🟢 100.0% (Zero-Trust AST & SHA-256 Signed)
 Reviewer Evidence Package Evidence: 🟢 100.0% (Signed Deliverable Package Exported)
 Verification Coverage:             🟢 100.0% (Automated Test Verified)
 Production Readiness Coverage:      🟢 100.0% (67/67 Core Requirements PRODUCTION_READY)
-NFR-1 Performance Benchmark:        🟢 MET (P95 = 2.05726s @ 20 concurrency < 8.0s target)
+NFR-1 Performance Benchmark:        🟢 MET (P95 = 1.96417s @ 20 concurrency < 8.0s target)
 =========================================================================
 ```
 
@@ -60,57 +60,57 @@ NFR-1 Performance Benchmark:        🟢 MET (P95 = 2.05726s @ 20 concurrency < 
 | **NFR-1** | `metrics_collector` | `test_concurrency_load_benchmark_suite` | 🟢 | 🟢 | 🟢 | 🟢 | `from metrics import metrics_collector` |
 | **NFR-2** | `FastAPI` | `test_health_check` | 🟢 | 🟢 | 🟢 | 🟢 | `from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, status, Query, Response, Header, UploadFile, File, Form` |
 | **NFR-3** | `DurableWorkerQueue` | `test_task23_redis_worker_queue_broker_support` | 🟢 | 🟢 | 🟢 | 🟢 | `class DurableWorkerQueue:` |
-| **NFR-4** | `encrypt_data` | `test_user_creation` | 🟢 | 🟢 | 🟢 | 🟢 | `self._name = security.encrypt_data(value) if value else None` |
-| **NFR-5** | `with_audit_logger` | `test_audit_logs_creation_and_ordering` | 🟢 | 🟢 | 🟢 | 🟢 | `def with_audit_logger(node_func, node_name: str):` |
+| **NFR-4** | `encrypt_aes256_gcm` | `test_aes256_gcm_authenticated_encryption` | 🟢 | 🟢 | 🟢 | 🟢 | `def encrypt_aes256_gcm(data: str) -> str:` |
+| **NFR-5** | `calculate_entry_hash` | `test_audit_log_cryptographic_hash_chain_immutability` | 🟢 | 🟢 | 🟢 | 🟢 | `def calculate_entry_hash(prev_hash: Optional[str], log_id: str, action: str, timestamp_str: str, details: Optional[str] = "") -> str:` |
 | **NFR-6** | `validate_claims` | `test_evidence_provenance_record_building` | 🟢 | 🟢 | 🟢 | 🟢 | `def validate_claims(draft_explanation: str, evidence_bundle: Dict[str, Any]) -> Tuple[bool, List[str]]:` |
 | **NFR-7** | `build_graph` | `test_build_graph` | 🟢 | 🟢 | 🟢 | 🟢 | `from graph import build_graph` |
-| **SA-1** | `AgentState` | `test_workflow_decision_validation_pass_high_confidence` | 🟢 | 🟢 | 🟢 | 🟢 | `class AgentState(TypedDict):` |
-| **SA-2** | `AgentState` | `test_workflow_decision_validation_pass_high_confidence` | 🟢 | 🟢 | 🟢 | 🟢 | `class AgentState(TypedDict):` |
-| **SA-3** | `AgentState` | `test_workflow_decision_validation_pass_high_confidence` | 🟢 | 🟢 | 🟢 | 🟢 | `class AgentState(TypedDict):` |
-| **SA-4** | `AgentState` | `test_workflow_decision_validation_pass_high_confidence` | 🟢 | 🟢 | 🟢 | 🟢 | `class AgentState(TypedDict):` |
-| **SA-5** | `AgentState` | `test_workflow_decision_validation_pass_high_confidence` | 🟢 | 🟢 | 🟢 | 🟢 | `class AgentState(TypedDict):` |
-| **SA-6** | `AgentState` | `test_workflow_decision_validation_pass_high_confidence` | 🟢 | 🟢 | 🟢 | 🟢 | `class AgentState(TypedDict):` |
-| **SA-7** | `AgentState` | `test_workflow_decision_validation_pass_high_confidence` | 🟢 | 🟢 | 🟢 | 🟢 | `class AgentState(TypedDict):` |
-| **SA-8** | `AgentState` | `test_workflow_decision_validation_pass_high_confidence` | 🟢 | 🟢 | 🟢 | 🟢 | `class AgentState(TypedDict):` |
-| **SA-9** | `AgentState` | `test_workflow_decision_validation_pass_high_confidence` | 🟢 | 🟢 | 🟢 | 🟢 | `class AgentState(TypedDict):` |
-| **SA-10** | `AgentState` | `test_workflow_decision_validation_pass_high_confidence` | 🟢 | 🟢 | 🟢 | 🟢 | `class AgentState(TypedDict):` |
-| **SA-11** | `AgentState` | `test_workflow_decision_validation_pass_high_confidence` | 🟢 | 🟢 | 🟢 | 🟢 | `class AgentState(TypedDict):` |
-| **SA-12** | `AgentState` | `test_workflow_decision_validation_pass_high_confidence` | 🟢 | 🟢 | 🟢 | 🟢 | `class AgentState(TypedDict):` |
-| **SA-13** | `AgentState` | `test_workflow_decision_validation_pass_high_confidence` | 🟢 | 🟢 | 🟢 | 🟢 | `class AgentState(TypedDict):` |
-| **SA-14** | `AgentState` | `test_workflow_decision_validation_pass_high_confidence` | 🟢 | 🟢 | 🟢 | 🟢 | `class AgentState(TypedDict):` |
-| **SA-15** | `AgentState` | `test_workflow_decision_validation_pass_high_confidence` | 🟢 | 🟢 | 🟢 | 🟢 | `class AgentState(TypedDict):` |
-| **DS-1** | `Transaction` | `test_audit_log_creation` | 🟢 | 🟢 | 🟢 | 🟢 | `transactions = relationship("Transaction", back_populates="account")` |
-| **DS-2** | `Transaction` | `test_audit_log_creation` | 🟢 | 🟢 | 🟢 | 🟢 | `transactions = relationship("Transaction", back_populates="account")` |
-| **DS-3** | `Transaction` | `test_audit_log_creation` | 🟢 | 🟢 | 🟢 | 🟢 | `transactions = relationship("Transaction", back_populates="account")` |
-| **DS-4** | `Transaction` | `test_audit_log_creation` | 🟢 | 🟢 | 🟢 | 🟢 | `transactions = relationship("Transaction", back_populates="account")` |
-| **DS-5** | `Transaction` | `test_audit_log_creation` | 🟢 | 🟢 | 🟢 | 🟢 | `transactions = relationship("Transaction", back_populates="account")` |
-| **DS-6** | `Transaction` | `test_audit_log_creation` | 🟢 | 🟢 | 🟢 | 🟢 | `transactions = relationship("Transaction", back_populates="account")` |
-| **DS-7** | `Transaction` | `test_audit_log_creation` | 🟢 | 🟢 | 🟢 | 🟢 | `transactions = relationship("Transaction", back_populates="account")` |
-| **DS-8** | `Transaction` | `test_audit_log_creation` | 🟢 | 🟢 | 🟢 | 🟢 | `transactions = relationship("Transaction", back_populates="account")` |
-| **DS-9** | `Transaction` | `test_audit_log_creation` | 🟢 | 🟢 | 🟢 | 🟢 | `transactions = relationship("Transaction", back_populates="account")` |
-| **DS-10** | `Transaction` | `test_audit_log_creation` | 🟢 | 🟢 | 🟢 | 🟢 | `transactions = relationship("Transaction", back_populates="account")` |
-| **DS-11** | `Transaction` | `test_audit_log_creation` | 🟢 | 🟢 | 🟢 | 🟢 | `transactions = relationship("Transaction", back_populates="account")` |
-| **DS-12** | `Transaction` | `test_audit_log_creation` | 🟢 | 🟢 | 🟢 | 🟢 | `transactions = relationship("Transaction", back_populates="account")` |
-| **DS-13** | `Transaction` | `test_audit_log_creation` | 🟢 | 🟢 | 🟢 | 🟢 | `transactions = relationship("Transaction", back_populates="account")` |
-| **DS-14** | `Transaction` | `test_audit_log_creation` | 🟢 | 🟢 | 🟢 | 🟢 | `transactions = relationship("Transaction", back_populates="account")` |
-| **DS-15** | `Transaction` | `test_audit_log_creation` | 🟢 | 🟢 | 🟢 | 🟢 | `transactions = relationship("Transaction", back_populates="account")` |
-| **OP-1** | `DurablePostgresSaver` | `test_task24_postgresql_checkpointer_factory` | 🟢 | 🟢 | 🟢 | 🟢 | `class DurablePostgresSaver(MemorySaver):` |
-| **OP-2** | `DurablePostgresSaver` | `test_task24_postgresql_checkpointer_factory` | 🟢 | 🟢 | 🟢 | 🟢 | `class DurablePostgresSaver(MemorySaver):` |
-| **OP-3** | `DurablePostgresSaver` | `test_task24_postgresql_checkpointer_factory` | 🟢 | 🟢 | 🟢 | 🟢 | `class DurablePostgresSaver(MemorySaver):` |
-| **OP-4** | `DurablePostgresSaver` | `test_task24_postgresql_checkpointer_factory` | 🟢 | 🟢 | 🟢 | 🟢 | `class DurablePostgresSaver(MemorySaver):` |
-| **OP-5** | `DurablePostgresSaver` | `test_task24_postgresql_checkpointer_factory` | 🟢 | 🟢 | 🟢 | 🟢 | `class DurablePostgresSaver(MemorySaver):` |
-| **OP-6** | `DurablePostgresSaver` | `test_task24_postgresql_checkpointer_factory` | 🟢 | 🟢 | 🟢 | 🟢 | `class DurablePostgresSaver(MemorySaver):` |
-| **OP-7** | `DurablePostgresSaver` | `test_task24_postgresql_checkpointer_factory` | 🟢 | 🟢 | 🟢 | 🟢 | `class DurablePostgresSaver(MemorySaver):` |
-| **OP-8** | `DurablePostgresSaver` | `test_task24_postgresql_checkpointer_factory` | 🟢 | 🟢 | 🟢 | 🟢 | `class DurablePostgresSaver(MemorySaver):` |
-| **OP-9** | `DurablePostgresSaver` | `test_task24_postgresql_checkpointer_factory` | 🟢 | 🟢 | 🟢 | 🟢 | `class DurablePostgresSaver(MemorySaver):` |
-| **OP-10** | `DurablePostgresSaver` | `test_task24_postgresql_checkpointer_factory` | 🟢 | 🟢 | 🟢 | 🟢 | `class DurablePostgresSaver(MemorySaver):` |
-| **LG-1** | `build_graph` | `test_acceptance_test_f_full_investigation_pipeline_e2e` | 🟢 | 🟢 | 🟢 | 🟢 | `def build_graph(checkpointer=None):` |
-| **LG-2** | `build_graph` | `test_acceptance_test_f_full_investigation_pipeline_e2e` | 🟢 | 🟢 | 🟢 | 🟢 | `def build_graph(checkpointer=None):` |
-| **LG-3** | `build_graph` | `test_acceptance_test_f_full_investigation_pipeline_e2e` | 🟢 | 🟢 | 🟢 | 🟢 | `def build_graph(checkpointer=None):` |
-| **LG-4** | `build_graph` | `test_acceptance_test_f_full_investigation_pipeline_e2e` | 🟢 | 🟢 | 🟢 | 🟢 | `def build_graph(checkpointer=None):` |
-| **LG-5** | `build_graph` | `test_acceptance_test_f_full_investigation_pipeline_e2e` | 🟢 | 🟢 | 🟢 | 🟢 | `def build_graph(checkpointer=None):` |
-| **LG-6** | `build_graph` | `test_acceptance_test_f_full_investigation_pipeline_e2e` | 🟢 | 🟢 | 🟢 | 🟢 | `def build_graph(checkpointer=None):` |
-| **LG-7** | `build_graph` | `test_acceptance_test_f_full_investigation_pipeline_e2e` | 🟢 | 🟢 | 🟢 | 🟢 | `def build_graph(checkpointer=None):` |
-| **LG-8** | `build_graph` | `test_acceptance_test_f_full_investigation_pipeline_e2e` | 🟢 | 🟢 | 🟢 | 🟢 | `def build_graph(checkpointer=None):` |
-| **LG-9** | `build_graph` | `test_acceptance_test_f_full_investigation_pipeline_e2e` | 🟢 | 🟢 | 🟢 | 🟢 | `def build_graph(checkpointer=None):` |
-| **LG-10** | `build_graph` | `test_acceptance_test_f_full_investigation_pipeline_e2e` | 🟢 | 🟢 | 🟢 | 🟢 | `def build_graph(checkpointer=None):` |
+| **SA-1** | `AgentState` | `test_sa1_agent_state_schema_isolation` | 🟢 | 🟢 | 🟢 | 🟢 | `class AgentState(TypedDict):` |
+| **SA-2** | `planner_node` | `test_sa2_planner_decomposition_allowlist` | 🟢 | 🟢 | 🟢 | 🟢 | `def planner_node(state: AgentState):` |
+| **SA-3** | `retrieve_customer_node` | `test_sa3_retrieve_customer_node` | 🟢 | 🟢 | 🟢 | 🟢 | `def retrieve_customer_node(state: AgentState):` |
+| **SA-4** | `retrieve_transaction_node` | `test_sa4_retrieve_transaction_node` | 🟢 | 🟢 | 🟢 | 🟢 | `def retrieve_transaction_node(state: AgentState):` |
+| **SA-5** | `retrieve_merchant_node` | `test_sa5_retrieve_merchant_node` | 🟢 | 🟢 | 🟢 | 🟢 | `def retrieve_merchant_node(state: AgentState):` |
+| **SA-6** | `retrieve_device_node` | `test_sa6_retrieve_device_node` | 🟢 | 🟢 | 🟢 | 🟢 | `def retrieve_device_node(state: AgentState):` |
+| **SA-7** | `retrieve_location_node` | `test_sa7_retrieve_location_node` | 🟢 | 🟢 | 🟢 | 🟢 | `def retrieve_location_node(state: AgentState):` |
+| **SA-8** | `evidence_verifier_node` | `test_sa8_evidence_verifier_node` | 🟢 | 🟢 | 🟢 | 🟢 | `def evidence_verifier_node(state: AgentState):` |
+| **SA-9** | `velocity_check_node` | `test_sa9_velocity_check_node` | 🟢 | 🟢 | 🟢 | 🟢 | `def velocity_check_node(state: AgentState):` |
+| **SA-10** | `rule_engine_node` | `test_sa10_rule_engine_node` | 🟢 | 🟢 | 🟢 | 🟢 | `def rule_engine_node(state: AgentState):` |
+| **SA-11** | `knowledge_lookup_node` | `test_sa11_knowledge_lookup_node` | 🟢 | 🟢 | 🟢 | 🟢 | `def knowledge_lookup_node(state: AgentState):` |
+| **SA-12** | `risk_reasoning_node` | `test_sa12_risk_reasoning_node` | 🟢 | 🟢 | 🟢 | 🟢 | `def risk_reasoning_node(state: AgentState):` |
+| **SA-13** | `critic_node` | `test_sa13_critic_node` | 🟢 | 🟢 | 🟢 | 🟢 | `def critic_node(state: AgentState):` |
+| **SA-14** | `validator_node` | `test_sa14_validator_node` | 🟢 | 🟢 | 🟢 | 🟢 | `def validator_node(state: AgentState):` |
+| **SA-15** | `human_review_node` | `test_sa15_human_review_node_packaging` | 🟢 | 🟢 | 🟢 | 🟢 | `def human_review_node(state: AgentState):` |
+| **DS-1** | `Customer` | `test_ds1_customer_model_kyc_status` | 🟢 | 🟢 | 🟢 | 🟢 | `class Customer(Base):` |
+| **DS-2** | `Account` | `test_ds2_account_model_relationship` | 🟢 | 🟢 | 🟢 | 🟢 | `accounts = relationship("Account", back_populates="customer")` |
+| **DS-3** | `Transaction` | `test_ds3_transaction_model_precision` | 🟢 | 🟢 | 🟢 | 🟢 | `transactions = relationship("Transaction", back_populates="account")` |
+| **DS-4** | `Merchant` | `test_ds4_merchant_model_risk_profile` | 🟢 | 🟢 | 🟢 | 🟢 | `class Merchant(Base):` |
+| **DS-5** | `Device` | `test_ds5_device_model_fingerprint` | 🟢 | 🟢 | 🟢 | 🟢 | `devices = relationship("Device", back_populates="customer")` |
+| **DS-6** | `Location` | `test_ds6_location_model_coordinates` | 🟢 | 🟢 | 🟢 | 🟢 | `locations = relationship("Location", back_populates="transaction")` |
+| **DS-7** | `Investigation` | `test_ds7_investigation_model_lifecycle` | 🟢 | 🟢 | 🟢 | 🟢 | `investigations = relationship("Investigation", back_populates="transaction")` |
+| **DS-8** | `Evidence` | `test_ds8_evidence_model_snippet_storage` | 🟢 | 🟢 | 🟢 | 🟢 | `evidence = relationship("Evidence", back_populates="investigation")` |
+| **DS-9** | `FraudCase` | `test_ds9_fraud_case_model_verdict` | 🟢 | 🟢 | 🟢 | 🟢 | `class FraudCase(Base):` |
+| **DS-10** | `RiskScore` | `test_ds10_risk_score_model_dual_scores` | 🟢 | 🟢 | 🟢 | 🟢 | `class RiskScore(Base):` |
+| **DS-11** | `AuditLog` | `test_ds11_audit_log_model_hash_chain` | 🟢 | 🟢 | 🟢 | 🟢 | `audit_logs = relationship("AuditLog", back_populates="investigation", order_by="AuditLog.timestamp", cascade="save-update, merge")` |
+| **DS-12** | `DeadLetterJob` | `test_ds12_dead_letter_job_model` | 🟢 | 🟢 | 🟢 | 🟢 | `class DeadLetterJob(Base):` |
+| **DS-13** | `EvidenceVaultItem` | `test_ds13_evidence_vault_item_model` | 🟢 | 🟢 | 🟢 | 🟢 | `class EvidenceVaultItem(Base):` |
+| **DS-14** | `ReportRecord` | `test_ds14_report_record_model` | 🟢 | 🟢 | 🟢 | 🟢 | `class ReportRecord(Base):` |
+| **DS-15** | `PromptRecord` | `test_ds15_prompt_record_model` | 🟢 | 🟢 | 🟢 | 🟢 | `class PromptRecord(Base):` |
+| **OP-1** | `DurableSqliteSaver` | `test_op1_sqlite_checkpoint_persistence` | 🟢 | 🟢 | 🟢 | 🟢 | `class DurableSqliteSaver(MemorySaver):` |
+| **OP-2** | `DurableSqliteSaver` | `test_op2_checkpoint_recovery_after_restart` | 🟢 | 🟢 | 🟢 | 🟢 | `class DurableSqliteSaver(MemorySaver):` |
+| **OP-3** | `get_durable_checkpointer` | `test_op3_postgres_checkpointer_factory` | 🟢 | 🟢 | 🟢 | 🟢 | `def get_durable_checkpointer(db_path: str = "ffire_checkpoints.db", db_url: Optional[str] = None):` |
+| **OP-4** | `DurablePostgresSaver` | `test_op4_cross_instance_state_visibility` | 🟢 | 🟢 | 🟢 | 🟢 | `class DurablePostgresSaver(MemorySaver):` |
+| **OP-5** | `DurableSqliteSaver` | `test_op5_database_reconnection_resiliency` | 🟢 | 🟢 | 🟢 | 🟢 | `class DurableSqliteSaver(MemorySaver):` |
+| **OP-6** | `recover_stale_or_abandoned_jobs` | `test_op6_worker_crash_recovery_stale_jobs` | 🟢 | 🟢 | 🟢 | 🟢 | `def recover_stale_or_abandoned_jobs(self, db=None, max_age_seconds: int = 300) -> int:` |
+| **OP-7** | `transition_job_state` | `test_op7_retry_state_persistence` | 🟢 | 🟢 | 🟢 | 🟢 | `def transition_job_state(self, investigation_id: str, new_status: str, db=None) -> bool:` |
+| **OP-8** | `DurableWorkerQueue` | `test_op8_redis_broker_recovery` | 🟢 | 🟢 | 🟢 | 🟢 | `class DurableWorkerQueue:` |
+| **OP-9** | `process_next_job` | `test_op9_dead_letter_queue_behavior` | 🟢 | 🟢 | 🟢 | 🟢 | `def process_next_job(self, db=None) -> bool:` |
+| **OP-10** | `recover_stale_or_abandoned_jobs` | `test_op10_recovery_idempotency` | 🟢 | 🟢 | 🟢 | 🟢 | `def recover_stale_or_abandoned_jobs(self, db=None, max_age_seconds: int = 300) -> int:` |
+| **LG-1** | `build_graph` | `test_lg1_entry_point_compilation` | 🟢 | 🟢 | 🟢 | 🟢 | `def build_graph(checkpointer=None):` |
+| **LG-2** | `route_planner_tasks` | `test_lg2_conditional_planner_fan_out` | 🟢 | 🟢 | 🟢 | 🟢 | `def route_planner_tasks(state: AgentState):` |
+| **LG-3** | `build_graph` | `test_lg3_parallel_retrieval_fan_in` | 🟢 | 🟢 | 🟢 | 🟢 | `def build_graph(checkpointer=None):` |
+| **LG-4** | `build_graph` | `test_lg4_sequential_reasoning_pipeline` | 🟢 | 🟢 | 🟢 | 🟢 | `def build_graph(checkpointer=None):` |
+| **LG-5** | `critic_node` | `test_lg5_critic_feedback_evaluation` | 🟢 | 🟢 | 🟢 | 🟢 | `def critic_node(state: AgentState):` |
+| **LG-6** | `should_retry_or_human_review` | `test_lg6_validator_conditional_branching` | 🟢 | 🟢 | 🟢 | 🟢 | `def should_retry_or_human_review(state: AgentState):` |
+| **LG-7** | `should_retry_or_human_review` | `test_lg7_targeted_retry_routing` | 🟢 | 🟢 | 🟢 | 🟢 | `def should_retry_or_human_review(state: AgentState):` |
+| **LG-8** | `should_retry_or_human_review` | `test_lg8_bounded_critic_cycle_escalation` | 🟢 | 🟢 | 🟢 | 🟢 | `def should_retry_or_human_review(state: AgentState):` |
+| **LG-9** | `should_retry_or_human_review` | `test_lg9_low_confidence_human_escalation` | 🟢 | 🟢 | 🟢 | 🟢 | `def should_retry_or_human_review(state: AgentState):` |
+| **LG-10** | `build_graph` | `test_lg10_terminal_node_transition` | 🟢 | 🟢 | 🟢 | 🟢 | `def build_graph(checkpointer=None):` |

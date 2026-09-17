@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ffre-worker
+  labels:
+    app.kubernetes.io/name: ffre
+    app.kubernetes.io/component: worker
+spec:
+  replicas: 4
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 2
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ffre
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ffre
+        app.kubernetes.io/component: worker
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: ffre-worker
+          image: ffre-backend:latest
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "worker"]
+          envFrom:
+            - configMapRef:
+                name: ffre-config
+            - secretRef:
+                name: ffre-secrets
+          resources:
+            requests:
+              cpu: "1000m"
+              memory: "1024Mi"
+            limits:
+              cpu: "4000m"
+              memory: "4096Mi"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL

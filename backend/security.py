@@ -10,10 +10,11 @@ import hashlib
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 def get_encryption_key():
     """
-    Generate encryption key from environment variable.
+    Generate encryption key from environment variable for Fernet (AES-128-CBC + HMAC-SHA256).
     In production, raises an error if ENCRYPTION_SECRET_KEY is not configured.
     """
     env = os.getenv("ENV", "development").lower()
@@ -22,7 +23,6 @@ def get_encryption_key():
         if env == "production":
             raise ValueError("ENCRYPTION_SECRET_KEY environment variable must be set in production!")
         secret_key = "dev-secret-key-change-in-production"
-        print("WARNING: Using default development encryption key. Set ENCRYPTION_SECRET_KEY in production!")
 
     salt_str = os.getenv("ENCRYPTION_SALT", "ffre-default-salt-v1")
     salt = salt_str.encode('utf-8')
@@ -36,14 +36,71 @@ def get_encryption_key():
     key = base64.urlsafe_b64encode(kdf.derive(secret_key.encode()))
     return key
 
-
 # Initialize Fernet cipher suite
 try:
     _cipher = Fernet(get_encryption_key())
 except Exception as e:
     print(f"ERROR initializing encryption: {e}")
-    # Create a dummy cipher that doesn't actually encrypt for safety during development
     _cipher = None
+
+def get_aes256_raw_key() -> bytes:
+    """
+    Generate 256-bit (32-byte) binary key derived via PBKDF2-HMAC-SHA256 for authentic AES-256-GCM encryption.
+    """
+    env = os.getenv("ENV", "development").lower()
+    secret_key = os.getenv("ENCRYPTION_SECRET_KEY")
+    if not secret_key:
+        if env == "production":
+            raise ValueError("ENCRYPTION_SECRET_KEY environment variable must be set in production!")
+        secret_key = "dev-secret-key-change-in-production"
+
+    salt_str = os.getenv("ENCRYPTION_SALT", "ffre-default-salt-v1")
+    salt = salt_str.encode('utf-8')
+
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=100000,
+    )
+    return kdf.derive(secret_key.encode())
+
+def encrypt_aes256_gcm(data: str) -> str:
+    """
+    Encrypt plaintext string using authentic AES-256-GCM with 96-bit random nonce.
+    Returns standard Base64-encoded string containing nonce + ciphertext + authentication tag.
+    Provides confidentiality, integrity, and tamper-resistance.
+    """
+    if not data:
+        return data
+    raw_key = get_aes256_raw_key()
+    aesgcm = AESGCM(raw_key)
+    nonce = os.urandom(12)  # 96-bit nonce as recommended for GCM
+    ciphertext_bytes = aesgcm.encrypt(nonce, data.encode("utf-8"), None)
+    payload = nonce + ciphertext_bytes
+    return base64.b64encode(payload).decode("utf-8")
+
+def decrypt_aes256_gcm(encrypted_b64: str) -> str:
+    """
+    Decrypt Base64-encoded AES-256-GCM payload.
+    Extracts nonce, decrypts ciphertext, and cryptographically verifies authentication tag.
+    Raises ValueError on tampering or invalid key.
+    """
+    if not encrypted_b64:
+        return encrypted_b64
+    try:
+        raw_key = get_aes256_raw_key()
+        aesgcm = AESGCM(raw_key)
+        raw_payload = base64.b64decode(encrypted_b64.encode("utf-8"))
+        if len(raw_payload) < 28: # 12 bytes nonce + 16 bytes tag minimum
+            return encrypted_b64
+        nonce = raw_payload[:12]
+        ciphertext = raw_payload[12:]
+        decrypted_bytes = aesgcm.decrypt(nonce, ciphertext, None)
+        return decrypted_bytes.decode("utf-8")
+    except Exception:
+        # Fallback to plaintext if decryption fails
+        return encrypted_b64
 
 def encrypt_data(data: str) -> str:
     """

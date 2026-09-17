@@ -917,67 +917,67 @@ Non-Functional Requirements (NFR-1 to NFR-7):
 - NFR-1: P95 investigation latency < 8 seconds for standard-complexity cases.
 - NFR-2: 99.9% uptime for the API gateway and orchestration layer.
 - NFR-3: Support horizontal scaling of retrieval and reasoning workers via Kubernetes.
-- NFR-4: All PII encrypted at rest (AES-256) and in transit (TLS 1.2+).
+- NFR-4: All PII encrypted at rest (AES-256-GCM and Fernet AES-128-CBC) and in transit (TLS 1.2+).
 - NFR-5: Every investigation must produce an immutable, timestamped audit trail.
 - NFR-6: 100% of generated claims must cite a specific evidence source.
 - NFR-7: Graph nodes must be independently testable and replaceable.
 
 System Architecture & Graph Nodes (SA-1 to SA-15):
-- SA-1: System Architecture Spec 1 - Node Isolation & Execution State
-- SA-2: System Architecture Spec 2 - Node Isolation & Execution State
-- SA-3: System Architecture Spec 3 - Node Isolation & Execution State
-- SA-4: System Architecture Spec 4 - Node Isolation & Execution State
-- SA-5: System Architecture Spec 5 - Node Isolation & Execution State
-- SA-6: System Architecture Spec 6 - Node Isolation & Execution State
-- SA-7: System Architecture Spec 7 - Node Isolation & Execution State
-- SA-8: System Architecture Spec 8 - Node Isolation & Execution State
-- SA-9: System Architecture Spec 9 - Node Isolation & Execution State
-- SA-10: System Architecture Spec 10 - Node Isolation & Execution State
-- SA-11: System Architecture Spec 11 - Node Isolation & Execution State
-- SA-12: System Architecture Spec 12 - Node Isolation & Execution State
-- SA-13: System Architecture Spec 13 - Node Isolation & Execution State
-- SA-14: System Architecture Spec 14 - Node Isolation & Execution State
-- SA-15: System Architecture Spec 15 - Node Isolation & Execution State
+- SA-1: AgentState typed dictionary schema enforces node execution isolation and typing.
+- SA-2: Dynamic Planner task decomposition and allowlist task mapping.
+- SA-3: Customer evidence retrieval node and KYC profile extraction.
+- SA-4: Transaction evidence retrieval node and ledger precision.
+- SA-5: Merchant reputation retrieval node and risk score assessment.
+- SA-6: Device fingerprinting retrieval node and OS profiling.
+- SA-7: Location check retrieval node and geo-coordinate validation.
+- SA-8: Evidence verifier node aggregates sources and formats provenance records.
+- SA-9: Multi-window transaction velocity analysis (5m, 1h, 24h, 7d).
+- SA-10: Deterministic rule engine evaluation and decoupled RiskSignal generation.
+- SA-11: Vector knowledge base similarity search for historical fraud patterns.
+- SA-12: LLM-powered risk reasoning and synthesized confidence scoring.
+- SA-13: Evidence critic reflection node and contradiction detection.
+- SA-14: Evidence grounding guardrail validator node for factual verification.
+- SA-15: Human review escalation report generation and dossier assembly.
 
 Data Models & Security Controls (DS-1 to DS-15):
-- DS-1: Data Model Spec 1 - Schema & Encryption
-- DS-2: Data Model Spec 2 - Schema & Encryption
-- DS-3: Data Model Spec 3 - Schema & Encryption
-- DS-4: Data Model Spec 4 - Schema & Encryption
-- DS-5: Data Model Spec 5 - Schema & Encryption
-- DS-6: Data Model Spec 6 - Schema & Encryption
-- DS-7: Data Model Spec 7 - Schema & Encryption
-- DS-8: Data Model Spec 8 - Schema & Encryption
-- DS-9: Data Model Spec 9 - Schema & Encryption
-- DS-10: Data Model Spec 10 - Schema & Encryption
-- DS-11: Data Model Spec 11 - Schema & Encryption
-- DS-12: Data Model Spec 12 - Schema & Encryption
-- DS-13: Data Model Spec 13 - Schema & Encryption
-- DS-14: Data Model Spec 14 - Schema & Encryption
-- DS-15: Data Model Spec 15 - Schema & Encryption
+- DS-1: Customer entity schema, tenant scoping, and KYC status validation.
+- DS-2: Account entity schema and foreign key relationship to customer.
+- DS-3: Transaction ledger entity with decimal precision and status tracking.
+- DS-4: Merchant entity schema and historical fraud rate score.
+- DS-5: Device entity schema with OS and hardware fingerprinting.
+- DS-6: Location entity schema with latitude/longitude geo coordinates.
+- DS-7: Investigation model schema and status lifecycle transitions.
+- DS-8: Evidence model schema and investigation foreign key relationship.
+- DS-9: FraudCase model schema with verdict and confidence ratings.
+- DS-10: RiskScore model schema with rule-based and ML model score breakdown.
+- DS-11: AuditLog entity with cryptographic hash chaining fields.
+- DS-12: DeadLetterJob entity schema for capturing exhausted retry jobs.
+- DS-13: EvidenceVaultItem model schema with SHA-256 digital vault digest.
+- DS-14: ReportRecord regulatory export model schema and formatting.
+- DS-15: PromptRecord model schema for versioned AI prompt management.
 
 Operational Resilience & Checkpointing (OP-1 to OP-10):
-- OP-1: Operational Resilience Spec 1 - Durable Checkpointing & Recovery
-- OP-2: Operational Resilience Spec 2 - Durable Checkpointing & Recovery
-- OP-3: Operational Resilience Spec 3 - Durable Checkpointing & Recovery
-- OP-4: Operational Resilience Spec 4 - Durable Checkpointing & Recovery
-- OP-5: Operational Resilience Spec 5 - Durable Checkpointing & Recovery
-- OP-6: Operational Resilience Spec 6 - Durable Checkpointing & Recovery
-- OP-7: Operational Resilience Spec 7 - Durable Checkpointing & Recovery
-- OP-8: Operational Resilience Spec 8 - Durable Checkpointing & Recovery
-- OP-9: Operational Resilience Spec 9 - Durable Checkpointing & Recovery
-- OP-10: Operational Resilience Spec 10 - Durable Checkpointing & Recovery
+- OP-1: Durable SQLite-backed checkpointer state save.
+- OP-2: Durable checkpoint state recovery after process restart.
+- OP-3: Durable PostgreSQL checkpointer factory resolution.
+- OP-4: Direct database get_tuple state synchronization across worker pods.
+- OP-5: Checkpoint database schema re-initialization and reconnection resiliency.
+- OP-6: Worker crash recovery identifies and resets stale running jobs.
+- OP-7: Worker state machine transition validation and audit logging.
+- OP-8: Redis broker failure detection and graceful fallback mechanism.
+- OP-9: Dead-letter queue routing upon exceeding maximum retry budget.
+- OP-10: Worker crash recovery process execution is strictly idempotent.
 
 LangGraph Control Flow (LG-1 to LG-10):
-- LG-1: LangGraph Control Flow Spec 1 - State Machine Transitions
-- LG-2: LangGraph Control Flow Spec 2 - State Machine Transitions
-- LG-3: LangGraph Control Flow Spec 3 - State Machine Transitions
-- LG-4: LangGraph Control Flow Spec 4 - State Machine Transitions
-- LG-5: LangGraph Control Flow Spec 5 - State Machine Transitions
-- LG-6: LangGraph Control Flow Spec 6 - State Machine Transitions
-- LG-7: LangGraph Control Flow Spec 7 - State Machine Transitions
-- LG-8: LangGraph Control Flow Spec 8 - State Machine Transitions
-- LG-9: LangGraph Control Flow Spec 9 - State Machine Transitions
-- LG-10: LangGraph Control Flow Spec 10 - State Machine Transitions
+- LG-1: LangGraph compilation with planner as entry point.
+- LG-2: Dynamic conditional edge fan-out from planner based on decomposed tasks.
+- LG-3: Parallel evidence retrieval branches converge at evidence verifier.
+- LG-4: Sequential pipeline chaining from velocity analysis to risk reasoning.
+- LG-5: Critic node feeds evaluation feedback into validator routing.
+- LG-6: Validator conditional branching based on evidence grounding status.
+- LG-7: Failed evidence retrieval nodes trigger targeted retry routing.
+- LG-8: Exceeding maximum critic correction cycles escalates to human review.
+- LG-9: Low confidence score below threshold triggers human review escalation.
+- LG-10: Terminal nodes transition deterministically to graph completion END.
 
 End of Document — FFIRE Software Requirements Specification v1.0 | Confidential

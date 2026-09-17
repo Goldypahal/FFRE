@@ -1,5 +1,6 @@
 import uuid
 import datetime
+from typing import Optional
 from sqlalchemy import Column, String, Float, DateTime, ForeignKey, Text, Numeric, Integer, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -182,8 +183,20 @@ class AuditLog(Base):
     action = Column(String(250), nullable=False)
     details = Column(Text, nullable=True)
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    previous_hash = Column(String(64), nullable=True, default=None)
+    entry_hash = Column(String(64), nullable=True, default=None)
 
     investigation = relationship("Investigation", back_populates="audit_logs")
+
+    @staticmethod
+    def calculate_entry_hash(prev_hash: Optional[str], log_id: str, action: str, timestamp_str: str, details: Optional[str] = "") -> str:
+        """
+        Calculates SHA-256 tamper-evident entry hash chaining with the previous log record.
+        Creates an immutable, verifiable audit trail for NFR-5.
+        """
+        import hashlib
+        payload = f"{prev_hash or 'GENESIS'}|{log_id}|{action}|{timestamp_str}|{details or ''}"
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 class DeadLetterJob(Base):
     __tablename__ = "dead_letter_job"

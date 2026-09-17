@@ -42,7 +42,7 @@ def test_task39_executive_audit_report_completeness():
 
     assert "Financial Fraud Investigation Reasoning Engine (FFRE)" in content
     assert "Reviewer-Ready Executive SRS Compliance & Audit Report" in content
-    assert "100.0% PRODUCTION READY (67/67 CORE REQUIREMENTS VERIFIED)" in content
+    assert "CORE SRS VERIFIED (~85–90% COMPLETE, ~70–75% PRODUCTION READINESS DEMONSTRATED)" in content
     assert "FINAL FFRE EVIDENCE-DRIVEN ENTERPRISE AUDIT SCORECARD" in content
     assert "Cryptographic Tamper-Evidence & Zero-Trust Signatures" in content
 
