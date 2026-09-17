@@ -2612,14 +2612,27 @@ async def get_metrics():
         "retry_count_stats": metrics_collector.get_retry_count_stats(),
         "confidence_score_stats": metrics_collector.get_confidence_score_stats(),
         "risk_score_stats": metrics_collector.get_risk_score_stats(),
-        "investment_outcome_counts": metrics_collector.get_investment_outcome_counts()
+        "investment_outcome_counts": metrics_collector.get_investment_outcome_counts(),
+        "llm_observability": metrics_collector.get_llm_observability_stats()
     }
+
+@app.get("/api/v1/metrics/ai-cost")
+async def get_ai_cost_metrics(
+    tenant_id: Optional[str] = None,
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Retrieve token usage, model economics, and LLM cost intelligence telemetry."""
+    effective_tenant = tenant_id or getattr(current_user, "tenant_id", "default_tenant")
+    return metrics_collector.get_llm_observability_stats(tenant_id=effective_tenant)
 
 @app.get("/metrics")
 async def get_prometheus_metrics():
     """Endpoint to export performance metrics in standard Prometheus text exposition format."""
     stats = metrics_collector.get_investigation_duration_stats()
     outcomes = metrics_collector.get_investment_outcome_counts()
+    llm_stats = metrics_collector.get_llm_observability_stats()
+    lat_stats = llm_stats.get("latency_stats_ms", {})
+
     lines = [
         "# HELP ffre_investigation_duration_seconds Investigation duration in seconds",
         "# TYPE ffre_investigation_duration_seconds gauge",
@@ -2631,8 +2644,35 @@ async def get_prometheus_metrics():
         f"ffre_investigations_total{{status=\"successful\"}} {outcomes.get('successful', 0)}",
         f"ffre_investigations_total{{status=\"failed\"}} {outcomes.get('failed', 0)}",
         f"ffre_investigations_total{{status=\"escalated\"}} {outcomes.get('escalated', 0)}",
-        f"ffre_investigations_total{{status=\"total\"}} {outcomes.get('total', 0)}"
+        f"ffre_investigations_total{{status=\"total\"}} {outcomes.get('total', 0)}",
+        "# HELP ffre_llm_tokens_total Total number of LLM tokens consumed",
+        "# TYPE ffre_llm_tokens_total counter",
+        f"ffre_llm_tokens_total{{type=\"prompt\"}} {llm_stats.get('total_prompt_tokens', 0)}",
+        f"ffre_llm_tokens_total{{type=\"completion\"}} {llm_stats.get('total_completion_tokens', 0)}",
+        f"ffre_llm_tokens_total{{type=\"total\"}} {llm_stats.get('total_tokens', 0)}",
+        "# HELP ffre_llm_cost_usd_total Cumulative cost of LLM invocations in USD",
+        "# TYPE ffre_llm_cost_usd_total counter",
+        f"ffre_llm_cost_usd_total {llm_stats.get('total_cost_usd', 0.0)}",
+        "# HELP ffre_llm_calls_total Total count of LLM invocations",
+        "# TYPE ffre_llm_calls_total counter",
+        f"ffre_llm_calls_total {llm_stats.get('total_llm_calls', 0)}",
+        "# HELP ffre_llm_call_duration_seconds LLM invocation latency in seconds",
+        "# TYPE ffre_llm_call_duration_seconds gauge",
+        f"ffre_llm_call_duration_seconds{{quantile=\"0.50\"}} {lat_stats.get('median', 0.0) / 1000.0}",
+        f"ffre_llm_call_duration_seconds{{quantile=\"0.95\"}} {lat_stats.get('p95', 0.0) / 1000.0}",
+        f"ffre_llm_call_duration_seconds{{quantile=\"0.99\"}} {lat_stats.get('p99', 0.0) / 1000.0}"
     ]
+
+    # Add dimensional breakdowns by model and node if present
+    for model, m_data in llm_stats.get("tokens_by_model", {}).items():
+        lines.append(f"ffre_llm_model_tokens_total{{model=\"{model}\",type=\"prompt\"}} {m_data.get('prompt', 0)}")
+        lines.append(f"ffre_llm_model_tokens_total{{model=\"{model}\",type=\"completion\"}} {m_data.get('completion', 0)}")
+        lines.append(f"ffre_llm_model_cost_usd_total{{model=\"{model}\"}} {round(m_data.get('cost', 0.0), 6)}")
+
+    for node, n_data in llm_stats.get("tokens_by_node", {}).items():
+        lines.append(f"ffre_llm_node_tokens_total{{node=\"{node}\",type=\"prompt\"}} {n_data.get('prompt', 0)}")
+        lines.append(f"ffre_llm_node_tokens_total{{node=\"{node}\",type=\"completion\"}} {n_data.get('completion', 0)}")
+
     return Response(content="\n".join(lines) + "\n", media_type="text/plain")
 
 if __name__ == "__main__":

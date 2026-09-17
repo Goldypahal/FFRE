@@ -117,9 +117,20 @@ def planner_node(state: AgentState):
     if llm and not existing_tasks:
         tenant = state.get("tenant_id", "default_tenant")
         prompt = get_planner_prompt(tenant).format(transaction_summary=f"Transaction ID: {state['transaction_id']}")
+        start_t = time.time()
         try:
             response = llm.invoke(prompt)
+            latency_ms = (time.time() - start_t) * 1000.0
             content = response.content if hasattr(response, "content") else str(response)
+            metrics_collector.record_llm_call(
+                investigation_id=state.get("investigation_id", "unknown"),
+                node_name="planner",
+                model="gpt-4o-mini",
+                prompt_tokens=max(1, len(prompt) // 4),
+                completion_tokens=max(1, len(content) // 4),
+                latency_ms=latency_ms,
+                tenant_id=tenant
+            )
             start = content.find("[")
             end = content.rfind("]") + 1
             if start != -1 and end > start:
@@ -436,10 +447,21 @@ def risk_reasoning_node(state: AgentState):
         prompt = get_reasoner_prompt(tenant).format(evidence_bundle=json.dumps(evidence_bundle, indent=2))
         if state.get("critic_feedback") and state.get("critic_issues"):
             prompt += f"\n\nCRITICAL CRITIC FEEDBACK TO CORRECT: {state['critic_feedback']}"
+        start_t = time.time()
         try:
             response = llm.invoke(prompt)
+            latency_ms = (time.time() - start_t) * 1000.0
             content = response.content if hasattr(response, "content") else str(response)
             reasoning_text = content
+            metrics_collector.record_llm_call(
+                investigation_id=state.get("investigation_id", "unknown"),
+                node_name="reasoner",
+                model="gpt-4o-mini",
+                prompt_tokens=max(1, len(prompt) // 4),
+                completion_tokens=max(1, len(content) // 4),
+                latency_ms=latency_ms,
+                tenant_id=tenant
+            )
             start = content.find("{")
             end = content.rfind("}") + 1
             if start != -1 and end > start:
@@ -517,6 +539,7 @@ def critic_node(state: AgentState):
 
     if llm and draft:
         tenant = state.get("tenant_id", "default_tenant")
+        start_t = time.time()
         try:
             prompt = get_critic_prompt(tenant).format(
                 draft_explanation=draft,
@@ -524,7 +547,17 @@ def critic_node(state: AgentState):
                 velocity_analysis=json.dumps(state.get("velocity_evidence"))
             )
             resp = llm.invoke(prompt)
+            latency_ms = (time.time() - start_t) * 1000.0
             resp_text = resp.content if hasattr(resp, "content") else str(resp)
+            metrics_collector.record_llm_call(
+                investigation_id=state.get("investigation_id", "unknown"),
+                node_name="critic",
+                model="gpt-4o-mini",
+                prompt_tokens=max(1, len(prompt) // 4),
+                completion_tokens=max(1, len(resp_text) // 4),
+                latency_ms=latency_ms,
+                tenant_id=tenant
+            )
             start = resp_text.find("{")
             end = resp_text.rfind("}") + 1
             if start != -1 and end > start:
@@ -608,9 +641,20 @@ def report_generator_node(state: AgentState):
     if llm and state.get("draft_explanation"):
         tenant = state.get("tenant_id", "default_tenant")
         prompt = get_report_prompt(tenant) + f"\nDraft: {state['draft_explanation']}\nRule Factors:\n{rule_factors}"
+        start_t = time.time()
         try:
             response = llm.invoke(prompt)
+            latency_ms = (time.time() - start_t) * 1000.0
             report = response.content if hasattr(response, "content") else str(report)
+            metrics_collector.record_llm_call(
+                investigation_id=state.get("investigation_id", "unknown"),
+                node_name="reporter",
+                model="gpt-4o-mini",
+                prompt_tokens=max(1, len(prompt) // 4),
+                completion_tokens=max(1, len(report) // 4),
+                latency_ms=latency_ms,
+                tenant_id=tenant
+            )
         except Exception:
             report = f"## Summary\n{state.get('draft_explanation')}\n\n## Triggered Rules\n{rule_factors}\n\n## Recommendation\nRecommend manual review or block."
     else:
