@@ -7,7 +7,7 @@ import os
 import base64
 import hmac
 import hashlib
-from typing import Optional
+from typing import Optional, List
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -82,16 +82,9 @@ except Exception as e:
     print(f"ERROR initializing encryption: {e}")
     _cipher = None
 
-def get_aes256_raw_key() -> bytes:
-    """
-    Generate 256-bit (32-byte) binary key derived via PBKDF2-HMAC-SHA256 for authentic AES-256-GCM encryption.
-    """
-    raw_secret = os.getenv("ENCRYPTION_SECRET_KEY")
-    secret_key = validate_production_secret("ENCRYPTION_SECRET_KEY", raw_secret, min_length=32)
-
-    salt_str = os.getenv("ENCRYPTION_SALT", "ffre-default-salt-v1")
-    salt = salt_str.encode('utf-8')
-
+def derive_aes256_key_from_secret(secret_key: str, salt_str: Optional[str] = None) -> bytes:
+    """Derive 256-bit binary key from a secret string."""
+    salt = (salt_str or os.getenv("ENCRYPTION_SALT", "ffre-default-salt-v1")).encode("utf-8")
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
         length=32,
@@ -100,7 +93,34 @@ def get_aes256_raw_key() -> bytes:
     )
     return kdf.derive(secret_key.encode())
 
-def encrypt_aes256_gcm(data: str) -> str:
+def get_aes256_raw_key(secret_override: Optional[str] = None) -> bytes:
+    """
+    Generate 256-bit (32-byte) binary key derived via PBKDF2-HMAC-SHA256 for authentic AES-256-GCM encryption.
+    """
+    raw_secret = secret_override if secret_override is not None else os.getenv("ENCRYPTION_SECRET_KEY")
+    secret_key = validate_production_secret("ENCRYPTION_SECRET_KEY", raw_secret, min_length=32)
+    return derive_aes256_key_from_secret(secret_key)
+
+def get_all_decryption_keys() -> List[bytes]:
+    """Return primary AES-256 key followed by any fallback keys configured in ENCRYPTION_SECRET_KEY_FALLBACKS."""
+    keys = []
+    try:
+        keys.append(get_aes256_raw_key())
+    except Exception:
+        pass
+
+    fallbacks = os.getenv("ENCRYPTION_SECRET_KEY_FALLBACKS", "")
+    if fallbacks:
+        for fb in fallbacks.split(","):
+            fb = fb.strip()
+            if fb:
+                try:
+                    keys.append(derive_aes256_key_from_secret(fb))
+                except Exception:
+                    pass
+    return keys
+
+def encrypt_aes256_gcm(data: str, secret_override: Optional[str] = None) -> str:
     """
     Encrypt plaintext string using authentic AES-256-GCM with 96-bit random nonce.
     Returns standard Base64-encoded string containing nonce + ciphertext + authentication tag.
@@ -108,7 +128,7 @@ def encrypt_aes256_gcm(data: str) -> str:
     """
     if not data:
         return data
-    raw_key = get_aes256_raw_key()
+    raw_key = get_aes256_raw_key(secret_override=secret_override)
     aesgcm = AESGCM(raw_key)
     nonce = os.urandom(12)  # 96-bit nonce as recommended for GCM
     ciphertext_bytes = aesgcm.encrypt(nonce, data.encode("utf-8"), None)
@@ -119,17 +139,16 @@ class DecryptionError(ValueError):
     """Raised when authenticated decryption fails due to tampering, invalid tag, or corrupted ciphertext."""
     pass
 
-def decrypt_aes256_gcm(encrypted_b64: str, fail_closed: bool = True) -> str:
+def decrypt_aes256_gcm(encrypted_b64: str, fail_closed: bool = True, secret_override: Optional[str] = None) -> str:
     """
     Decrypt Base64-encoded AES-256-GCM payload.
     Extracts nonce, decrypts ciphertext, and cryptographically verifies authentication tag.
+    Supports multi-key fallback decryption during key rotation procedures.
     Raises DecryptionError on tampering or invalid key when fail_closed=True.
     """
     if not encrypted_b64:
         return encrypted_b64
     try:
-        raw_key = get_aes256_raw_key()
-        aesgcm = AESGCM(raw_key)
         raw_payload = base64.b64decode(encrypted_b64.encode("utf-8"))
         if len(raw_payload) < 28: # 12 bytes nonce + 16 bytes tag minimum
             if fail_closed:
@@ -137,14 +156,64 @@ def decrypt_aes256_gcm(encrypted_b64: str, fail_closed: bool = True) -> str:
             return encrypted_b64
         nonce = raw_payload[:12]
         ciphertext = raw_payload[12:]
-        decrypted_bytes = aesgcm.decrypt(nonce, ciphertext, None)
-        return decrypted_bytes.decode("utf-8")
+
+        candidate_keys = [derive_aes256_key_from_secret(secret_override)] if secret_override else get_all_decryption_keys()
+        
+        last_err = None
+        for key in candidate_keys:
+            try:
+                aesgcm = AESGCM(key)
+                decrypted_bytes = aesgcm.decrypt(nonce, ciphertext, None)
+                return decrypted_bytes.decode("utf-8")
+            except Exception as e:
+                last_err = e
+                continue
+
+        if fail_closed:
+            raise DecryptionError(f"AES-256-GCM decryption failed (tampered ciphertext or invalid authentication tag): {last_err}")
+        return encrypted_b64
     except DecryptionError:
         raise
     except Exception as e:
         if fail_closed:
             raise DecryptionError(f"AES-256-GCM decryption failed (tampered ciphertext or invalid authentication tag): {e}") from e
         return encrypted_b64
+
+def rotate_database_pii(db, old_secret: str, new_secret: str) -> dict:
+    """
+    Cryptographic Key Rotation Utility (Phase 3).
+    Re-encrypts all encrypted PII columns in the database from old_secret to new_secret.
+    Supports Customer._name, Device._ip_address, and User.email.
+    """
+    import models
+    rotated_stats = {"customers": 0, "devices": 0, "users": 0}
+
+    # Customers
+    for cust in db.query(models.Customer).all():
+        if cust._name:
+            plaintext = decrypt_aes256_gcm(cust._name, secret_override=old_secret, fail_closed=False)
+            cust._name = encrypt_aes256_gcm(plaintext, secret_override=new_secret)
+            rotated_stats["customers"] += 1
+
+    # Devices
+    for dev in db.query(models.Device).all():
+        if dev._fingerprint:
+            plaintext = decrypt_aes256_gcm(dev._fingerprint, secret_override=old_secret, fail_closed=False)
+            dev._fingerprint = encrypt_aes256_gcm(plaintext, secret_override=new_secret)
+            rotated_stats["devices"] += 1
+
+    # Users
+    for u in db.query(models.User).all():
+        if u.email:
+            try:
+                plaintext = decrypt_aes256_gcm(u.email, secret_override=old_secret, fail_closed=True)
+                u.email = encrypt_aes256_gcm(plaintext, secret_override=new_secret)
+                rotated_stats["users"] += 1
+            except Exception:
+                pass
+
+    db.commit()
+    return rotated_stats
 
 def encrypt_data(data: str) -> str:
     """

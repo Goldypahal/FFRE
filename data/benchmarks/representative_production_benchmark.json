@@ -1,0 +1,204 @@
+{
+  "benchmark_type": "Representative Full Production Path (API + DB + Worker Checkpointer)",
+  "repetitions_per_tier": 3,
+  "database": "PostgreSQL 15 (Docker container ffire_test_postgres)",
+  "checkpointer": "langgraph-checkpoint-postgres (Native dual-table PostgresSaver with psycopg_pool)",
+  "tiers": {
+    "1": {
+      "workers": 1,
+      "repetitions": [
+        {
+          "repetition": 1,
+          "requests": 1,
+          "successes": 1,
+          "failures": 0,
+          "duration_sec": 0.86,
+          "throughput_ops_sec": 1.16,
+          "p50_ms": 858.83,
+          "p95_ms": 858.83,
+          "p99_ms": 858.83
+        },
+        {
+          "repetition": 2,
+          "requests": 1,
+          "successes": 1,
+          "failures": 0,
+          "duration_sec": 0.875,
+          "throughput_ops_sec": 1.14,
+          "p50_ms": 873.89,
+          "p95_ms": 873.89,
+          "p99_ms": 873.89
+        },
+        {
+          "repetition": 3,
+          "requests": 1,
+          "successes": 1,
+          "failures": 0,
+          "duration_sec": 0.846,
+          "throughput_ops_sec": 1.18,
+          "p50_ms": 844.74,
+          "p95_ms": 844.74,
+          "p99_ms": 844.74
+        }
+      ],
+      "summary": {
+        "total_requests": 3,
+        "failures": 0,
+        "failure_rate_pct": 0.0,
+        "mean_throughput_ops_sec": 1.16,
+        "aggregate_p50_ms": 858.83,
+        "aggregate_p95_ms": 873.89,
+        "aggregate_p99_ms": 873.89,
+        "aggregate_mean_ms": 859.15,
+        "meets_p95_sla_under_5000ms": true
+      }
+    },
+    "5": {
+      "workers": 5,
+      "repetitions": [
+        {
+          "repetition": 1,
+          "requests": 5,
+          "successes": 5,
+          "failures": 0,
+          "duration_sec": 2.919,
+          "throughput_ops_sec": 1.71,
+          "p50_ms": 2863.1,
+          "p95_ms": 2911.47,
+          "p99_ms": 2911.47
+        },
+        {
+          "repetition": 2,
+          "requests": 5,
+          "successes": 5,
+          "failures": 0,
+          "duration_sec": 2.606,
+          "throughput_ops_sec": 1.92,
+          "p50_ms": 2554.48,
+          "p95_ms": 2598.33,
+          "p99_ms": 2598.33
+        },
+        {
+          "repetition": 3,
+          "requests": 5,
+          "successes": 5,
+          "failures": 0,
+          "duration_sec": 2.493,
+          "throughput_ops_sec": 2.01,
+          "p50_ms": 2472.07,
+          "p95_ms": 2489.47,
+          "p99_ms": 2489.47
+        }
+      ],
+      "summary": {
+        "total_requests": 15,
+        "failures": 0,
+        "failure_rate_pct": 0.0,
+        "mean_throughput_ops_sec": 1.88,
+        "aggregate_p50_ms": 2554.48,
+        "aggregate_p95_ms": 2911.47,
+        "aggregate_p99_ms": 2911.47,
+        "aggregate_mean_ms": 2614.99,
+        "meets_p95_sla_under_5000ms": true
+      }
+    },
+    "10": {
+      "workers": 10,
+      "repetitions": [
+        {
+          "repetition": 1,
+          "requests": 10,
+          "successes": 10,
+          "failures": 0,
+          "duration_sec": 5.65,
+          "throughput_ops_sec": 1.77,
+          "p50_ms": 5483.95,
+          "p95_ms": 5637.06,
+          "p99_ms": 5637.06
+        },
+        {
+          "repetition": 2,
+          "requests": 10,
+          "successes": 10,
+          "failures": 0,
+          "duration_sec": 5.399,
+          "throughput_ops_sec": 1.85,
+          "p50_ms": 5325.32,
+          "p95_ms": 5372.21,
+          "p99_ms": 5372.21
+        },
+        {
+          "repetition": 3,
+          "requests": 10,
+          "successes": 10,
+          "failures": 0,
+          "duration_sec": 5.15,
+          "throughput_ops_sec": 1.94,
+          "p50_ms": 4949.7,
+          "p95_ms": 5128.33,
+          "p99_ms": 5128.33
+        }
+      ],
+      "summary": {
+        "total_requests": 30,
+        "failures": 0,
+        "failure_rate_pct": 0.0,
+        "mean_throughput_ops_sec": 1.85,
+        "aggregate_p50_ms": 5073.43,
+        "aggregate_p95_ms": 5632.56,
+        "aggregate_p99_ms": 5637.06,
+        "aggregate_mean_ms": 4899.2,
+        "meets_p95_sla_under_5000ms": false
+      }
+    },
+    "20": {
+      "workers": 20,
+      "repetitions": [
+        {
+          "repetition": 1,
+          "requests": 20,
+          "successes": 20,
+          "failures": 0,
+          "duration_sec": 10.117,
+          "throughput_ops_sec": 1.98,
+          "p50_ms": 8603.87,
+          "p95_ms": 10111.26,
+          "p99_ms": 10111.26
+        },
+        {
+          "repetition": 2,
+          "requests": 20,
+          "successes": 20,
+          "failures": 0,
+          "duration_sec": 10.302,
+          "throughput_ops_sec": 1.94,
+          "p50_ms": 8661.48,
+          "p95_ms": 10292.09,
+          "p99_ms": 10292.09
+        },
+        {
+          "repetition": 3,
+          "requests": 20,
+          "successes": 20,
+          "failures": 0,
+          "duration_sec": 10.128,
+          "throughput_ops_sec": 1.97,
+          "p50_ms": 8476.37,
+          "p95_ms": 10122.06,
+          "p99_ms": 10122.06
+        }
+      ],
+      "summary": {
+        "total_requests": 60,
+        "failures": 0,
+        "failure_rate_pct": 0.0,
+        "mean_throughput_ops_sec": 1.96,
+        "aggregate_p50_ms": 8582.71,
+        "aggregate_p95_ms": 10190.48,
+        "aggregate_p99_ms": 10292.09,
+        "aggregate_mean_ms": 8533.75,
+        "meets_p95_sla_under_5000ms": false
+      }
+    }
+  }
+}

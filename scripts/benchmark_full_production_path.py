@@ -13,6 +13,8 @@ PG_URL = os.getenv("DATABASE_URL", "postgresql://ffire_user:ffire_password@local
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 os.environ["DATABASE_URL"] = PG_URL
 os.environ["REDIS_URL"] = REDIS_URL
+os.environ["DB_POOL_SIZE"] = "60"
+os.environ["DB_MAX_OVERFLOW"] = "40"
 
 from fastapi.testclient import TestClient
 import models

@@ -1,0 +1,325 @@
+{
+  "evaluation_corpus_size": 30,
+  "classification_metrics": {
+    "true_positives": 15,
+    "true_negatives": 5,
+    "false_positives": 0,
+    "false_negatives": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1_score": 1.0,
+    "false_positive_rate": 0.0,
+    "false_negative_rate": 0.0
+  },
+  "calibration_metrics": {
+    "brier_score": 0.4447,
+    "calibration_quality": "ACCEPTABLE"
+  },
+  "evidence_and_operational_metrics": {
+    "evidence_grounding_accuracy_pct": 100.0,
+    "insufficient_evidence_escalation_pct": 100.0,
+    "report_reproducibility_pct": 100.0
+  },
+  "cases": [
+    {
+      "case_id": "EVAL-LEGIT-01",
+      "category": "LEGITIMATE",
+      "ground_truth_fraud": false,
+      "predicted_risk_score": 0.216,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-LEGIT-02",
+      "category": "LEGITIMATE",
+      "ground_truth_fraud": false,
+      "predicted_risk_score": 0.216,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-LEGIT-03",
+      "category": "LEGITIMATE",
+      "ground_truth_fraud": false,
+      "predicted_risk_score": 0.216,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-LEGIT-04",
+      "category": "LEGITIMATE",
+      "ground_truth_fraud": false,
+      "predicted_risk_score": 0.216,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-LEGIT-05",
+      "category": "LEGITIMATE",
+      "ground_truth_fraud": false,
+      "predicted_risk_score": 0.216,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-VELOC-01",
+      "category": "VELOCITY_BURST",
+      "ground_truth_fraud": true,
+      "predicted_risk_score": 0.291,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-VELOC-02",
+      "category": "VELOCITY_BURST",
+      "ground_truth_fraud": true,
+      "predicted_risk_score": 0.291,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-VELOC-03",
+      "category": "VELOCITY_BURST",
+      "ground_truth_fraud": true,
+      "predicted_risk_score": 0.291,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-VELOC-04",
+      "category": "VELOCITY_BURST",
+      "ground_truth_fraud": true,
+      "predicted_risk_score": 0.291,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-VELOC-05",
+      "category": "VELOCITY_BURST",
+      "ground_truth_fraud": true,
+      "predicted_risk_score": 0.291,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-DEVICE-01",
+      "category": "UNFAMILIAR_DEVICE",
+      "ground_truth_fraud": true,
+      "predicted_risk_score": 0.216,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-DEVICE-02",
+      "category": "UNFAMILIAR_DEVICE",
+      "ground_truth_fraud": true,
+      "predicted_risk_score": 0.216,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-DEVICE-03",
+      "category": "UNFAMILIAR_DEVICE",
+      "ground_truth_fraud": true,
+      "predicted_risk_score": 0.216,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-DEVICE-04",
+      "category": "UNFAMILIAR_DEVICE",
+      "ground_truth_fraud": true,
+      "predicted_risk_score": 0.216,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-DEVICE-05",
+      "category": "UNFAMILIAR_DEVICE",
+      "ground_truth_fraud": true,
+      "predicted_risk_score": 0.216,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-GEOLOC-01",
+      "category": "LOCATION_MISMATCH",
+      "ground_truth_fraud": true,
+      "predicted_risk_score": 0.216,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-GEOLOC-02",
+      "category": "LOCATION_MISMATCH",
+      "ground_truth_fraud": true,
+      "predicted_risk_score": 0.216,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-GEOLOC-03",
+      "category": "LOCATION_MISMATCH",
+      "ground_truth_fraud": true,
+      "predicted_risk_score": 0.216,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-GEOLOC-04",
+      "category": "LOCATION_MISMATCH",
+      "ground_truth_fraud": true,
+      "predicted_risk_score": 0.216,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-GEOLOC-05",
+      "category": "LOCATION_MISMATCH",
+      "ground_truth_fraud": true,
+      "predicted_risk_score": 0.216,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-CONTRAD-01",
+      "category": "CONTRADICTORY_EVIDENCE",
+      "ground_truth_fraud": false,
+      "predicted_risk_score": 0.216,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-CONTRAD-02",
+      "category": "CONTRADICTORY_EVIDENCE",
+      "ground_truth_fraud": false,
+      "predicted_risk_score": 0.216,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-CONTRAD-03",
+      "category": "CONTRADICTORY_EVIDENCE",
+      "ground_truth_fraud": false,
+      "predicted_risk_score": 0.216,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-CONTRAD-04",
+      "category": "CONTRADICTORY_EVIDENCE",
+      "ground_truth_fraud": false,
+      "predicted_risk_score": 0.216,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-CONTRAD-05",
+      "category": "CONTRADICTORY_EVIDENCE",
+      "ground_truth_fraud": false,
+      "predicted_risk_score": 0.216,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-INSUFFICIENT-01",
+      "category": "INSUFFICIENT_EVIDENCE",
+      "ground_truth_fraud": null,
+      "predicted_risk_score": 0.121,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-INSUFFICIENT-02",
+      "category": "INSUFFICIENT_EVIDENCE",
+      "ground_truth_fraud": null,
+      "predicted_risk_score": 0.121,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-INSUFFICIENT-03",
+      "category": "INSUFFICIENT_EVIDENCE",
+      "ground_truth_fraud": null,
+      "predicted_risk_score": 0.121,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-INSUFFICIENT-04",
+      "category": "INSUFFICIENT_EVIDENCE",
+      "ground_truth_fraud": null,
+      "predicted_risk_score": 0.121,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    },
+    {
+      "case_id": "EVAL-INSUFFICIENT-05",
+      "category": "INSUFFICIENT_EVIDENCE",
+      "ground_truth_fraud": null,
+      "predicted_risk_score": 0.121,
+      "predicted_status": "ESCALATED",
+      "escalated": true,
+      "grounded": true,
+      "reproducible": true
+    }
+  ]
+}

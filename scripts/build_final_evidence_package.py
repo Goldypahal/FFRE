@@ -28,7 +28,7 @@ def build_final_evidence_package():
     if str(repo_root) not in sys.path:
         sys.path.insert(0, str(repo_root))
 
-    from scripts.srs_audit_engine import SRSEvidenceAuditEngine
+    from scripts.srs_audit_engine import SRSEvidenceAuditEngine, get_audit_timestamp_str
     from scripts.audit_the_auditor import IndependentAuditorEngine
 
     audit_engine = SRSEvidenceAuditEngine(repo_root=repo_root)
@@ -68,7 +68,7 @@ def build_final_evidence_package():
         "# Financial Fraud Investigation Reasoning Engine (FFRE)",
         "## Reviewer-Ready Executive SRS Compliance & Audit Report",
         "",
-        f"**Generated**: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}  ",
+        f"**Generated**: {get_audit_timestamp_str()}  ",
         "**System Version**: v1.0 Hardened Production Candidate  ",
         "**Audit Verdict**: 🟢 **CORE SRS VERIFIED (~85–90% COMPLETE, ~70–75% PRODUCTION READINESS DEMONSTRATED)**  ",
         "",

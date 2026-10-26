@@ -6,6 +6,23 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
+def get_audit_timestamp_str() -> str:
+    """Return deterministic timestamp for reproducible evidence package generation."""
+    epoch = os.environ.get("SOURCE_DATE_EPOCH")
+    if epoch:
+        try:
+            return time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime(int(epoch)))
+        except Exception:
+            pass
+    try:
+        import subprocess
+        out = subprocess.check_output(["git", "log", "-1", "--format=%ct"], cwd=REPO_ROOT, stderr=subprocess.DEVNULL).decode().strip()
+        if out and out.isdigit():
+            return time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime(int(out)))
+    except Exception:
+        pass
+    return time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())
+
 # Definitive 67 SRS Core Requirements Catalog with Verified Exact Symbol & Test Function Mapping
 SRS_REQUIREMENTS = [
     # --- Pillar 1: Functional Objectives (FO-1 to FO-10) ---
@@ -992,7 +1009,7 @@ class SRSEvidenceAuditEngine:
         json_output = {
             "metadata": {
                 "project": "Financial Fraud Investigation Reasoning Engine (FFRE)",
-                "generated_at": time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime()),
+                "generated_at": get_audit_timestamp_str(),
                 "audit_engine": "Task 39 Final Evidence Package Engine v13.0",
                 "reconciliation": reconciliation,
                 "scorecard": summary
@@ -1014,7 +1031,7 @@ class SRSEvidenceAuditEngine:
         lines = [
             "# FFIRE SRS Evidence-Driven Audit Scorecard",
             "",
-            f"**Generated**: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}  ",
+            f"**Generated**: {get_audit_timestamp_str()}  ",
             "**Audit Engine**: Task 39 Final Evidence Package Auditor  ",
             "",
             "## Source-of-Truth SRS Document Reconciliation",

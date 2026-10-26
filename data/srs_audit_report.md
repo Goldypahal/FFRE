@@ -1,6 +1,6 @@
 # FFIRE SRS Evidence-Driven Audit Scorecard
 
-**Generated**: 2026-10-26 06:20:07 UTC  
+**Generated**: 2026-10-26 06:22:37 UTC  
 **Audit Engine**: Task 39 Final Evidence Package Auditor  
 
 ## Source-of-Truth SRS Document Reconciliation
@@ -39,7 +39,7 @@ Audit-the-Auditor Evidence:        🟢 100.0% (Zero-Trust AST & SHA-256 Signed)
 Reviewer Evidence Package Evidence: 🟢 100.0% (Signed Deliverable Package Exported)
 Verification Coverage:             🟢 100.0% (Automated Test Verified)
 Production Readiness Coverage:      🟢 100.0% (67/67 Core Requirements PRODUCTION_READY)
-NFR-1 Performance Benchmark:        🟢 MET (P95 = 4.47644s @ 20 concurrency < 8.0s target)
+NFR-1 Performance Benchmark:        🟢 MET (P95 = 2.85064s @ 20 concurrency < 8.0s target)
 =========================================================================
 ```
 
@@ -60,7 +60,7 @@ NFR-1 Performance Benchmark:        🟢 MET (P95 = 4.47644s @ 20 concurrency < 
 | **NFR-1** | `metrics_collector` | `test_concurrency_load_benchmark_suite` | 🟢 | 🟢 | 🟢 | 🟢 | `from metrics import metrics_collector` |
 | **NFR-2** | `FastAPI` | `test_health_check` | 🟢 | 🟢 | 🟢 | 🟢 | `from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, status, Query, Response, Header, UploadFile, File, Form, Request, Body` |
 | **NFR-3** | `DurableWorkerQueue` | `test_task23_redis_worker_queue_broker_support` | 🟢 | 🟢 | 🟢 | 🟢 | `class DurableWorkerQueue:` |
-| **NFR-4** | `encrypt_aes256_gcm` | `test_aes256_gcm_authenticated_encryption` | 🟢 | 🟢 | 🟢 | 🟢 | `def encrypt_aes256_gcm(data: str) -> str:` |
+| **NFR-4** | `encrypt_aes256_gcm` | `test_aes256_gcm_authenticated_encryption` | 🟢 | 🟢 | 🟢 | 🟢 | `def encrypt_aes256_gcm(data: str, secret_override: Optional[str] = None) -> str:` |
 | **NFR-5** | `calculate_entry_hash` | `test_audit_log_cryptographic_hash_chain_immutability` | 🟢 | 🟢 | 🟢 | 🟢 | `def calculate_entry_hash(prev_hash: Optional[str], log_id: str, action: str, timestamp_str: str, details: Optional[str] = "") -> str:` |
 | **NFR-6** | `validate_claims` | `test_evidence_provenance_record_building` | 🟢 | 🟢 | 🟢 | 🟢 | `def validate_claims(draft_explanation: str, evidence_bundle: Dict[str, Any]) -> Tuple[bool, List[str]]:` |
 | **NFR-7** | `build_graph` | `test_build_graph` | 🟢 | 🟢 | 🟢 | 🟢 | `from graph import build_graph` |

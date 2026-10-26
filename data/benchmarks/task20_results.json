@@ -6,11 +6,11 @@
     "failures_count": 0,
     "failure_details": [],
     "success_rate_pct": 100.0,
-    "p50_sec": 0.25438,
-    "p95_sec": 0.25438,
-    "p99_sec": 0.25438,
-    "throughput_ops_sec": 3.93,
-    "batch_duration_sec": 0.2544,
+    "p50_sec": 0.12423,
+    "p95_sec": 0.12423,
+    "p99_sec": 0.12423,
+    "throughput_ops_sec": 8.05,
+    "batch_duration_sec": 0.1242,
     "nfr1_target_met": true
   },
   "5": {
@@ -20,11 +20,11 @@
     "failures_count": 0,
     "failure_details": [],
     "success_rate_pct": 100.0,
-    "p50_sec": 1.00775,
-    "p95_sec": 1.07749,
-    "p99_sec": 1.07749,
-    "throughput_ops_sec": 4.58,
-    "batch_duration_sec": 1.0916,
+    "p50_sec": 0.51387,
+    "p95_sec": 0.54596,
+    "p99_sec": 0.54596,
+    "throughput_ops_sec": 9.16,
+    "batch_duration_sec": 0.546,
     "nfr1_target_met": true
   },
   "10": {
@@ -34,11 +34,11 @@
     "failures_count": 0,
     "failure_details": [],
     "success_rate_pct": 100.0,
-    "p50_sec": 1.91221,
-    "p95_sec": 2.23291,
-    "p99_sec": 2.23291,
-    "throughput_ops_sec": 4.43,
-    "batch_duration_sec": 2.2558,
+    "p50_sec": 0.97768,
+    "p95_sec": 1.18028,
+    "p99_sec": 1.18028,
+    "throughput_ops_sec": 8.45,
+    "batch_duration_sec": 1.1833,
     "nfr1_target_met": true
   },
   "20": {
@@ -48,11 +48,11 @@
     "failures_count": 0,
     "failure_details": [],
     "success_rate_pct": 100.0,
-    "p50_sec": 3.73246,
-    "p95_sec": 4.47644,
-    "p99_sec": 4.47644,
-    "throughput_ops_sec": 4.43,
-    "batch_duration_sec": 4.5122,
+    "p50_sec": 2.19053,
+    "p95_sec": 2.85064,
+    "p99_sec": 2.85064,
+    "throughput_ops_sec": 6.95,
+    "batch_duration_sec": 2.877,
     "nfr1_target_met": true
   }
 }

@@ -3,11 +3,15 @@ import re
 import ast
 import json
 import hashlib
-import time
+import sys
 from pathlib import Path
 from typing import Dict, Any, List
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.srs_audit_engine import get_audit_timestamp_str
 
 class IndependentAuditorEngine:
     """
@@ -103,7 +107,7 @@ class IndependentAuditorEngine:
 
         # Create signature file artifact
         signature_data = {
-            "generated_at": time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime()),
+            "generated_at": get_audit_timestamp_str(),
             "srs_traceability_json_sha256": json_sha256,
             "srs_audit_report_md_sha256": report_sha256,
             "reconciliation_status": reconcil["status"],
@@ -118,7 +122,7 @@ class IndependentAuditorEngine:
         lines = [
             "# Audit-the-Auditor Independent Zero-Trust Verification Report",
             "",
-            f"**Generated**: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}  ",
+            f"**Generated**: {get_audit_timestamp_str()}  ",
             "**Audit Status**: 🟢 ZERO-TRUST VERIFICATION PASSED  ",
             "",
             "## Artifact Tamper Evidence & Cryptographic Signatures",
