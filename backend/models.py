@@ -50,13 +50,21 @@ class Customer(Base):
 
     customer_id = Column(String, primary_key=True, default=generate_uuid)
     tenant_id = Column(String(50), nullable=False, default="default_tenant", index=True)
-    name = Column(String(100), nullable=False)
+    _name = Column("name", String(255), nullable=False)
     kyc_status = Column(String(50), default="UNVERIFIED")
     risk_tier = Column(String(20), default="LOW")
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     accounts = relationship("Account", back_populates="customer")
     devices = relationship("Device", back_populates="customer")
+
+    @hybrid_property
+    def name(self):
+        return security.decrypt_data(self._name) if self._name else None
+
+    @name.setter
+    def name(self, value):
+        self._name = security.encrypt_data(value) if value else None
 
 class Account(Base):
     __tablename__ = "account"

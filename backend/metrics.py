@@ -263,9 +263,13 @@ class MetricsCollector:
     ) -> float:
         """Record an LLM invocation telemetry event with token accounting and cost tracking."""
         # Sanitize labels to prevent metric injection and PII leakage
+        import hashlib
+        tenant_str = str(tenant_id)
+        if "@" in tenant_str:
+            tenant_str = "tenant_" + hashlib.sha256(tenant_str.encode()).hexdigest()[:10]
         safe_node = re.sub(r'[^a-zA-Z0-9_\-]', '', str(node_name)) or "unknown_node"
         safe_model = re.sub(r'[^a-zA-Z0-9_\-\.:/]', '', str(model)) or "unknown_model"
-        safe_tenant = re.sub(r'[^a-zA-Z0-9_\-]', '', str(tenant_id)) or "default_tenant"
+        safe_tenant = re.sub(r'[^a-zA-Z0-9_\-]', '', tenant_str) or "default_tenant"
         safe_inv_id = re.sub(r'[\r\n\t]', '', str(investigation_id))
 
         cost = self.calculate_token_cost(safe_model, prompt_tokens, completion_tokens)

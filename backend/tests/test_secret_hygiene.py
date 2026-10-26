@@ -94,3 +94,38 @@ def test_gitignore_has_secret_and_vault_rules():
     assert ".env" in content
     assert "*.key" in content or "*.pem" in content
     assert "backend/data/vault/*" in content
+
+
+def test_production_secret_validation_rejects_missing_weak_and_defaults(monkeypatch):
+    """
+    Phase 3 Acceptance Criterion:
+    An insecure production configuration must prevent startup, not merely emit a warning.
+    """
+    from security import validate_production_secret
+
+    monkeypatch.setenv("ENV", "production")
+
+    # 1. Missing / None secret
+    with pytest.raises(ValueError) as exc:
+        validate_production_secret("SECRET_KEY", None)
+    assert "must be explicitly configured in production mode" in str(exc.value)
+
+    # 2. Empty string
+    with pytest.raises(ValueError) as exc:
+        validate_production_secret("SECRET_KEY", "   ")
+    assert "must be explicitly configured in production mode" in str(exc.value)
+
+    # 3. Known development default
+    with pytest.raises(ValueError) as exc:
+        validate_production_secret("SECRET_KEY", "ffire-dev-secret-key-change-in-prod")
+    assert "Insecure development default" in str(exc.value)
+
+    # 4. Too short (< 32 chars)
+    with pytest.raises(ValueError) as exc:
+        validate_production_secret("SECRET_KEY", "short-secret-key-12345")
+    assert "insufficiently strong" in str(exc.value)
+
+    # 5. Valid high-entropy secret succeeds
+    valid_key = "a-very-strong-production-signing-secret-with-64-characters-entropy!!"
+    assert validate_production_secret("SECRET_KEY", valid_key) == valid_key
+

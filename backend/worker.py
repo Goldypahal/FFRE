@@ -180,7 +180,7 @@ class DurableWorkerQueue:
             cutoff = datetime.datetime.utcnow() - datetime.timedelta(seconds=max_age_seconds)
             stale_jobs = db.query(models.Investigation).filter(
                 models.Investigation.status == "RUNNING",
-                models.Investigation.updated_at < cutoff
+                models.Investigation.updated_at <= cutoff
             ).all()
 
             for inv in stale_jobs:

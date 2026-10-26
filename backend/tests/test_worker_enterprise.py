@@ -59,6 +59,7 @@ def test_api_worker_recovery_and_drain_endpoints(client, db_session):
             tenant_id="default_tenant"
         )
     from main import app
+    old_override = app.dependency_overrides.get(get_current_user)
     app.dependency_overrides[get_current_user] = override_admin
 
     try:
@@ -72,8 +73,10 @@ def test_api_worker_recovery_and_drain_endpoints(client, db_session):
         assert res_drain.status_code == 200
         assert "drained_jobs" in res_drain.json()
     finally:
-        from tests.conftest import override_get_current_user
-        app.dependency_overrides[get_current_user] = override_get_current_user
+        if old_override is not None:
+            app.dependency_overrides[get_current_user] = old_override
+        else:
+            app.dependency_overrides.pop(get_current_user, None)
 
 def test_admin_health_metrics_incorporates_worker_data(client):
     """Verify /api/v1/admin/health-metrics incorporates live worker telemetry."""

@@ -7,22 +7,61 @@ import os
 import base64
 import hmac
 import hashlib
+from typing import Optional
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
+KNOWN_INSECURE_SECRETS = {
+    "ffire-dev-secret-key-change-in-prod",
+    "dev-secret-key-change-in-production",
+    "ffire-dev-encryption-key-change-in-prod",
+    "dev-encryption-key-change-in-production",
+    "ffire_dev_insecure_password",
+    "secret",
+    "password",
+    "admin",
+    "changeme",
+    "12345678"
+}
+
+def validate_production_secret(name: str, value: Optional[str], min_length: int = 32) -> str:
+    """
+    Enforces strict production secret hygiene (Phase 3).
+    In production mode (or STRICT_ENTERPRISE_MODE), rejects:
+    - Missing or empty secrets
+    - Known development fallback secrets
+    - Weak secrets under minimum character length
+    """
+    env = os.getenv("ENV", "development").lower()
+    is_prod = env in ("production", "prod") or os.getenv("STRICT_ENTERPRISE_MODE", "").lower() == "true"
+
+    if not value or value.strip() == "":
+        if is_prod:
+            raise ValueError(f"CRITICAL SECURITY: {name} environment variable must be explicitly configured in production mode!")
+        return "dev-secret-key-change-in-production"
+
+    val_clean = value.strip()
+    if is_prod:
+        if val_clean.lower() in KNOWN_INSECURE_SECRETS:
+            raise ValueError(
+                f"CRITICAL SECURITY: Insecure development default '{val_clean}' detected for {name} in production mode! "
+                f"A unique, high-entropy secret must be provided."
+            )
+        if len(val_clean) < min_length:
+            raise ValueError(
+                f"CRITICAL SECURITY: {name} is insufficiently strong ({len(val_clean)} chars < {min_length} required) in production mode!"
+            )
+    return val_clean
+
 def get_encryption_key():
     """
     Generate encryption key from environment variable for Fernet (AES-128-CBC + HMAC-SHA256).
-    In production, raises an error if ENCRYPTION_SECRET_KEY is not configured.
+    In production, raises an error if ENCRYPTION_SECRET_KEY is not configured or uses insecure default.
     """
-    env = os.getenv("ENV", "development").lower()
-    secret_key = os.getenv("ENCRYPTION_SECRET_KEY")
-    if not secret_key:
-        if env == "production":
-            raise ValueError("ENCRYPTION_SECRET_KEY environment variable must be set in production!")
-        secret_key = "dev-secret-key-change-in-production"
+    raw_secret = os.getenv("ENCRYPTION_SECRET_KEY")
+    secret_key = validate_production_secret("ENCRYPTION_SECRET_KEY", raw_secret, min_length=32)
 
     salt_str = os.getenv("ENCRYPTION_SALT", "ffre-default-salt-v1")
     salt = salt_str.encode('utf-8')
@@ -47,12 +86,8 @@ def get_aes256_raw_key() -> bytes:
     """
     Generate 256-bit (32-byte) binary key derived via PBKDF2-HMAC-SHA256 for authentic AES-256-GCM encryption.
     """
-    env = os.getenv("ENV", "development").lower()
-    secret_key = os.getenv("ENCRYPTION_SECRET_KEY")
-    if not secret_key:
-        if env == "production":
-            raise ValueError("ENCRYPTION_SECRET_KEY environment variable must be set in production!")
-        secret_key = "dev-secret-key-change-in-production"
+    raw_secret = os.getenv("ENCRYPTION_SECRET_KEY")
+    secret_key = validate_production_secret("ENCRYPTION_SECRET_KEY", raw_secret, min_length=32)
 
     salt_str = os.getenv("ENCRYPTION_SALT", "ffre-default-salt-v1")
     salt = salt_str.encode('utf-8')

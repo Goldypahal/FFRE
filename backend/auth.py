@@ -12,11 +12,8 @@ import os
 from sqlalchemy import func
 
 ENV = os.getenv("ENV", "development").lower()
-SECRET_KEY = os.environ.get("SECRET_KEY")
-if not SECRET_KEY:
-    if ENV == "production":
-        raise ValueError("SECRET_KEY environment variable must be set in production!")
-    SECRET_KEY = "dev-secret-key-change-in-production"
+SECRET_KEY = security.validate_production_secret("SECRET_KEY", os.environ.get("SECRET_KEY"), min_length=32)
+if SECRET_KEY == "dev-secret-key-change-in-production":
     print("WARNING: Using default development SECRET_KEY. Set SECRET_KEY in production!")
 
 ALGORITHM = "HS256"

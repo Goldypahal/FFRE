@@ -99,9 +99,15 @@ def db_session():
 
 @pytest.fixture(autouse=True)
 def clean_db():
+    from rate_limiter import rate_limiter
+    from metrics import metrics_collector
+    rate_limiter.reset()
+    metrics_collector.reset_llm_metrics()
     app.dependency_overrides[get_current_user] = override_get_current_user
     worker.worker_queue._queue = worker.queue.Queue()
     yield
+    rate_limiter.reset()
+    metrics_collector.reset_llm_metrics()
     app.dependency_overrides[get_current_user] = override_get_current_user
     worker.worker_queue._queue = worker.queue.Queue()
     with engine.connect() as conn:

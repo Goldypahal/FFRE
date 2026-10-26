@@ -17,6 +17,8 @@ backend/*/__pycache__/
 backend/.pytest_cache/
 scratch/
 *.db
+*.db-shm
+*.db-wal
 backend/*.db
 backend/chroma_db/
 

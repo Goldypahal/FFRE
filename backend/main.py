@@ -2463,6 +2463,24 @@ async def universal_search(
                     "url": "/reports"
                 })
 
+    # 4. Transactions
+    if not category or category in ["all", "transactions"]:
+        txns = db.query(models.Transaction).filter(
+            models.Transaction.tenant_id == tenant
+        ).all()
+        for t in txns:
+            if (q_lower in t.txn_id.lower() or 
+                (t.counterparty and q_lower in t.counterparty.lower())):
+                results.append({
+                    "id": t.txn_id,
+                    "type": "transaction",
+                    "title": f"Transaction {t.txn_id}",
+                    "subtitle": f"Amount: {t.amount} {t.currency} • Counterparty: {t.counterparty or 'N/A'}",
+                    "badge": t.status,
+                    "status": t.status,
+                    "url": f"/transactions/{t.txn_id}"
+                })
+
     return {
         "query": q,
         "total": len(results),

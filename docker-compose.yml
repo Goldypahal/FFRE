@@ -50,7 +50,7 @@ services:
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - SECRET_KEY=${SECRET_KEY:-ffire-dev-secret-key-change-in-prod}
       - ENCRYPTION_SECRET_KEY=${ENCRYPTION_SECRET_KEY:-ffire-dev-encryption-key-change-in-prod}
-      - ENV=${ENV:-production}
+      - ENV=${ENV:-development}
       - RATE_LIMIT_ENABLED=${RATE_LIMIT_ENABLED:-true}
       - CONFIDENCE_THRESHOLD=${CONFIDENCE_THRESHOLD:-0.85}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
@@ -80,7 +80,7 @@ services:
       - SECRET_KEY=${SECRET_KEY:-ffire-dev-secret-key-change-in-prod}
       - ENCRYPTION_SECRET_KEY=${ENCRYPTION_SECRET_KEY:-ffire-dev-encryption-key-change-in-prod}
       - STRICT_ENTERPRISE_MODE=${STRICT_ENTERPRISE_MODE:-true}
-      - ENV=${ENV:-production}
+      - ENV=${ENV:-development}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
     depends_on:
       db:

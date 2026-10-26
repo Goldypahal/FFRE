@@ -7,9 +7,14 @@
 [![React](https://img.shields.io/badge/React-18-61DAFB.svg)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.2-3178C6.svg)](https://www.typescriptlang.org/)
 
-**FFIRE** (Financial Fraud Investigation Reasoning Engine) is an enterprise-grade, multi-agent AI reasoning platform designed for real-time and post-transaction financial fraud detection, regulatory compliance (FinCEN SAR), and transparent, explainable investigation workflows.
+**FFIRE** (Financial Fraud Investigation Reasoning Engine) is an enterprise-grade, explainable fraud investigation and decision-support platform designed for post-transaction risk analysis, multi-agent reasoning, evidence-backed dossier generation, and human-in-the-loop compliance review.
 
 FFIRE orchestrates stateful, multi-agent directed acyclic graphs (DAGs) using **LangGraph**, backed by **FastAPI**, **PostgreSQL** (with native checkpointer persistence), **ChromaDB** for vector similarity search over historical fraud patterns, **Redis** for distributed task queues and token revocation, and an **Apple-style React/TypeScript** operations console.
+
+> [!IMPORTANT]
+> ### System Scope & Operational Boundary (SRS Alignment)
+> - **In Scope (Current Release)**: Explainable fraud investigation and decision support; deterministic evidence retrieval and multi-window velocity aggregation; LangGraph multi-agent reasoning with critic and grounding guardrails; evidence-backed investigation dossiers with human-in-the-loop review routing; AES-256-GCM PII encryption at rest and SHA-256 audit hash chaining.
+> - **Out of Scope (Current Release)**: Real-time inline payment blocking / autonomous transaction interdiction (FFRE operates as an advisory investigation platform, not an inline payment gateway switch); automated electronic direct regulatory submission/filing with FinCEN (FFRE generates structured SAR-ready audit dossiers for review and authorization by licensed human compliance officers).
 
 ---
 

@@ -273,3 +273,115 @@ def test_legacy_fernet_decryption_backward_compatibility():
     # Ensure decrypt_data decrypts the legacy Fernet ciphertext without errors
     decrypted = security.decrypt_data(legacy_ciphertext)
     assert decrypted == plaintext
+
+
+def test_all_pii_bearing_models_raw_database_encryption_and_legacy_fernet(db_session):
+    """
+    Phase 3 & SRS SEC-1 Test:
+    Extends raw-database verification across EVERY PII-bearing model (User, Customer, Device):
+    1. Newly persisted records are authenticated with AES-256-GCM (nonce + tag).
+    2. Raw database SELECT queries return ciphertext, never plaintext.
+    3. Legacy Fernet records in the raw database are transparently decrypted.
+    4. Tampered ciphertext fails closed under DecryptionError.
+    """
+    import base64
+    from sqlalchemy import text
+    from cryptography.fernet import Fernet
+    import security
+
+    # 1. User PII: name and email
+    u_id = f"u_pii_{uuid.uuid4().hex[:8]}"
+    raw_user_name = "Dr. Alice Cryptographer"
+    raw_user_email = "alice.crypto@securebank.internal"
+    user = User(
+        user_id=u_id,
+        name=raw_user_name,
+        email=raw_user_email,
+        role="investigator",
+        tenant_id="tenant_pii_sec"
+    )
+    db_session.add(user)
+
+    # 2. Customer PII: name
+    c_id = f"c_pii_{uuid.uuid4().hex[:8]}"
+    raw_cust_name = "Eleanor Vance-Montague"
+    cust = Customer(
+        customer_id=c_id,
+        name=raw_cust_name,
+        kyc_status="VERIFIED",
+        risk_tier="LOW",
+        tenant_id="tenant_pii_sec"
+    )
+    db_session.add(cust)
+
+    # 3. Device PII: fingerprint
+    d_id = f"d_pii_{uuid.uuid4().hex[:8]}"
+    raw_fp = "Hardware-UUID-99A8-BB12-CC44-E890"
+    device = Device(
+        device_id=d_id,
+        customer_id=c_id,
+        fingerprint=raw_fp,
+        tenant_id="tenant_pii_sec"
+    )
+    db_session.add(device)
+    db_session.commit()
+
+    # RAW DATABASE VERIFICATION: Inspect raw database bytes via direct SQL execution
+    # Raw User query
+    user_row = db_session.execute(
+        text("SELECT name, email, email_hash FROM users WHERE user_id = :uid"),
+        {"uid": u_id}
+    ).fetchone()
+    raw_db_user_name, raw_db_user_email, raw_db_user_hash = user_row
+    assert raw_db_user_name != raw_user_name
+    assert raw_db_user_email != raw_user_email
+    assert raw_db_user_hash == security.compute_blind_index(raw_user_email)
+
+    # Raw Customer query
+    cust_row = db_session.execute(
+        text("SELECT name FROM customer WHERE customer_id = :cid"),
+        {"cid": c_id}
+    ).fetchone()
+    raw_db_cust_name = cust_row[0]
+    assert raw_db_cust_name != raw_cust_name
+
+    # Raw Device query
+    dev_row = db_session.execute(
+        text("SELECT fingerprint FROM device WHERE device_id = :did"),
+        {"did": d_id}
+    ).fetchone()
+    raw_db_fp = dev_row[0]
+    assert raw_db_fp != raw_fp
+
+    # Validate that stored ciphertexts are authentic AES-256-GCM (minimum 28 bytes binary payload)
+    for ct in [raw_db_user_name, raw_db_user_email, raw_db_cust_name, raw_db_fp]:
+        payload_bytes = base64.b64decode(ct.encode("utf-8"))
+        assert len(payload_bytes) >= 28, "Ciphertext must contain 12-byte GCM nonce + 16-byte GCM tag + payload"
+
+    # ORM TRANSPARENCY: Verify that model getters return uncorrupted plaintext
+    reloaded_user = db_session.query(User).filter_by(user_id=u_id).first()
+    assert reloaded_user.name == raw_user_name
+    assert reloaded_user.email == raw_user_email
+
+    reloaded_cust = db_session.query(Customer).filter_by(customer_id=c_id).first()
+    assert reloaded_cust.name == raw_cust_name
+
+    reloaded_dev = db_session.query(Device).filter_by(device_id=d_id).first()
+    assert reloaded_dev.fingerprint == raw_fp
+
+    # LEGACY FERNET INJECTION & BACKWARD COMPATIBILITY:
+    # Inject legacy Fernet ciphertext directly into the raw database columns
+    legacy_fernet = Fernet(security.get_encryption_key())
+    legacy_cust_name = "Legacy Sir Arthur Conan Doyle"
+    legacy_cipher_sql = legacy_fernet.encrypt(legacy_cust_name.encode("utf-8")).decode("utf-8")
+    
+    db_session.execute(
+        text("UPDATE customer SET name = :leg_ct WHERE customer_id = :cid"),
+        {"leg_ct": legacy_cipher_sql, "cid": c_id}
+    )
+    db_session.commit()
+    db_session.expire_all()
+
+    # Verify that Customer model seamlessly decrypts legacy Fernet ciphertext
+    legacy_reloaded = db_session.query(Customer).filter_by(customer_id=c_id).first()
+    assert legacy_reloaded.name == legacy_cust_name
