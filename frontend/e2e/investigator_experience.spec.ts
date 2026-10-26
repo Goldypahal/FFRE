@@ -208,7 +208,7 @@ test.describe('FFRE End-to-End Investigator Journey (Browser Qualification)', ()
 
     // 3. Navigate to Investigations Page
     await page.goto('/investigations');
-    await expect(page.locator('h1')).toContainText('Investigations');
+    await expect(page.getByRole('heading', { name: 'Investigations Queue' })).toBeVisible();
 
     // 4. Verify Investigation is listed and track status
     await expect(page.locator('body')).toContainText(TEST_TXN_ID);
@@ -217,11 +217,12 @@ test.describe('FFRE End-to-End Investigator Journey (Browser Qualification)', ()
     await page.goto('/investigations/inv_e2e_browser_01');
     await expect(page.locator('body')).toContainText('inv_e2e_browser_01');
     await expect(page.locator('body')).toContainText('Task Planner');
-    await expect(page.locator('body')).toContainText('Evidence Synthesizer');
+    await expect(page.locator('body')).toContainText('Parallel Retrieval');
+    await expect(page.locator('body')).toContainText('Dossier Generator');
 
     // 6. Review Generated Report in Reports View
     await page.goto('/reports');
-    await expect(page.locator('body')).toContainText('Reports & Regulatory Filings');
+    await expect(page.getByRole('heading', { name: 'Compliance & Regulatory Reports' })).toBeVisible();
     await expect(page.locator('body')).toContainText('SAR Regulatory Filing TXN-E2E-BROWSER-8849');
 
     // 7. Verify Multi-Tenant Cross-Access Isolation (Tenant Bravo blocked from Tenant Alpha case)
@@ -248,5 +249,36 @@ test.describe('FFRE End-to-End Investigator Journey (Browser Qualification)', ()
     await page.goto('/investigations/inv_outage_test');
     // Ensure the app does not crash to a blank white screen, but safely displays the error state
     await expect(page.locator('body')).toContainText(/Service Unavailable|Error|Failed/i);
+  });
+
+  test('Live Unmocked Full-Stack Backend Integration (No Mocks)', async ({ request }) => {
+    // 1. Verify live backend health
+    const healthRes = await request.get('http://127.0.0.1:8000/api/v1/health');
+    expect(healthRes.status()).toBe(200);
+    const healthJson = await healthRes.json();
+    expect(healthJson.status).toBe('healthy');
+
+    // 2. Real Registration & Authentication Against Live Backend
+    const regRes = await request.post('http://127.0.0.1:8000/api/v1/auth/register', {
+      data: {
+        name: 'Browser E2E Qualified Officer',
+        email: `browser_e2e_${Date.now()}@compliance.bank`,
+        password: 'Password123!',
+        role: 'investigator'
+      }
+    });
+    expect(regRes.status()).toBe(200);
+    const regData = await regRes.json();
+    expect(regData.access_token).toBeDefined();
+
+    // 3. Authenticated Query Against Live Backend
+    const invRes = await request.get('http://127.0.0.1:8000/api/v1/investigations', {
+      headers: {
+        Authorization: `Bearer ${regData.access_token}`
+      }
+    });
+    expect(invRes.status()).toBe(200);
+    const invData = await invRes.json();
+    expect(invData.investigations).toBeDefined();
   });
 });

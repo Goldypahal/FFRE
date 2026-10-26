@@ -1,0 +1,23 @@
+{
+  "status": "PASSED",
+  "checks": {
+    "backup_sha256": "1e7de1160667cb57c7b050bd87fd0a04e659e256358cbe002090af19bbe11bab",
+    "row_counts": {
+      "customer": 6,
+      "account": 6,
+      "merchant": 6,
+      "transaction": 6,
+      "investigation": 901,
+      "audit_log": 15587,
+      "schema_migrations": 7
+    },
+    "primary_keys_count": 33,
+    "foreign_keys_count": 13,
+    "indexes_count": 50,
+    "idempotency_index_present": true,
+    "pii_decryption_verified": true,
+    "audit_chain_valid": true,
+    "audit_investigations_verified": 50,
+    "audit_blocks_verified": 800
+  }
+}

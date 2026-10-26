@@ -27,7 +27,7 @@ export function Auth() {
   };
 
   return (
-    <body className="font-body-md text-body-md min-h-screen flex flex-col items-center justify-center p-gutter relative overflow-hidden dark">
+    <div className="font-body-md text-body-md min-h-screen flex flex-col items-center justify-center p-gutter relative overflow-hidden dark">
       {/* Atmospheric Background Animation */}
 
       {/* Top Glow / Identity */}
@@ -153,6 +153,6 @@ export function Auth() {
       </footer>
       {/* Interactive Micro-interaction Script */}
       {/* Note: In a real implementation, we would use useEffect for these event listeners */}
-    </body>
+    </div>
   );
 }

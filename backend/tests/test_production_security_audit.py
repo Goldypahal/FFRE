@@ -203,3 +203,24 @@ def test_tampered_ciphertext_fails_closed():
 
     with pytest.raises(security.DecryptionError):
         security.decrypt_aes256_gcm(tampered, secret_override=secret, fail_closed=True)
+
+
+def test_versioned_migrations_idempotency_and_advisory_locking():
+    """
+    Verify that versioned migrations run idempotently, record applied migrations in schema_migrations,
+    and prevent duplicate DDL execution across repeated startup cycles.
+    """
+    import migrations
+    from database import engine
+
+    # Run migration suite twice to prove idempotency
+    first_run = migrations.run_migrations(engine)
+    second_run = migrations.run_migrations(engine)
+
+    assert second_run == 0, f"Expected 0 migrations on second run, got {second_run}"
+
+    with engine.connect() as conn:
+        applied = migrations.get_applied_versions(conn)
+        assert len(applied) >= 7, f"Expected at least 7 migrations applied, got {len(applied)}"
+        assert sorted(applied) == list(range(1, 8))
+

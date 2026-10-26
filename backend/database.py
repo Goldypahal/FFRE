@@ -24,9 +24,11 @@ if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
     engine_kwargs["max_overflow"] = int(os.getenv("DB_MAX_OVERFLOW", "20"))
 else:
     # Production PostgreSQL / TimescaleDB Enterprise Pooling (Chapter 48)
+    # Calibrated production connection budget: default 10 connections + 5 overflow per worker
+    # Across 4 Uvicorn workers: 4 * 15 = 60 max connections, comfortably within PostgreSQL 100-connection limit.
     engine_kwargs["poolclass"] = QueuePool
-    engine_kwargs["pool_size"] = int(os.getenv("DB_POOL_SIZE", "50"))
-    engine_kwargs["max_overflow"] = int(os.getenv("DB_MAX_OVERFLOW", "30"))
+    engine_kwargs["pool_size"] = int(os.getenv("DB_POOL_SIZE", "10"))
+    engine_kwargs["max_overflow"] = int(os.getenv("DB_MAX_OVERFLOW", "5"))
     engine_kwargs["pool_timeout"] = int(os.getenv("DB_POOL_TIMEOUT", "30"))
     engine_kwargs["pool_recycle"] = int(os.getenv("DB_POOL_RECYCLE", "1800"))
     engine_kwargs["pool_pre_ping"] = True
@@ -54,164 +56,13 @@ def get_db():
         db.close()
 
 def init_db():
+    """
+    Initialize database tables and execute pending versioned migrations.
+    Idempotent and synchronized via advisory locks for safe multi-worker concurrency.
+    """
     import models
+    import migrations
     Base.metadata.create_all(bind=engine)
-    with engine.connect() as conn:
-        if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
-            try:
-                conn.execute(text("PRAGMA journal_mode=WAL;"))
-                conn.commit()
-            except Exception:
-                pass
-            for stmt in [
-                "ALTER TABLE investigation ADD COLUMN idempotency_key VARCHAR",
-                "ALTER TABLE investigation ADD COLUMN request_fingerprint VARCHAR(64)",
-                "DROP INDEX IF EXISTS uq_investigation_idempotency_key;",
-                "CREATE UNIQUE INDEX IF NOT EXISTS uq_investigation_tenant_idempotency_key ON investigation (tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL;",
-                "ALTER TABLE investigation ADD COLUMN updated_at DATETIME",
-                "ALTER TABLE customer ADD COLUMN created_at DATETIME",
-                "ALTER TABLE account ADD COLUMN created_at DATETIME",
-                "ALTER TABLE account ADD COLUMN balance NUMERIC(12, 2)",
-                "ALTER TABLE account ADD COLUMN account_type VARCHAR",
-                "ALTER TABLE merchant ADD COLUMN category VARCHAR",
-            ]:
-                try:
-                    conn.execute(text(stmt))
-                    conn.commit()
-                except Exception:
-                    pass
-            for tbl in ["users", "customer", "account", "merchant", "device", "location", "evidence", "fraud_case", "risk_score", "dead_letter_job", "\"transaction\"", "investigation", "audit_log", "rule", "action_log", "prompts", "prompt_versions", "reports"]:
-                try:
-                    conn.execute(text(f"ALTER TABLE {tbl} ADD COLUMN tenant_id VARCHAR(50) DEFAULT 'default_tenant'"))
-                    conn.commit()
-                except Exception:
-                    pass
-            for col, col_type in [
-                ("previous_hash", "VARCHAR(64)"),
-                ("entry_hash", "VARCHAR(64)"),
-            ]:
-                try:
-                    conn.execute(text(f"ALTER TABLE audit_log ADD COLUMN {col} {col_type}"))
-                    conn.commit()
-                except Exception:
-                    pass
-            for col, col_type in [
-                ("email_hash", "VARCHAR(64)"),
-                ("status", "VARCHAR(20) DEFAULT 'ACTIVE'"),
-                ("last_login", "DATETIME"),
-            ]:
-                try:
-                    conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {col_type}"))
-                    conn.commit()
-                except Exception:
-                    pass
-            for col, col_type in [
-                ("ip_address", "VARCHAR(45)"),
-                ("os", "VARCHAR(50)"),
-            ]:
-                try:
-                    conn.execute(text(f"ALTER TABLE device ADD COLUMN {col} {col_type}"))
-                    conn.commit()
-                except Exception:
-                    pass
-            for col, col_type in [
-                ("geo_coord", "VARCHAR(100)"),
-                ("country", "VARCHAR(50)"),
-                ("txn_id", "VARCHAR"),
-            ]:
-                try:
-                    conn.execute(text(f"ALTER TABLE location ADD COLUMN {col} {col_type}"))
-                    conn.commit()
-                except Exception:
-                    pass
-            for col, col_type in [
-                ("counterparty", "VARCHAR(255)"),
-                ("channel", "VARCHAR(50)"),
-                ("ip_address", "VARCHAR(45)"),
-                ("device_ref", "VARCHAR(100)"),
-                ("timestamp", "DATETIME"),
-                ("currency", "VARCHAR(10) DEFAULT 'USD'"),
-            ]:
-                try:
-                    conn.execute(text(f"ALTER TABLE \"transaction\" ADD COLUMN {col} {col_type}"))
-                    conn.commit()
-                except Exception:
-                    pass
-        else:
-            # PostgreSQL schema migration support
-            for stmt in [
-                "ALTER TABLE investigation ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR",
-                "ALTER TABLE investigation ADD COLUMN IF NOT EXISTS request_fingerprint VARCHAR(64)",
-                "DROP INDEX IF EXISTS uq_investigation_idempotency_key;",
-                "CREATE UNIQUE INDEX IF NOT EXISTS uq_investigation_tenant_idempotency_key ON investigation (tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL;",
-                "ALTER TABLE investigation ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP",
-                "ALTER TABLE customer ADD COLUMN IF NOT EXISTS created_at TIMESTAMP",
-                "ALTER TABLE account ADD COLUMN IF NOT EXISTS created_at TIMESTAMP",
-                "ALTER TABLE account ADD COLUMN IF NOT EXISTS balance NUMERIC(12, 2)",
-                "ALTER TABLE account ADD COLUMN IF NOT EXISTS account_type VARCHAR",
-                "ALTER TABLE merchant ADD COLUMN IF NOT EXISTS category VARCHAR",
-            ]:
-                try:
-                    conn.execute(text(stmt))
-                    conn.commit()
-                except Exception:
-                    conn.rollback()
-            for tbl in ["users", "customer", "account", "merchant", "device", "location", "evidence", "fraud_case", "risk_score", "dead_letter_job", "\"transaction\"", "investigation", "audit_log", "rule", "action_log", "prompts", "prompt_versions", "reports"]:
-                try:
-                    conn.execute(text(f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(50) DEFAULT 'default_tenant'"))
-                    conn.commit()
-                except Exception:
-                    conn.rollback()
-            for col, col_type in [
-                ("previous_hash", "VARCHAR(64)"),
-                ("entry_hash", "VARCHAR(64)"),
-            ]:
-                try:
-                    conn.execute(text(f"ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS {col} {col_type}"))
-                    conn.commit()
-                except Exception:
-                    conn.rollback()
-            for col, col_type in [
-                ("email_hash", "VARCHAR(64)"),
-                ("status", "VARCHAR(20) DEFAULT 'ACTIVE'"),
-                ("last_login", "TIMESTAMP"),
-            ]:
-                try:
-                    conn.execute(text(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {col_type}"))
-                    conn.commit()
-                except Exception:
-                    conn.rollback()
-            for col, col_type in [
-                ("ip_address", "VARCHAR(45)"),
-                ("os", "VARCHAR(50)"),
-            ]:
-                try:
-                    conn.execute(text(f"ALTER TABLE device ADD COLUMN IF NOT EXISTS {col} {col_type}"))
-                    conn.commit()
-                except Exception:
-                    conn.rollback()
-            for col, col_type in [
-                ("geo_coord", "VARCHAR(100)"),
-                ("country", "VARCHAR(50)"),
-                ("txn_id", "VARCHAR"),
-            ]:
-                try:
-                    conn.execute(text(f"ALTER TABLE location ADD COLUMN IF NOT EXISTS {col} {col_type}"))
-                    conn.commit()
-                except Exception:
-                    conn.rollback()
-            for col, col_type in [
-                ("counterparty", "VARCHAR(255)"),
-                ("channel", "VARCHAR(50)"),
-                ("ip_address", "VARCHAR(45)"),
-                ("device_ref", "VARCHAR(100)"),
-                ("timestamp", "TIMESTAMP"),
-                ("currency", "VARCHAR(10) DEFAULT 'USD'"),
-            ]:
-                try:
-                    conn.execute(text(f"ALTER TABLE \"transaction\" ADD COLUMN IF NOT EXISTS {col} {col_type}"))
-                    conn.commit()
-                except Exception:
-                    conn.rollback()
+    migrations.run_migrations(engine)
 
 init_db()
