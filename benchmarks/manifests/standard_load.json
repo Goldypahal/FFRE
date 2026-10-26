@@ -1,0 +1,19 @@
+{
+  "name": "Standard Concurrency & SLA Validation Load",
+  "description": "Standard multi-worker concurrency benchmark validating p50, p95, p99 latency SLAs and checkpoint safety across tiers [1, 5, 10, 20].",
+  "tiers": [1, 5, 10, 20],
+  "repetitions_per_tier": 3,
+  "warmup_requests": 3,
+  "targets": {
+    "max_failure_rate_pct": 0.0,
+    "p95_latency_ms": 5000.0,
+    "p99_latency_ms": 8000.0,
+    "min_throughput_ops_sec": 1.0
+  },
+  "generator_config": {
+    "seed": 42,
+    "num_customers": 20,
+    "txns_per_customer": 10,
+    "fraud_ratio": 0.25
+  }
+}

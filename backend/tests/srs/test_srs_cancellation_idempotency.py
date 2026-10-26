@@ -11,7 +11,8 @@ def test_investigation_cancellation_endpoint_and_audit(client, db_session):
     inv = models.Investigation(
         investigation_id="inv_cancel_1",
         txn_id="T-CANCEL-1",
-        status="RUNNING"
+        status="RUNNING",
+        tenant_id="default_tenant"
     )
 
     db_session.add_all([cust, acct, merch, txn, inv])

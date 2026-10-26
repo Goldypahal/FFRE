@@ -110,16 +110,87 @@ def get_user_by_email(db: Session, email: str) -> Optional[models.User]:
     return None
 
 
+_REVOKED_TOKENS = set()
+_REVOCATION_REDIS = None
+
+def is_strict_mode() -> bool:
+    return (
+        os.getenv("STRICT_ENTERPRISE_MODE", "false").lower() == "true" or
+        os.getenv("ENV", "").lower() == "production" or
+        os.getenv("ENVIRONMENT", "").lower() == "production"
+    )
+
+def _get_revocation_redis():
+    global _REVOCATION_REDIS
+    if _REVOCATION_REDIS is None:
+        try:
+            import redis
+            redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+            client = redis.Redis.from_url(redis_url, socket_timeout=1)
+            client.ping()
+            _REVOCATION_REDIS = client
+        except Exception:
+            _REVOCATION_REDIS = False
+    return _REVOCATION_REDIS if _REVOCATION_REDIS is not False else None
+
+def revoke_token(token: str, ttl_seconds: int = 86400) -> None:
+    """Revoke a JWT token by adding it to Redis shared blocklist (accessible to all worker processes) with memory fallback."""
+    if not token:
+        return
+    token = token.strip()
+    r = _get_revocation_redis()
+    if r is not None:
+        try:
+            r.set(f"ffre:revoked_token:{token}", "revoked", ex=ttl_seconds)
+        except Exception as exc:
+            if is_strict_mode():
+                raise RuntimeError(f"STRICT_ENTERPRISE_MODE: Failed to record token revocation in distributed registry: {exc}")
+    else:
+        if is_strict_mode():
+            raise RuntimeError("STRICT_ENTERPRISE_MODE: Distributed token revocation registry (Redis) is unreachable.")
+    _REVOKED_TOKENS.add(token)
+
+def is_token_revoked(token: str) -> bool:
+    """Check if token is revoked in Redis shared blocklist or local fallback. Fails closed in strict mode."""
+    if not token:
+        return False
+    token = token.strip()
+    r = _get_revocation_redis()
+    if r is not None:
+        try:
+            if r.exists(f"ffre:revoked_token:{token}"):
+                return True
+        except Exception as exc:
+            if is_strict_mode():
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=f"Authentication service unavailable: Token revocation registry unreachable ({exc})"
+                )
+    else:
+        if is_strict_mode():
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Authentication service unavailable: Distributed token revocation registry is offline (fail-closed)"
+            )
+    return token in _REVOKED_TOKENS
+
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    if is_token_revoked(token):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub")
-        if email is None:
+        token_type: str = payload.get("type", "access")
+        if email is None or token_type != "access":
             raise credentials_exception
     except JWTError:
         raise credentials_exception
@@ -129,9 +200,11 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         raise credentials_exception
     return user
 
-def check_permissions(required_role: str):
+def check_permissions(required_role: str, required_scope: Optional[str] = None):
     def role_checker(current_user: models.User = Depends(get_current_user)):
-        if current_user.role != required_role and current_user.role != "admin":
+        user_role = getattr(current_user, "role", "")
+        is_admin = user_role in ("admin", "administrator")
+        if user_role != required_role and not is_admin:
             raise HTTPException(status_code=403, detail="Not enough privileges")
         return current_user
     return role_checker

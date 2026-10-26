@@ -1,15 +1,20 @@
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, status, Query, Response, Header, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, status, Query, Response, Header, UploadFile, File, Form, Request, Body
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict, Any, Union, Tuple
 import uuid
 import datetime
 import time
 import hashlib
 import os
+import json
+import csv
+import io
+import re
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, asc, func
+from sqlalchemy.exc import IntegrityError
 
 from database import engine, Base, get_db
 import models
@@ -52,6 +57,52 @@ class InvestigationRequest(BaseModel):
         }
     }
 
+class TransactionIngestItem(BaseModel):
+    txn_id: Optional[str] = None
+    account_id: str
+    merchant_id: Optional[str] = None
+    amount: float
+    currency: Optional[str] = "USD"
+    status: Optional[str] = "PENDING"
+    timestamp: Optional[Union[str, datetime.datetime]] = None
+    counterparty: Optional[str] = None
+    channel: Optional[str] = None
+    ip_address: Optional[str] = None
+    device_ref: Optional[str] = None
+    tenant_id: Optional[str] = None
+
+class TransactionIngestRequest(BaseModel):
+    transactions: List[TransactionIngestItem]
+
+class QuarantineReason(BaseModel):
+    row_index: int
+    txn_id: Optional[str] = None
+    reason: str
+    record: Optional[Dict[str, Any]] = None
+
+class TransactionIngestResponse(BaseModel):
+    total_records: int
+    ingested: int
+    quarantined: int
+    skipped_duplicates: int
+    quarantine_reasons: List[QuarantineReason]
+
+class TransactionResponse(BaseModel):
+    txn_id: str
+    tenant_id: str
+    account_id: str
+    merchant_id: Optional[str] = None
+    amount: float
+    currency: str
+    status: str
+    timestamp: Optional[datetime.datetime] = None
+    counterparty: Optional[str] = None
+    channel: Optional[str] = None
+    ip_address: Optional[str] = None
+    device_ref: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
 class HumanReviewAction(BaseModel):
     action: str  # "APPROVE" or "REJECT"
     notes: Optional[str] = None
@@ -91,9 +142,12 @@ class EvidenceResponse(BaseModel):
     }
 
 class AuditLogResponse(BaseModel):
+    log_id: Optional[str] = None
     action: str
     details: Optional[str] = None
     timestamp: datetime.datetime
+    previous_hash: Optional[str] = None
+    entry_hash: Optional[str] = None
 
     model_config = {
         "from_attributes": True,
@@ -155,6 +209,45 @@ class InvestigationResponse(BaseModel):
             ]
         }
     }
+
+class ReplaySnapshotResponse(BaseModel):
+    snapshot_version: str = "1.0.0"
+    generated_at: str
+    investigation_id: str
+    tenant_id: str
+    replay_fingerprint: str
+    investigation: Dict[str, Any]
+    transaction: Optional[Dict[str, Any]] = None
+    evidence: List[Dict[str, Any]] = []
+    audit_logs: List[Dict[str, Any]] = []
+    audit_chain_valid: bool
+    audit_chain_errors: List[str] = []
+
+class ReplayVerifyResponse(BaseModel):
+    is_valid: bool
+    replay_fingerprint: Optional[str] = None
+    audit_chain_valid: bool
+    audit_chain_errors: List[str] = []
+    tamper_detected: bool = False
+    mismatch_reasons: List[str] = []
+    detail: str
+
+class AuditChainEntry(BaseModel):
+    log_id: str
+    tenant_id: str
+    action: str
+    details: Optional[str] = None
+    timestamp: Optional[str] = None
+    previous_hash: Optional[str] = None
+    entry_hash: Optional[str] = None
+
+class AuditChainResponse(BaseModel):
+    investigation_id: str
+    tenant_id: str
+    chain_length: int
+    is_valid: bool
+    errors: List[str] = []
+    entries: List[AuditChainEntry] = []
 
 class Token(BaseModel):
     access_token: str
@@ -326,9 +419,15 @@ def run_investigation_task(investigation_id: str, transaction_id: str, db: Optio
         db = next(get_db())
         should_close_db = True
     try:
+        tenant_id = "default_tenant"
+        inv_record = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
+        if inv_record and inv_record.tenant_id:
+            tenant_id = inv_record.tenant_id
+
         initial_state = {
             "investigation_id": investigation_id,
             "transaction_id": transaction_id,
+            "tenant_id": tenant_id,
             "tasks": [],
             "customer_evidence": {},
             "transaction_evidence": {},
@@ -350,14 +449,26 @@ def run_investigation_task(investigation_id: str, transaction_id: str, db: Optio
         # Update DB
         investigation = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
         if investigation:
+            report_text = result.get("report") or ""
+            is_escalated = (
+                report_text.startswith("# HUMAN REVIEW") or
+                "human_review" in result.get("execution_trace", []) or
+                any(
+                    isinstance(result.get(src), dict) and result[src].get("evidence_status") == "UNAVAILABLE"
+                    for src in ["customer_evidence", "transaction_evidence", "merchant_evidence", "device_evidence", "location_evidence", "velocity_evidence"]
+                )
+            )
+
             if result.get("confidence") is not None:
                 investigation.confidence = result["confidence"]
                 # Import here to avoid circular imports
                 from graph import CONFIDENCE_THRESHOLD
-                if result["confidence"] < CONFIDENCE_THRESHOLD:
+                if is_escalated or result["confidence"] < CONFIDENCE_THRESHOLD:
                     investigation.status = "ESCALATED"
                 else:
                     investigation.status = "COMPLETED"
+            elif is_escalated:
+                investigation.status = "ESCALATED"
             else:
                 investigation.status = "COMPLETED"
 
@@ -503,14 +614,8 @@ def build_investigation_response(inv: models.Investigation, db: Session) -> Inve
                 
     if inv.risk_score is not None:
         risk_score = float(inv.risk_score)
-    elif inv.status == "ESCALATED":
-        risk_score = 0.85
-    elif inv.status.startswith("CLOSED_REJECT"):
-        risk_score = 0.95
-    elif inv.status.startswith("CLOSED_APPROVE") or inv.status == "COMPLETED":
-        risk_score = 0.15
     else:
-        risk_score = 0.50
+        risk_score = None
 
     return InvestigationResponse(
         investigation_id=inv.investigation_id,
@@ -527,6 +632,27 @@ def build_investigation_response(inv: models.Investigation, db: Session) -> Inve
         created_at=inv.created_at,
         tenant_id=getattr(inv, "tenant_id", "default_tenant")
     )
+
+def enforce_tenant_isolation(current_user: models.User, inv: models.Investigation):
+    """
+    Mandatory tenant isolation enforcement:
+    Admin users can access all records. Non-admin users can ONLY access records matching their tenant_id.
+    Fails closed (403) if tenant_id is missing, null, or mismatched on either the user or the investigation.
+    """
+    if getattr(current_user, "role", "") == "admin":
+        return
+    user_tenant = getattr(current_user, "tenant_id", None)
+    inv_tenant = getattr(inv, "tenant_id", None)
+    if not user_tenant or not inv_tenant:
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied: Missing tenant context (fail-closed)"
+        )
+    if inv_tenant != user_tenant:
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied: Resource belongs to another tenant"
+        )
 
 # --- Protected Investigation Routes ---
 
@@ -551,74 +677,40 @@ async def create_investigation(
             detail=f"Security Alert: Adversarial prompt injection detected in payload: {', '.join(matches)}"
         )
 
+    user_tenant = getattr(current_user, "tenant_id", "default_tenant")
+    payload_fp = hashlib.sha256(f"{request.transaction_id}:{request.user_id}".encode("utf-8")).hexdigest()
+
     if idempotency_key_header:
         idemp_key = f"idemp_{idempotency_key_header.strip()}"
     else:
-        raw_key = request.transaction_id + "_" + request.user_id
-        idemp_key = f"idemp_{hashlib.md5(raw_key.encode()).hexdigest()}"
+        raw_key = f"{user_tenant}:{request.transaction_id}:{request.user_id}"
+        idemp_key = f"idemp_{hashlib.sha256(raw_key.encode('utf-8')).hexdigest()}"
 
     existing_inv = db.query(models.Investigation).filter(
         models.Investigation.idempotency_key == idemp_key,
+        models.Investigation.tenant_id == user_tenant,
         models.Investigation.status.in_(["RUNNING", "QUEUED", "COMPLETED", "WAITING_HUMAN", "ESCALATED", "FAILED"])
     ).first()
 
     if existing_inv:
+        if (existing_inv.request_fingerprint and existing_inv.request_fingerprint != payload_fp) or existing_inv.txn_id != request.transaction_id:
+            raise HTTPException(status_code=409, detail="Idempotency key reused with different payload")
         response.headers["X-Cache-Hit"] = "true"
         return build_investigation_response(existing_inv, db)
 
-    # Verify or mock transaction
-    txn = db.query(models.Transaction).filter(models.Transaction.txn_id == request.transaction_id).first()
+    # Verify transaction exists under caller's tenant (Task T0.2 / Finding V1)
+    txn = db.query(models.Transaction).filter(
+        models.Transaction.txn_id == request.transaction_id,
+        models.Transaction.tenant_id == user_tenant
+    ).first()
     if not txn:
-        # Create full mock relational data for Phase 2 data integration
-        cust = models.Customer(
-            name="Alex Johnson (Demo)",
-            kyc_status="VERIFIED",
-            risk_tier="MEDIUM"
-        )
-        db.add(cust)
-        db.commit()
-        db.refresh(cust)
+        raise HTTPException(status_code=404, detail="Transaction not found")
 
-        acct = models.Account(customer_id=cust.customer_id, account_type="CHECKING")
-        merch = models.Merchant(
-            name="HighRisk Electronics",
-            category="Electronics",
-            risk_score=0.85
-        )
-        dev = models.Device(
-            customer_id=cust.customer_id,
-            fingerprint="hash-999-new",
-            os="Unknown"
-        )
-        db.add_all([acct, merch, dev])
-        db.commit()
-        db.refresh(acct)
-        db.refresh(merch)
-
-        txn = models.Transaction(
-            txn_id=request.transaction_id,
-            account_id=acct.account_id,
-            merchant_id=merch.merchant_id,
-            amount=4250.00,
-            currency="USD",
-            status="PENDING"
-        )
-        db.add(txn)
-        db.commit()
-
-        loc = models.Location(
-            txn_id=request.transaction_id,
-            geo_coord="55.7558, 37.6173",
-            country="RU"
-        )
-        db.add(loc)
-        db.commit()
-
-    user_tenant = getattr(current_user, "tenant_id", "default_tenant")
     inv = models.Investigation(
         txn_id=request.transaction_id,
         status="QUEUED",
         idempotency_key=idemp_key,
+        request_fingerprint=payload_fp,
         tenant_id=user_tenant
     )
     db.add(inv)
@@ -640,6 +732,284 @@ async def create_investigation(
     response.headers["X-Cache-Hit"] = "false"
     return build_investigation_response(inv, db)
 
+# --- Transaction Ingestion Connector (Task T1.2 / Finding V8) ---
+
+@app.post("/api/v1/transactions/ingest", response_model=TransactionIngestResponse)
+async def ingest_transactions(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.check_permissions("investigator"))
+):
+    """
+    Task T1.2 / Finding V8: Batch Transaction Ingestion Connector & CSV Import.
+    Supports JSON batch arrays or CSV text/multipart payloads.
+    Enforces tenant scoping, validation, quarantine accounting, and idempotency skipping.
+    """
+    user_tenant = getattr(current_user, "tenant_id", "default_tenant") or "default_tenant"
+    content_type = request.headers.get("content-type", "").lower()
+
+    raw_records: List[Dict[str, Any]] = []
+
+    # 1. Parse payload based on content-type
+    if "multipart/form-data" in content_type:
+        form = await request.form()
+        file_obj = form.get("file")
+        if not file_obj:
+            raise HTTPException(status_code=400, detail="Missing file in multipart/form-data upload")
+        content_bytes = await file_obj.read()
+        text = content_bytes.decode("utf-8", errors="replace")
+        reader = csv.DictReader(io.StringIO(text))
+        for row in reader:
+            raw_records.append(dict(row))
+    elif "text/csv" in content_type:
+        body = await request.body()
+        text = body.decode("utf-8", errors="replace")
+        reader = csv.DictReader(io.StringIO(text))
+        for row in reader:
+            raw_records.append(dict(row))
+    else:
+        # Default JSON parsing
+        try:
+            body_json = await request.json()
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Malformed JSON: {str(e)}")
+        if isinstance(body_json, list):
+            raw_records = body_json
+        elif isinstance(body_json, dict) and "transactions" in body_json:
+            raw_records = body_json["transactions"]
+        elif isinstance(body_json, dict):
+            raw_records = [body_json]
+        else:
+            raise HTTPException(status_code=400, detail="JSON payload must be an array or object with 'transactions' key")
+
+    total_records = len(raw_records)
+    ingested = 0
+    quarantined = 0
+    skipped_duplicates = 0
+    quarantine_reasons = []
+
+    ALLOWED_CHANNELS = {"web", "mobile", "pos", "atm", "api", "wire", "ach", "branch", "other"}
+
+    for idx, row in enumerate(raw_records, start=1):
+        txn_id = row.get("txn_id")
+        if txn_id and isinstance(txn_id, str):
+            txn_id = txn_id.strip() or None
+        else:
+            txn_id = None
+
+        # Tenant isolation check
+        row_tenant = row.get("tenant_id")
+        effective_tenant = user_tenant
+        if row_tenant and str(row_tenant).strip():
+            row_tenant_str = str(row_tenant).strip()
+            if current_user.role != "admin" and row_tenant_str != user_tenant:
+                quarantined += 1
+                quarantine_reasons.append(QuarantineReason(
+                    row_index=idx,
+                    txn_id=txn_id,
+                    reason=f"Cross-tenant violation: Caller ({user_tenant}) cannot ingest on behalf of tenant '{row_tenant_str}'",
+                    record=row
+                ))
+                continue
+            effective_tenant = row_tenant_str
+
+        # Account validation
+        account_id = row.get("account_id")
+        if not account_id:
+            quarantined += 1
+            quarantine_reasons.append(QuarantineReason(
+                row_index=idx,
+                txn_id=txn_id,
+                reason="Missing required field: account_id",
+                record=row
+            ))
+            continue
+        account_id = str(account_id).strip()
+
+        acct = db.query(models.Account).filter(models.Account.account_id == account_id).first()
+        if not acct:
+            quarantined += 1
+            quarantine_reasons.append(QuarantineReason(
+                row_index=idx,
+                txn_id=txn_id,
+                reason=f"Referenced account '{account_id}' does not exist",
+                record=row
+            ))
+            continue
+
+        acct_tenant = getattr(acct, "tenant_id", "default_tenant")
+        if current_user.role != "admin" and acct_tenant != effective_tenant:
+            quarantined += 1
+            quarantine_reasons.append(QuarantineReason(
+                row_index=idx,
+                txn_id=txn_id,
+                reason=f"Cross-tenant violation: Account '{account_id}' belongs to tenant '{acct_tenant}'",
+                record=row
+            ))
+            continue
+
+        # Amount validation
+        raw_amt = row.get("amount")
+        if raw_amt is None or raw_amt == "":
+            quarantined += 1
+            quarantine_reasons.append(QuarantineReason(
+                row_index=idx,
+                txn_id=txn_id,
+                reason="Missing required field: amount",
+                record=row
+            ))
+            continue
+        try:
+            amount_val = float(raw_amt)
+        except (ValueError, TypeError):
+            quarantined += 1
+            quarantine_reasons.append(QuarantineReason(
+                row_index=idx,
+                txn_id=txn_id,
+                reason=f"Invalid numeric amount '{raw_amt}'",
+                record=row
+            ))
+            continue
+
+        if amount_val <= 0:
+            quarantined += 1
+            quarantine_reasons.append(QuarantineReason(
+                row_index=idx,
+                txn_id=txn_id,
+                reason=f"Invalid amount {amount_val}: amount must be strictly positive",
+                record=row
+            ))
+            continue
+
+        # Channel validation
+        channel_val = row.get("channel")
+        if channel_val and isinstance(channel_val, str) and channel_val.strip():
+            channel_val = channel_val.strip().lower()
+            if channel_val not in ALLOWED_CHANNELS:
+                quarantined += 1
+                quarantine_reasons.append(QuarantineReason(
+                    row_index=idx,
+                    txn_id=txn_id,
+                    reason=f"Invalid channel '{channel_val}': must be one of {sorted(ALLOWED_CHANNELS)}",
+                    record=row
+                ))
+                continue
+        else:
+            channel_val = None
+
+        # Currency validation
+        currency_val = row.get("currency")
+        if currency_val and isinstance(currency_val, str) and currency_val.strip():
+            currency_val = currency_val.strip().upper()
+            if len(currency_val) != 3 or not currency_val.isalpha():
+                quarantined += 1
+                quarantine_reasons.append(QuarantineReason(
+                    row_index=idx,
+                    txn_id=txn_id,
+                    reason=f"Invalid currency code '{currency_val}': must be 3-letter ISO-4217 code",
+                    record=row
+                ))
+                continue
+        else:
+            currency_val = "USD"
+
+        # Timestamp validation
+        timestamp_val = datetime.datetime.utcnow()
+        raw_ts = row.get("timestamp")
+        if raw_ts and isinstance(raw_ts, str) and raw_ts.strip():
+            raw_ts = raw_ts.strip()
+            try:
+                ts_clean = raw_ts.replace("Z", "+00:00")
+                timestamp_val = datetime.datetime.fromisoformat(ts_clean)
+            except Exception:
+                quarantined += 1
+                quarantine_reasons.append(QuarantineReason(
+                    row_index=idx,
+                    txn_id=txn_id,
+                    reason=f"Malformed timestamp '{raw_ts}': must be valid ISO-8601 format",
+                    record=row
+                ))
+                continue
+        elif isinstance(raw_ts, datetime.datetime):
+            timestamp_val = raw_ts
+
+        # Idempotency / Duplicate check
+        if txn_id:
+            existing = db.query(models.Transaction).filter(
+                models.Transaction.tenant_id == effective_tenant,
+                models.Transaction.txn_id == txn_id
+            ).first()
+            if existing:
+                skipped_duplicates += 1
+                continue
+
+        # Create Transaction
+        assigned_txn_id = txn_id or f"txn_{uuid.uuid4().hex[:12]}"
+        new_txn = models.Transaction(
+            txn_id=assigned_txn_id,
+            tenant_id=effective_tenant,
+            account_id=account_id,
+            merchant_id=row.get("merchant_id") or None,
+            amount=amount_val,
+            currency=currency_val,
+            status=row.get("status") or "PENDING",
+            timestamp=timestamp_val,
+            counterparty=row.get("counterparty") or None,
+            channel=channel_val,
+            ip_address=row.get("ip_address") or None,
+            device_ref=row.get("device_ref") or None,
+        )
+        db.add(new_txn)
+        try:
+            db.commit()
+            ingested += 1
+        except Exception as e:
+            db.rollback()
+            quarantined += 1
+            quarantine_reasons.append(QuarantineReason(
+                row_index=idx,
+                txn_id=assigned_txn_id,
+                reason=f"Database commit error: {str(e)}",
+                record=row
+            ))
+
+    return TransactionIngestResponse(
+        total_records=total_records,
+        ingested=ingested,
+        quarantined=quarantined,
+        skipped_duplicates=skipped_duplicates,
+        quarantine_reasons=quarantine_reasons
+    )
+
+@app.get("/api/v1/transactions", response_model=List[TransactionResponse])
+async def list_transactions(
+    limit: int = 50,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """List transactions scoped to the caller's tenant."""
+    user_tenant = getattr(current_user, "tenant_id", "default_tenant") or "default_tenant"
+    query = db.query(models.Transaction)
+    if current_user.role != "admin":
+        query = query.filter(models.Transaction.tenant_id == user_tenant)
+    return query.order_by(desc(models.Transaction.timestamp)).offset(offset).limit(limit).all()
+
+@app.get("/api/v1/transactions/{txn_id}", response_model=TransactionResponse)
+async def get_transaction_by_id(
+    txn_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Get single transaction by ID scoped to the caller's tenant."""
+    txn = db.query(models.Transaction).filter(models.Transaction.txn_id == txn_id).first()
+    if not txn:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    user_tenant = getattr(current_user, "tenant_id", "default_tenant")
+    if current_user.role != "admin" and getattr(txn, "tenant_id", None) != user_tenant:
+        raise HTTPException(status_code=403, detail="Access denied: Resource belongs to another tenant")
+    return txn
+
 @app.get("/api/v1/investigations/{investigation_id}", response_model=InvestigationResponse)
 async def get_investigation(
     investigation_id: str, 
@@ -652,9 +1022,7 @@ async def get_investigation(
     inv = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Investigation not found")
-    if current_user.role != "admin" and getattr(current_user, "tenant_id", None) and getattr(inv, "tenant_id", None):
-        if inv.tenant_id != current_user.tenant_id:
-            raise HTTPException(status_code=403, detail="Access denied: Resource belongs to another tenant")
+    enforce_tenant_isolation(current_user, inv)
         
     return build_investigation_response(inv, db)
 
@@ -670,9 +1038,7 @@ async def get_investigation_graph(
     inv = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Investigation not found")
-    if current_user.role != "admin" and getattr(current_user, "tenant_id", None) and getattr(inv, "tenant_id", None):
-        if inv.tenant_id != current_user.tenant_id:
-            raise HTTPException(status_code=403, detail="Access denied: Resource belongs to another tenant")
+    enforce_tenant_isolation(current_user, inv)
 
     is_completed = inv.status in ("COMPLETED", "ESCALATED", "CLOSED_APPROVE", "CLOSED_REJECT")
     is_running = inv.status in ("RUNNING", "QUEUED", "RETRYING")
@@ -795,7 +1161,7 @@ async def get_investigation_graph(
             "dependencies": ["evidence_validator"],
             "description": "Executes chain-of-thought financial crime pattern deduction.",
             "inputs": {"validated_signals": True},
-            "outputs": {"preliminary_verdict": "FRAUD_SUSPECTED", "risk_score": float(inv.risk_score or 0.85)}
+            "outputs": {"preliminary_verdict": "FRAUD_SUSPECTED", "risk_score": float(inv.risk_score) if inv.risk_score is not None else None}
         },
         {
             "id": "critic",
@@ -868,9 +1234,7 @@ async def cancel_investigation(
     inv = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Investigation not found")
-    if current_user.role != "admin" and getattr(current_user, "tenant_id", None) and getattr(inv, "tenant_id", None):
-        if inv.tenant_id != current_user.tenant_id:
-            raise HTTPException(status_code=403, detail="Access denied: Resource belongs to another tenant")
+    enforce_tenant_isolation(current_user, inv)
     if inv.status in ("COMPLETED", "REJECTED"):
         raise HTTPException(status_code=400, detail=f"Cannot cancel investigation in status {inv.status}")
 
@@ -902,9 +1266,7 @@ async def review_investigation(
     inv = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Investigation not found")
-    if current_user.role != "admin" and getattr(current_user, "tenant_id", None) and getattr(inv, "tenant_id", None):
-        if inv.tenant_id != current_user.tenant_id:
-            raise HTTPException(status_code=403, detail="Access denied: Resource belongs to another tenant")
+    enforce_tenant_isolation(current_user, inv)
 
     if inv.status not in ["COMPLETED", "ESCALATED", "FAILED", "RUNNING"]:
         raise HTTPException(status_code=400, detail=f"Cannot review investigation in status {inv.status}")
@@ -965,8 +1327,11 @@ async def list_investigations(
     """
     # Build the base query
     query = db.query(models.Investigation)
-    if current_user.role != "admin" and getattr(current_user, "tenant_id", None):
-        query = query.filter(models.Investigation.tenant_id == current_user.tenant_id)
+    if current_user.role != "admin":
+        user_tenant = getattr(current_user, "tenant_id", None)
+        if not user_tenant:
+            raise HTTPException(status_code=403, detail="Access denied: Non-admin user missing tenant context")
+        query = query.filter(models.Investigation.tenant_id == user_tenant)
 
     # Apply filters
     if status:
@@ -1049,9 +1414,7 @@ async def export_investigation_report(
     inv = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Investigation not found")
-    if current_user.role != "admin" and getattr(current_user, "tenant_id", None) and getattr(inv, "tenant_id", None):
-        if inv.tenant_id != current_user.tenant_id:
-            raise HTTPException(status_code=403, detail="Access denied: Resource belongs to another tenant")
+    enforce_tenant_isolation(current_user, inv)
 
     response_data = build_investigation_response(inv, db)
     audit_logs = db.query(models.AuditLog).filter(models.AuditLog.investigation_id == investigation_id).order_by(models.AuditLog.timestamp).all()
@@ -1157,6 +1520,262 @@ async def export_investigation_report(
             headers={"Content-Disposition": f"attachment; filename=report_{investigation_id}.pdf"}
         )
 
+def generate_replay_snapshot(inv: models.Investigation, db: Session) -> Tuple[Dict[str, Any], str]:
+    # 1. Canonical investigation dictionary
+    inv_dict = {
+        "investigation_id": inv.investigation_id,
+        "tenant_id": getattr(inv, "tenant_id", "default_tenant"),
+        "transaction_id": inv.txn_id,
+        "status": inv.status,
+        "risk_score": float(inv.risk_score) if inv.risk_score is not None else None,
+        "confidence": float(inv.confidence) if inv.confidence is not None else None,
+        "report": inv.report,
+        "idempotency_key": inv.idempotency_key,
+        "request_fingerprint": inv.request_fingerprint,
+        "created_at": inv.created_at.isoformat() if inv.created_at else None,
+        "updated_at": inv.updated_at.isoformat() if inv.updated_at else None,
+    }
+
+    # 2. Canonical transaction dictionary
+    txn_dict = None
+    if inv.transaction:
+        txn = inv.transaction
+        txn_dict = {
+            "txn_id": txn.txn_id,
+            "tenant_id": getattr(txn, "tenant_id", "default_tenant"),
+            "account_id": txn.account_id,
+            "merchant_id": txn.merchant_id,
+            "amount": float(txn.amount) if txn.amount is not None else None,
+            "currency": txn.currency,
+            "status": txn.status,
+            "timestamp": txn.timestamp.isoformat() if txn.timestamp else None,
+            "counterparty": txn.counterparty,
+            "channel": txn.channel,
+            "ip_address": txn.ip_address,
+            "device_ref": txn.device_ref,
+        }
+
+    # 3. Canonical evidence items
+    evidence_list = []
+    if inv.evidence:
+        for ev in inv.evidence:
+            evidence_list.append({
+                "evidence_id": ev.evidence_id,
+                "tenant_id": getattr(ev, "tenant_id", "default_tenant"),
+                "source": ev.source,
+                "snippet": ev.snippet,
+            })
+    vault_items = db.query(models.EvidenceVaultItem).filter(
+        models.EvidenceVaultItem.investigation_id == inv.investigation_id
+    ).all()
+    for vi in vault_items:
+        evidence_list.append({
+            "item_id": vi.item_id,
+            "category": vi.category,
+            "title": vi.title,
+            "source": vi.source,
+            "sha256_hash": vi.sha256_hash,
+            "risk_level": vi.risk_level,
+            "is_verified": vi.is_verified,
+            "verification_method": vi.verification_method,
+        })
+
+    # 4. Canonical audit logs
+    audit_logs_db = db.query(models.AuditLog).filter(
+        models.AuditLog.investigation_id == inv.investigation_id
+    ).order_by(models.AuditLog.timestamp.asc(), models.AuditLog.log_id.asc()).all()
+    audit_logs_db = models.AuditLog.order_chain(audit_logs_db)
+
+    chain_valid, chain_errors = models.AuditLog.verify_chain(audit_logs_db)
+
+    audit_logs = []
+    for al in audit_logs_db:
+        audit_logs.append({
+            "log_id": al.log_id,
+            "tenant_id": al.tenant_id,
+            "investigation_id": al.investigation_id,
+            "action": al.action,
+            "details": al.details,
+            "timestamp": al.timestamp.isoformat() if hasattr(al.timestamp, "isoformat") else str(al.timestamp or ""),
+            "previous_hash": al.previous_hash,
+            "entry_hash": al.entry_hash,
+        })
+
+    # 5. Build canonical snapshot bundle (without replay_fingerprint)
+    snapshot = {
+        "snapshot_version": "1.0.0",
+        "generated_at": datetime.datetime.utcnow().isoformat(),
+        "investigation_id": inv.investigation_id,
+        "tenant_id": getattr(inv, "tenant_id", "default_tenant"),
+        "investigation": inv_dict,
+        "transaction": txn_dict,
+        "evidence": evidence_list,
+        "audit_logs": audit_logs,
+        "audit_chain_valid": chain_valid,
+        "audit_chain_errors": chain_errors,
+    }
+
+    # 6. Compute canonical SHA-256 fingerprint
+    canonical_repr = json.dumps(snapshot, sort_keys=True, separators=(',', ':'))
+    fingerprint = hashlib.sha256(canonical_repr.encode("utf-8")).hexdigest()
+    snapshot["replay_fingerprint"] = fingerprint
+
+    return snapshot, fingerprint
+
+# --- Immutable Replay Snapshots & Cryptographic Audit Verification (Task T3.1) ---
+
+@app.post("/api/v1/investigations/{investigation_id}/export-replay", response_model=ReplaySnapshotResponse)
+@app.get("/api/v1/investigations/{investigation_id}/export-replay", response_model=ReplaySnapshotResponse)
+async def export_replay_snapshot(
+    investigation_id: str,
+    response: Response,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """
+    Task T3.1: Export immutable, cryptographically verifiable replay snapshot.
+    Returns canonical JSON representation of the investigation, transaction, evidence,
+    and audit log hash chain, with SHA-256 replay fingerprint.
+    """
+    inv = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Investigation not found")
+    enforce_tenant_isolation(current_user, inv)
+
+    snapshot, fingerprint = generate_replay_snapshot(inv, db)
+    response.headers["X-Replay-Fingerprint"] = fingerprint
+    return snapshot
+
+
+@app.post("/api/v1/investigations/{investigation_id}/verify-replay", response_model=ReplayVerifyResponse)
+async def verify_replay_snapshot(
+    investigation_id: str,
+    payload: Dict[str, Any] = Body(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """
+    Task T3.1: Cryptographically verify an exported replay snapshot against
+    hash chaining, canonical fingerprinting, and database fidelity.
+    """
+    snapshot = payload.get("snapshot") if "snapshot" in payload and isinstance(payload.get("snapshot"), dict) else payload
+
+    # 1. Multi-tenant isolation verification
+    user_tenant = getattr(current_user, "tenant_id", "default_tenant") or "default_tenant"
+    snap_tenant = snapshot.get("tenant_id")
+    if snap_tenant and getattr(current_user, "role", "") != "admin" and snap_tenant != user_tenant:
+        raise HTTPException(status_code=403, detail="Cross-tenant replay verification forbidden")
+
+    inv = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Investigation not found")
+    enforce_tenant_isolation(current_user, inv)
+
+    mismatches = []
+
+    # 2. Replay fingerprint verification
+    provided_fp = snapshot.get("replay_fingerprint")
+    if not provided_fp:
+        return ReplayVerifyResponse(
+            is_valid=False,
+            audit_chain_valid=False,
+            tamper_detected=True,
+            mismatch_reasons=["Missing 'replay_fingerprint' in snapshot"],
+            detail="Snapshot rejected: missing cryptographic fingerprint"
+        )
+
+    payload_copy = dict(snapshot)
+    payload_copy.pop("replay_fingerprint", None)
+    canonical_repr = json.dumps(payload_copy, sort_keys=True, separators=(',', ':'))
+    computed_fp = hashlib.sha256(canonical_repr.encode("utf-8")).hexdigest()
+
+    if computed_fp != provided_fp:
+        mismatches.append(f"Fingerprint mismatch: computed '{computed_fp}' does not match provided '{provided_fp}'")
+
+    # 3. Audit log cryptographic hash chain verification
+    audit_logs = snapshot.get("audit_logs", [])
+    chain_valid, chain_errors = models.AuditLog.verify_chain(audit_logs)
+    if not chain_valid:
+        mismatches.extend(chain_errors)
+
+    # 4. Database fidelity verification
+    snap_inv = snapshot.get("investigation", {})
+    if snap_inv.get("transaction_id") != inv.txn_id:
+        mismatches.append(f"Transaction ID mismatch: snapshot '{snap_inv.get('transaction_id')}' != database '{inv.txn_id}'")
+
+    db_score = float(inv.risk_score) if inv.risk_score is not None else None
+    snap_score = snap_inv.get("risk_score")
+    if snap_score is not None and db_score is not None:
+        if abs(float(snap_score) - db_score) > 1e-4:
+            mismatches.append(f"Risk score mismatch: snapshot '{snap_score}' != database '{db_score}'")
+    elif snap_score != db_score:
+        mismatches.append(f"Risk score mismatch: snapshot '{snap_score}' != database '{db_score}'")
+
+    if snap_inv.get("status") != inv.status:
+        mismatches.append(f"Status mismatch: snapshot '{snap_inv.get('status')}' != database '{inv.status}'")
+
+    is_valid = (len(mismatches) == 0 and chain_valid and (computed_fp == provided_fp))
+    tamper_detected = not is_valid
+    detail = (
+        "Replay snapshot verified cryptographically and matches database audit record"
+        if is_valid
+        else f"Tampering or corruption detected: {'; '.join(mismatches)}"
+    )
+
+    return ReplayVerifyResponse(
+        is_valid=is_valid,
+        replay_fingerprint=computed_fp,
+        audit_chain_valid=chain_valid,
+        audit_chain_errors=chain_errors,
+        tamper_detected=tamper_detected,
+        mismatch_reasons=mismatches,
+        detail=detail
+    )
+
+
+@app.get("/api/v1/investigations/{investigation_id}/audit-chain", response_model=AuditChainResponse)
+async def get_investigation_audit_chain(
+    investigation_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """
+    Task T3.1: Retrieve full audit trail with cryptographic hash chain integrity status.
+    """
+    inv = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Investigation not found")
+    enforce_tenant_isolation(current_user, inv)
+
+    audit_logs = db.query(models.AuditLog).filter(
+        models.AuditLog.investigation_id == investigation_id
+    ).order_by(models.AuditLog.timestamp.asc(), models.AuditLog.log_id.asc()).all()
+    audit_logs = models.AuditLog.order_chain(audit_logs)
+
+    chain_valid, chain_errors = models.AuditLog.verify_chain(audit_logs)
+
+    entries = [
+        AuditChainEntry(
+            log_id=al.log_id,
+            tenant_id=al.tenant_id,
+            action=al.action,
+            details=al.details,
+            timestamp=al.timestamp.isoformat() if hasattr(al.timestamp, "isoformat") else str(al.timestamp or ""),
+            previous_hash=al.previous_hash,
+            entry_hash=al.entry_hash
+        )
+        for al in audit_logs
+    ]
+
+    return AuditChainResponse(
+        investigation_id=inv.investigation_id,
+        tenant_id=getattr(inv, "tenant_id", "default_tenant"),
+        chain_length=len(audit_logs),
+        is_valid=chain_valid,
+        errors=chain_errors,
+        entries=entries
+    )
+
 @app.patch("/api/v1/investigations/{investigation_id}", response_model=InvestigationResponse)
 async def update_investigation(
     investigation_id: str,
@@ -1175,9 +1794,7 @@ async def update_investigation(
     inv = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Investigation not found")
-    if current_user.role != "admin" and getattr(current_user, "tenant_id", None) and getattr(inv, "tenant_id", None):
-        if inv.tenant_id != current_user.tenant_id:
-            raise HTTPException(status_code=403, detail="Access denied: Resource belongs to another tenant")
+    enforce_tenant_isolation(current_user, inv)
 
     # Update fields if provided
     if status is not None:
@@ -1223,9 +1840,7 @@ async def delete_investigation(
     inv = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Investigation not found")
-    if current_user.role != "admin" and getattr(current_user, "tenant_id", None) and getattr(inv, "tenant_id", None):
-        if inv.tenant_id != current_user.tenant_id:
-            raise HTTPException(status_code=403, detail="Access denied: Resource belongs to another tenant")
+    enforce_tenant_isolation(current_user, inv)
 
     # Store info for audit log before deletion
     investigation_id_for_log = inv.investigation_id
@@ -2725,6 +3340,10 @@ async def get_prometheus_metrics():
     for node, n_data in llm_stats.get("tokens_by_node", {}).items():
         lines.append(f"ffre_llm_node_tokens_total{{node=\"{node}\",type=\"prompt\"}} {n_data.get('prompt', 0)}")
         lines.append(f"ffre_llm_node_tokens_total{{node=\"{node}\",type=\"completion\"}} {n_data.get('completion', 0)}")
+
+    for tenant, cost in llm_stats.get("cost_by_tenant", {}).items():
+        safe_tenant = re.sub(r'[^a-zA-Z0-9_\-]', '', str(tenant))
+        lines.append(f"ffre_llm_tenant_cost_usd_total{{tenant_id=\"{safe_tenant}\"}} {round(cost, 6)}")
 
     return Response(content="\n".join(lines) + "\n", media_type="text/plain")
 

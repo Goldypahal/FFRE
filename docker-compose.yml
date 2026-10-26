@@ -6,15 +6,15 @@ services:
     container_name: ffire_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ffire_user
-      POSTGRES_PASSWORD: ffire_password
-      POSTGRES_DB: ffire_db
+      POSTGRES_USER: ${POSTGRES_USER:-ffire_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ffire_dev_insecure_password}
+      POSTGRES_DB: ${POSTGRES_DB:-ffire_db}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ffire_user -d ffire_db"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-ffire_user} -d $${POSTGRES_DB:-ffire_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -46,13 +46,14 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://ffire_user:ffire_password@db:5432/ffire_db
-      - REDIS_URL=redis://redis:6379/0
-      - SECRET_KEY=enterprise-production-secret-key-change-in-prod
-      - ENCRYPTION_SECRET_KEY=gK4H7s2l0Y-X8n1Vq9m3Z_5bRt6yUo8pL2wE4rT6yU8=
-      - ENV=production
-      - RATE_LIMIT_ENABLED=true
-      - CONFIDENCE_THRESHOLD=0.85
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-ffire_user}:${POSTGRES_PASSWORD:-ffire_dev_insecure_password}@db:5432/${POSTGRES_DB:-ffire_db}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - SECRET_KEY=${SECRET_KEY:-ffire-dev-secret-key-change-in-prod}
+      - ENCRYPTION_SECRET_KEY=${ENCRYPTION_SECRET_KEY:-ffire-dev-encryption-key-change-in-prod}
+      - ENV=${ENV:-production}
+      - RATE_LIMIT_ENABLED=${RATE_LIMIT_ENABLED:-true}
+      - CONFIDENCE_THRESHOLD=${CONFIDENCE_THRESHOLD:-0.85}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
     depends_on:
       db:
         condition: service_healthy
@@ -74,12 +75,13 @@ services:
     restart: unless-stopped
     command: ["python", "worker.py"]
     environment:
-      - DATABASE_URL=postgresql://ffire_user:ffire_password@db:5432/ffire_db
-      - REDIS_URL=redis://redis:6379/0
-      - SECRET_KEY=enterprise-production-secret-key-change-in-prod
-      - ENCRYPTION_SECRET_KEY=gK4H7s2l0Y-X8n1Vq9m3Z_5bRt6yUo8pL2wE4rT6yU8=
-      - STRICT_ENTERPRISE_MODE=true
-      - ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-ffire_user}:${POSTGRES_PASSWORD:-ffire_dev_insecure_password}@db:5432/${POSTGRES_DB:-ffire_db}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - SECRET_KEY=${SECRET_KEY:-ffire-dev-secret-key-change-in-prod}
+      - ENCRYPTION_SECRET_KEY=${ENCRYPTION_SECRET_KEY:-ffire-dev-encryption-key-change-in-prod}
+      - STRICT_ENTERPRISE_MODE=${STRICT_ENTERPRISE_MODE:-true}
+      - ENV=${ENV:-production}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
     depends_on:
       db:
         condition: service_healthy

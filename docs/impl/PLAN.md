@@ -1,0 +1,24 @@
+# FFIRE Master Implementation & Hardening Plan
+
+This plan tracks every task in Section 6 of `MASTER_PROMPT.md`. Status transitions: `TODO` -> `IN_PROGRESS` -> `DONE` (or `BLOCKED`).
+
+| Task ID | Title | Phase | Status | Files Touched | Tests | Commit SHA |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **T0.1** | Baseline Test Suite & Environment Discovery | Phase 0 | **DONE** | `docs/impl/*` | Full backend pytest suite | `03fe6d1` |
+| **T0.2** | Remove Mock-Data Creation (V1) | Phase 0 | **DONE** | `backend/main.py`, `scripts/seed_demo_data.py`, `backend/tests/test_mock_data_removal.py`, `backend/tests/test_main.py` | Unit tests for 404 on missing transaction | `bf9933f` |
+| **T0.3** | Tenant-Scoped Idempotency & Fingerprinting (V2) | Phase 0 | **DONE** | `backend/main.py`, `backend/models.py`, `backend/database.py`, `backend/alembic/versions/0984d6164269_*.py`, `backend/tests/test_tenant_idempotency.py` | Multi-tenant idempotency & collision tests (4/4 PASS) | `3025a64` |
+| **T0.4** | No Invented Risk Scores (V3) | Phase 0 | **DONE** | `backend/main.py`, `frontend/src/pages/`, `backend/tests/test_no_invented_scores.py` | Unit tests for null risk_score preservation (3/3 PASS), Vitest (18/18 PASS) | `cd3e8c8` |
+| **T0.5** | Fail-Closed Evidence Retrieval & Clean Sessions (V4) | Phase 0 | **DONE** | `backend/graph.py`, `backend/main.py`, `scripts/seed_demo_data.py`, `backend/tests/test_fail_closed_retrieval.py` | Fail-closed UNAVAILABLE/NOT_FOUND & session tests (5/5 PASS) | `68912b8` |
+| **T0.6** | Tenant Isolation Across All Models & Vector Store (V5) | Phase 0 | **DONE** | `backend/models.py`, `backend/vector_db.py`, `backend/graph.py`, `backend/main.py`, `scripts/seed_demo_data.py`, `backend/alembic/versions/75c6ac636367_*.py` | Cross-tenant negative isolation tests (3/3 PASS) | `b897b50` |
+| **T0.7** | Grounding Guardrails & Structured Claims (V6) | Phase 0 | **DONE** | `backend/guardrails.py`, `backend/tests/test_grounding_guardrails_structured.py` | Adversarial citation, structured schema & injection tests (4/4 PASS) | `cf2c89b` |
+| **T0.8** | Secrets & PII Working Tree Hygiene (V9) | Phase 0 | **DONE** | `.gitignore`, `.env.example`, `backend/.env.example`, `docker-compose.yml`, `k8s/secrets.yaml`, `backend/data/vault/`, `backend/tests/test_secret_hygiene.py` | Secret hygiene scanning suite (5/5 PASS) | `af2ca80` |
+| **T0.9** | Comprehensive README & Documentation Sync (V10) | Phase 0 | **DONE** | `README.md`, `docs/` | Clean clone documentation & sync | `31d2903` |
+| **T1.1** | Pluggable Model Gateway & Offline Mode (V7) | Phase 1 | **DONE** | `backend/graph.py`, `backend/llm_gateway.py`, `backend/metrics.py`, `backend/tests/test_pluggable_model_gateway.py` | NullProvider, MockProvider, and full offline graph tests (6/6 PASS) | `ae23fbf` |
+| **T1.2** | Transaction Ingestion Connector & CSV Import (V8) | Phase 1 | **DONE** | `backend/main.py`, `backend/models.py`, `backend/database.py`, `backend/alembic/versions/89a1b2c3d4e5_*.py`, `backend/tests/test_transaction_ingestion.py` | Batch JSON, CSV upload, quarantine accounting, idempotency & isolation tests (5/5 PASS) | `3ec2e18` |
+| **T1.3** | Bi-Directional PII Redaction Tokenizer | Phase 1 | **DONE** | `backend/security.py`, `backend/graph.py`, `backend/tests/test_pii_tokenizer.py` | Tokenizer redaction, surrogate precedence, vault export/restore, LLM prompt redaction (4/4 PASS) | `e623829` |
+| **T2.1** | Comprehensive Open Benchmark Package | Phase 2 | **DONE** | `benchmarks/`, `backend/checkpointing.py`, `backend/database.py`, `backend/graph.py`, `backend/tests/test_benchmarks_package.py` | Benchmark smoke test, generators, manifests, auditor (6/6 PASS) | `ee94a0f` |
+| **T2.2** | Deterministic Claim-Mutation Verifier Suite | Phase 2 | **DONE** | `backend/guardrails.py`, `backend/tests/test_claim_mutation.py` | Multi-domain metamorphic claim-mutation tests (9/9 PASS) | `221fa77` |
+| **T2.3** | Scenario Suite: Production & Chaos Hardening | Phase 2 | **DONE** | `backend/tests/test_workbook_scenarios.py` | Network partition, checkpoint corruption, DLQ, isolation, quarantine scenarios (7/7 PASS) | `fb60db0` |
+| **T2.4** | AI Observability & Privacy-Preserving Telemetry | Phase 2 | **DONE** | `backend/metrics.py`, `backend/main.py`, `backend/tests/test_ai_observability.py` | Multi-tenant Prometheus exposition, label sanitization, zero PII tests (8/8 PASS) | `26d8a8a` |
+| **T3.1** | Immutable Replay Snapshots & Audit Export | Phase 3 | **DONE** | `backend/main.py`, `backend/models.py`, `backend/tests/test_replay_snapshots.py` | Snapshot export, verify & hash chain tests (8/8 PASS) | `473db77` |
+| **FINAL** | Final Verification & Executive Deliverable Report | Final | **DONE** | `docs/impl/FINAL_REPORT.md`, `docs/impl/evidence/final_test_run.txt` | Full regression suite (343/343 PASS) & benchmark verification | Complete |

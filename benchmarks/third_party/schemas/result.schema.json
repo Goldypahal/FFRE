@@ -1,0 +1,62 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FFIREThirdPartyEvaluationResult",
+  "type": "object",
+  "required": [
+    "case_id",
+    "configuration",
+    "investigation_id",
+    "predicted_verdict",
+    "ground_truth_label",
+    "verdict_correct",
+    "abstained",
+    "abstention_correct",
+    "latency_ms"
+  ],
+  "properties": {
+    "case_id": { "type": "string" },
+    "configuration": {
+      "type": "string",
+      "enum": ["config_a_rules", "config_b_llm", "config_c_full"]
+    },
+    "investigation_id": { "type": "string" },
+    "predicted_verdict": {
+      "type": "string",
+      "enum": ["SUSPICIOUS", "BENIGN", "ESCALATED", "UNKNOWN"]
+    },
+    "predicted_risk_score": { "type": ["number", "null"] },
+    "confidence": { "type": ["number", "null"] },
+    "ground_truth_label": { "type": "string" },
+    "verdict_correct": { "type": "boolean" },
+    "abstained": { "type": "boolean" },
+    "abstention_correct": { "type": "boolean" },
+    "retrieved_evidence_ids": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "retrieval_precision": { "type": ["number", "null"] },
+    "retrieval_recall": { "type": ["number", "null"] },
+    "retrieval_mrr": { "type": ["number", "null"] },
+    "unsupported_claim_count": { "type": "integer" },
+    "unsupported_claim_rate": { "type": "number" },
+    "latency_ms": { "type": "number" },
+    "token_count": { "type": "integer" },
+    "cost_usd": { "type": "number" },
+    "audit_chain_valid": { "type": "boolean" },
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "claim": { "type": "string" },
+          "evidence_source": { "type": "string" },
+          "supported": { "type": "boolean" },
+          "confidence": { "type": "number" },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "error": { "type": ["string", "null"] }
+  },
+  "additionalProperties": false
+}

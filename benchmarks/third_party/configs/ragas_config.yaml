@@ -1,0 +1,52 @@
+# Ragas Evaluation & Deterministic Retrieval Metrics Configuration
+# Evaluates retrieval accuracy, groundedness, and claim integrity.
+
+framework:
+  name: "Ragas"
+  repository: "https://github.com/explodinggradients/ragas"
+  documentation: "https://docs.ragas.io/"
+  license: "Apache-2.0"
+  status: "PARTIALLY_EXECUTED_OFFLINE"
+  llm_judge_status: "BLOCKED"
+  blocked_reason: "Zero paid API calls constraint and dependency isolation. Core dependencies require OpenAI/paid LLM for judge metrics (faithfulness, answer_relevancy)."
+
+deterministic_retrieval_metrics:
+  enabled: true
+  k_values: [1, 3, 5]
+  metrics:
+    - name: "Recall@k"
+      formula: "|Retrieved@k ∩ Relevant| / |Relevant|"
+    - name: "Precision@k"
+      formula: "|Retrieved@k ∩ Relevant| / k"
+    - name: "MRR"
+      formula: "1 / rank_of_first_relevant_evidence"
+    - name: "nDCG@k"
+      formula: "DCG@k / IDCG@k with binary relevance labels"
+
+dataset:
+  name: "ragas_grounded_eval_v1"
+  path: "benchmarks/third_party/datasets/ragas_eval_dataset.jsonl"
+  categories:
+    - id: "answerable_complete"
+      description: "Answerable query with complete supporting evidence in vault/relational tables."
+    - id: "answerable_multihop"
+      description: "Query requiring multi-entity evidence synthesis (customer, device, location, velocity)."
+    - id: "insufficient_evidence"
+      description: "Missing or degraded data sources where the pipeline must abstain or escalate."
+    - id: "adversarial_unsupported"
+      description: "Injected unsupported assertions and hallucinated facts."
+
+claim_mutation_suite:
+  enabled: true
+  float_tolerance: 1e-4
+  mutation_types:
+    - "amount_cents"
+    - "amount_scale_10x"
+    - "currency"
+    - "source_account"
+    - "destination_account"
+    - "device_os"
+    - "jurisdiction_country"
+    - "velocity_spike"
+    - "fabricated_evidence_id"
+    - "formatting_rounding_preservation"

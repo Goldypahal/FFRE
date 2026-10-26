@@ -48,6 +48,11 @@ def build_final_evidence_package():
         (repo_root / "data" / "srs_traceability.json.sha256", dist_dir / "srs_traceability.json.sha256"),
         (repo_root / "data" / "audit_the_auditor_report.md", dist_dir / "audit_the_auditor_report.md"),
         (repo_root / "data" / "benchmarks" / "task20_results.json", dist_dir / "task20_results.json"),
+        (repo_root / "data" / "benchmarks" / "real_infra_performance_benchmark.json", dist_dir / "real_infra_performance_benchmark.json"),
+        (repo_root / "data" / "benchmarks" / "checkpoint_concurrency_stress_report.json", dist_dir / "checkpoint_concurrency_stress_report.json"),
+        (repo_root / "data" / "benchmarks" / "representative_production_benchmark.json", dist_dir / "representative_production_benchmark.json"),
+        (repo_root / "data" / "benchmarks" / "soak_and_overload_report.json", dist_dir / "soak_and_overload_report.json"),
+        (repo_root / "docs" / "OPERATIONAL_RECOVERY_RUNBOOK.md", dist_dir / "OPERATIONAL_RECOVERY_RUNBOOK.md"),
         (repo_root / "FFIRE_SRS.txt", dist_dir / "FFIRE_SRS.txt")
     ]
 

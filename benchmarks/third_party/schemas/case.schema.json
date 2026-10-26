@@ -1,0 +1,116 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FFIREThirdPartyEvaluationCase",
+  "type": "object",
+  "required": [
+    "case_id",
+    "dataset",
+    "scenario_id",
+    "category",
+    "target_transaction_id",
+    "ground_truth_label",
+    "expected_abstention"
+  ],
+  "properties": {
+    "case_id": {
+      "type": "string",
+      "description": "Unique deterministic identifier for the evaluation case"
+    },
+    "dataset": {
+      "type": "string",
+      "description": "Source dataset name and version, e.g. ibm_amlsim_v1 or ragas_grounded_v1"
+    },
+    "scenario_id": {
+      "type": "string",
+      "description": "Identifier of the scenario or network topology"
+    },
+    "cluster_id": {
+      "type": "string",
+      "description": "Identifier of the network cluster or independent customer group for cluster-aware bootstrapping"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "suspicious_typology",
+        "benign_control",
+        "insufficient_evidence",
+        "missing_evidence",
+        "contradictory_evidence",
+        "adversarial_unsupported",
+        "answerable_complete",
+        "answerable_multihop"
+      ],
+      "description": "Experimental partition category"
+    },
+    "typology": {
+      "type": ["string", "null"],
+      "enum": [
+        "fan_out",
+        "fan_in",
+        "cycle",
+        "bipartite",
+        "scatter_gather",
+        "stack_linear",
+        "none",
+        null
+      ],
+      "description": "AMLSim typology label if applicable. Kept isolated from investigation evidence."
+    },
+    "target_transaction_id": {
+      "type": "string",
+      "description": "Primary transaction submitted for investigation"
+    },
+    "related_transaction_ids": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Known related transactions in the ground truth graph"
+    },
+    "related_account_ids": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Accounts participating in the pattern"
+    },
+    "ground_truth_label": {
+      "type": "string",
+      "enum": ["SUSPICIOUS", "BENIGN", "INSUFFICIENT_EVIDENCE"],
+      "description": "External ground truth label. Strictly withheld from model prompts and evidence."
+    },
+    "ground_truth_edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source", "dest", "amount"],
+        "properties": {
+          "source": { "type": "string" },
+          "dest": { "type": "string" },
+          "amount": { "type": "number" },
+          "step": { "type": "integer" },
+          "is_sar": { "type": "boolean" }
+        }
+      },
+      "description": "Known suspicious or benign transaction graph edges"
+    },
+    "expected_evidence_ids": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Set of evidence IDs expected to be retrieved for complete grounding"
+    },
+    "expected_abstention": {
+      "type": "boolean",
+      "description": "Whether the engine is expected to abstain/escalate due to missing or degraded evidence"
+    },
+    "user_query": {
+      "type": ["string", "null"],
+      "description": "Optional human or investigator query for Ragas evaluation"
+    },
+    "reference_answer": {
+      "type": ["string", "null"],
+      "description": "Deterministic ground-truth reference summary for answer evaluation"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Scenario specific attributes (seed, bank_id, step range, etc.)"
+    }
+  },
+  "additionalProperties": false
+}

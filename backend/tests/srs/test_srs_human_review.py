@@ -8,7 +8,8 @@ def test_human_review_approve_workflow(client, db_session):
         status="ESCALATED",
         confidence=0.60,
         risk_score=0.75,
-        report="## HUMAN REVIEW ESCALATION REPORT\nRequires analyst review."
+        report="## HUMAN REVIEW ESCALATION REPORT\nRequires analyst review.",
+        tenant_id="default_tenant"
     )
     db_session.add(inv)
     db_session.commit()
@@ -36,7 +37,8 @@ def test_human_review_reject_workflow(client, db_session):
         status="ESCALATED",
         confidence=0.55,
         risk_score=0.82,
-        report="## HUMAN REVIEW ESCALATION REPORT\nHigh risk flagged."
+        report="## HUMAN REVIEW ESCALATION REPORT\nHigh risk flagged.",
+        tenant_id="default_tenant"
     )
     db_session.add(inv)
     db_session.commit()

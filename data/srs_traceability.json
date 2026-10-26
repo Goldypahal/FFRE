@@ -1,7 +1,7 @@
 {
   "metadata": {
     "project": "Financial Fraud Investigation Reasoning Engine (FFRE)",
-    "generated_at": "2026-09-17 11:14:42 UTC",
+    "generated_at": "2026-10-26 01:08:15 UTC",
     "audit_engine": "Task 39 Final Evidence Package Engine v13.0",
     "reconciliation": {
       "status": "PASSED",
@@ -30,7 +30,7 @@
       "final_evidence_package_coverage_pct": 100.0,
       "verification_coverage_pct": 100.0,
       "production_readiness_coverage_pct": 100.0,
-      "nfr1_p95_sec": 2.62175,
+      "nfr1_p95_sec": 1.66429,
       "nfr1_target_met": true,
       "srs_reconciliation": {
         "status": "PASSED",
@@ -144,7 +144,7 @@
         "backend/tests/test_vector_db.py"
       ],
       "behavior_spec": "Vector store performs embeddings similarity search against historical fraud cases.",
-      "source_snippet": "def similarity_search(self, query: str, top_k: int = 2) -> List[Dict[str, Any]]:",
+      "source_snippet": "def similarity_search(self, query: str, top_k: int = 2, tenant_id: str = None) -> List[Dict[str, Any]]:",
       "production_notes": []
     },
     {
@@ -326,7 +326,7 @@
       "behavior_spec": "Real graph execution benchmark achieves P95 < 8.0s across 1, 5, 10, 20 worker concurrency.",
       "source_snippet": "from metrics import metrics_collector",
       "production_notes": [
-        "P95=2.62175s < 8.0s target (MET)"
+        "P95=1.66429s < 8.0s target (MET)"
       ]
     },
     {
@@ -352,7 +352,7 @@
         "backend/tests/test_main.py"
       ],
       "behavior_spec": "FastAPI gateway health check endpoint /api/health responds with 200 OK.",
-      "source_snippet": "from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, status, Query, Response, Header, UploadFile, File, Form",
+      "source_snippet": "from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, status, Query, Response, Header, UploadFile, File, Form, Request, Body",
       "production_notes": []
     },
     {

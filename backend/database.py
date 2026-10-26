@@ -44,6 +44,7 @@ def get_db():
         db.close()
 
 def init_db():
+    import models
     Base.metadata.create_all(bind=engine)
     if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
         with engine.connect() as conn:
@@ -54,6 +55,36 @@ def init_db():
                 pass
             try:
                 conn.execute(text("ALTER TABLE investigation ADD COLUMN idempotency_key VARCHAR"))
+                conn.commit()
+            except Exception:
+                pass
+            try:
+                conn.execute(text("ALTER TABLE investigation ADD COLUMN request_fingerprint VARCHAR(64)"))
+                conn.commit()
+            except Exception:
+                pass
+            try:
+                conn.execute(text("DROP INDEX IF EXISTS uq_investigation_idempotency_key;"))
+                conn.commit()
+            except Exception:
+                pass
+            try:
+                conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_investigation_tenant_idempotency_key ON investigation (tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL;"))
+                conn.commit()
+            except Exception:
+                pass
+            try:
+                conn.execute(text("ALTER TABLE investigation ADD COLUMN request_fingerprint VARCHAR(64)"))
+                conn.commit()
+            except Exception:
+                pass
+            try:
+                conn.execute(text("DROP INDEX IF EXISTS uq_investigation_idempotency_key;"))
+                conn.commit()
+            except Exception:
+                pass
+            try:
+                conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_investigation_tenant_idempotency_key ON investigation (tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL;"))
                 conn.commit()
             except Exception:
                 pass
@@ -87,5 +118,119 @@ def init_db():
                 conn.commit()
             except Exception:
                 pass
+            for tbl in ["users", "customer", "account", "merchant", "device", "location", "evidence", "fraud_case", "risk_score", "dead_letter_job", "\"transaction\"", "investigation", "audit_log", "rule", "action_log", "prompts", "prompt_versions", "reports"]:
+                try:
+                    conn.execute(text(f"ALTER TABLE {tbl} ADD COLUMN tenant_id VARCHAR(50) DEFAULT 'default_tenant'"))
+                    conn.commit()
+                except Exception:
+                    pass
+            for col, col_type in [
+                ("previous_hash", "VARCHAR(64)"),
+                ("entry_hash", "VARCHAR(64)"),
+            ]:
+                try:
+                    conn.execute(text(f"ALTER TABLE audit_log ADD COLUMN {col} {col_type}"))
+                    conn.commit()
+                except Exception:
+                    pass
+            for col, col_type in [
+                ("email_hash", "VARCHAR(64)"),
+                ("status", "VARCHAR(20) DEFAULT 'ACTIVE'"),
+                ("last_login", "DATETIME"),
+            ]:
+                try:
+                    conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {col_type}"))
+                    conn.commit()
+                except Exception:
+                    pass
+            for col, col_type in [
+                ("ip_address", "VARCHAR(45)"),
+                ("os", "VARCHAR(50)"),
+            ]:
+                try:
+                    conn.execute(text(f"ALTER TABLE device ADD COLUMN {col} {col_type}"))
+                    conn.commit()
+                except Exception:
+                    pass
+            for col, col_type in [
+                ("geo_coord", "VARCHAR(100)"),
+                ("country", "VARCHAR(50)"),
+                ("txn_id", "VARCHAR"),
+            ]:
+                try:
+                    conn.execute(text(f"ALTER TABLE location ADD COLUMN {col} {col_type}"))
+                    conn.commit()
+                except Exception:
+                    pass
+            for col, col_type in [
+                ("counterparty", "VARCHAR(255)"),
+                ("channel", "VARCHAR(50)"),
+                ("ip_address", "VARCHAR(45)"),
+                ("device_ref", "VARCHAR(100)"),
+                ("timestamp", "DATETIME"),
+                ("currency", "VARCHAR(10) DEFAULT 'USD'"),
+            ]:
+                try:
+                    conn.execute(text(f"ALTER TABLE \"transaction\" ADD COLUMN {col} {col_type}"))
+                    conn.commit()
+                except Exception:
+                    pass
+            for tbl in ["users", "customer", "account", "merchant", "device", "location", "evidence", "fraud_case", "risk_score", "dead_letter_job", "\"transaction\"", "investigation", "audit_log", "rule", "action_log", "prompts", "prompt_versions", "reports"]:
+                try:
+                    conn.execute(text(f"ALTER TABLE {tbl} ADD COLUMN tenant_id VARCHAR(50) DEFAULT 'default_tenant'"))
+                    conn.commit()
+                except Exception:
+                    pass
+            for col, col_type in [
+                ("previous_hash", "VARCHAR(64)"),
+                ("entry_hash", "VARCHAR(64)"),
+            ]:
+                try:
+                    conn.execute(text(f"ALTER TABLE audit_log ADD COLUMN {col} {col_type}"))
+                    conn.commit()
+                except Exception:
+                    pass
+            for col, col_type in [
+                ("email_hash", "VARCHAR(64)"),
+                ("status", "VARCHAR(20) DEFAULT 'ACTIVE'"),
+                ("last_login", "DATETIME"),
+            ]:
+                try:
+                    conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {col_type}"))
+                    conn.commit()
+                except Exception:
+                    pass
+            for col, col_type in [
+                ("ip_address", "VARCHAR(45)"),
+                ("os", "VARCHAR(50)"),
+            ]:
+                try:
+                    conn.execute(text(f"ALTER TABLE device ADD COLUMN {col} {col_type}"))
+                    conn.commit()
+                except Exception:
+                    pass
+            for col, col_type in [
+                ("geo_coord", "VARCHAR(100)"),
+                ("country", "VARCHAR(50)"),
+                ("txn_id", "VARCHAR"),
+            ]:
+                try:
+                    conn.execute(text(f"ALTER TABLE location ADD COLUMN {col} {col_type}"))
+                    conn.commit()
+                except Exception:
+                    pass
+            for col, col_type in [
+                ("counterparty", "VARCHAR(255)"),
+                ("channel", "VARCHAR(50)"),
+                ("ip_address", "VARCHAR(45)"),
+                ("device_ref", "VARCHAR(100)"),
+                ("timestamp", "DATETIME"),
+                ("currency", "VARCHAR(10) DEFAULT 'USD'"),
+            ]:
+                try:
+                    conn.execute(text(f"ALTER TABLE \"transaction\" ADD COLUMN {col} {col_type}"))
+                    conn.commit()
+                except Exception:
+                    pass
 
 init_db()

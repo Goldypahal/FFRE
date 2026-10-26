@@ -1,0 +1,19 @@
+{
+  "name": "Stress & Peak Concurrency Load",
+  "description": "Stress-test evaluating system behavior under elevated concurrency [10, 20, 40] with rapid burst arrival.",
+  "tiers": [10, 20, 40],
+  "repetitions_per_tier": 2,
+  "warmup_requests": 5,
+  "targets": {
+    "max_failure_rate_pct": 1.0,
+    "p95_latency_ms": 8000.0,
+    "p99_latency_ms": 12000.0,
+    "min_throughput_ops_sec": 3.0
+  },
+  "generator_config": {
+    "seed": 99,
+    "num_customers": 50,
+    "txns_per_customer": 10,
+    "fraud_ratio": 0.35
+  }
+}

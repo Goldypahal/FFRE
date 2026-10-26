@@ -36,6 +36,7 @@ engine = create_engine(
     connect_args={"check_same_thread": False},
     poolclass=StaticPool,
 )
+
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 import database
@@ -61,10 +62,19 @@ def override_get_db():
 
 app.dependency_overrides[database.get_db] = override_get_db
 
-# Override get_current_user to bypass authentication in tests
+from fastapi import Request, Depends
+from sqlalchemy.orm import Session
+from jose import jwt
+import auth
 from auth import get_current_user
 import models
-def override_get_current_user():
+import models
+
+def override_get_current_user(request: Request, db: Session = Depends(override_get_db)):
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        return auth.get_current_user(token=token, db=db)
     return models.User(
         user_id="user_1",
         name="Test User",

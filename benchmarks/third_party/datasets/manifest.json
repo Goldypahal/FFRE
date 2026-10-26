@@ -1,0 +1,60 @@
+{
+  "manifest_version": "1.0.0",
+  "generated_at": "2026-10-23T05:35:00Z",
+  "datasets": [
+    {
+      "dataset_id": "amlsim_typology_benchmark_v1",
+      "format": "csv",
+      "files": {
+        "transactions": "benchmarks/third_party/datasets/amlsim_transactions.csv",
+        "accounts": "benchmarks/third_party/datasets/amlsim_accounts.csv",
+        "alerts": "benchmarks/third_party/datasets/amlsim_alerts.json"
+      },
+      "upstream": {
+        "source": "IBM/AMLSim",
+        "license": "Apache-2.0",
+        "commit": "912ec92f",
+        "url": "https://github.com/IBM/AMLSim"
+      },
+      "provenance": "Generated using IBM AMLSim multi-agent transaction simulation with injected typologies and benign background accounts.",
+      "record_counts": {
+        "total_transactions": 60,
+        "suspicious_transactions": 30,
+        "benign_transactions": 30,
+        "accounts": 40,
+        "typologies": 6
+      },
+      "typology_distribution": {
+        "fan_out": 5,
+        "fan_in": 5,
+        "cycle": 5,
+        "scatter_gather": 5,
+        "bipartite": 5,
+        "stack_linear": 5
+      },
+      "label_isolation": {
+        "isSAR_withheld": true,
+        "typology_withheld": true,
+        "alert_id_withheld": true
+      }
+    },
+    {
+      "dataset_id": "ragas_grounded_eval_v1",
+      "format": "jsonl",
+      "path": "benchmarks/third_party/datasets/ragas_eval_dataset.jsonl",
+      "upstream": {
+        "source": "FFIRE Grounded Evaluation Corpus",
+        "license": "Proprietary / Apache-2.0 Compatible",
+        "reference": "FFIRE Architecture Grounding Specification"
+      },
+      "provenance": "Formally specified ground truth cases covering complete, multihop, insufficient, and adversarial evidence scenarios.",
+      "record_counts": {
+        "total_cases": 24,
+        "answerable_complete": 6,
+        "answerable_multihop": 6,
+        "insufficient_evidence": 6,
+        "adversarial_unsupported": 6
+      }
+    }
+  ]
+}

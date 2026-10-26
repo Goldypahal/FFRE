@@ -1,3 +1,4 @@
+import pytest
 from models import *
 import uuid
 from datetime import datetime
@@ -192,9 +193,11 @@ def test_aes256_gcm_authenticated_encryption():
     raw[-1] ^= 0xFF # Flip bit in GCM authentication tag
     tampered_b64 = base64.b64encode(raw).decode("utf-8")
 
-    # Decrypting tampered payload should reject authentication and fallback safely
-    tampered_result = decrypt_aes256_gcm(tampered_b64)
-    assert tampered_result == tampered_b64
+    # Decrypting tampered payload raises DecryptionError (fail-closed enforcement)
+    with pytest.raises(security.DecryptionError):
+        decrypt_aes256_gcm(tampered_b64)
+    # With fail_closed=False, fallback safely does not return plaintext
+    assert decrypt_aes256_gcm(tampered_b64, fail_closed=False) == tampered_b64
 
 def test_audit_log_cryptographic_hash_chain_immutability(db_session):
     """NFR-5 Test: Verify AuditLog cryptographic hash chaining and tamper-evident detection."""

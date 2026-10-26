@@ -1,0 +1,19 @@
+{
+  "name": "Sustained Soak & Leak Detection Load",
+  "description": "Sustained execution load at moderate concurrency (tier 5) evaluating checkpointer stability, session cleanup, and memory leak absence.",
+  "tiers": [5],
+  "repetitions_per_tier": 10,
+  "warmup_requests": 2,
+  "targets": {
+    "max_failure_rate_pct": 0.0,
+    "p95_latency_ms": 5000.0,
+    "p99_latency_ms": 7000.0,
+    "min_throughput_ops_sec": 2.0
+  },
+  "generator_config": {
+    "seed": 1234,
+    "num_customers": 15,
+    "txns_per_customer": 10,
+    "fraud_ratio": 0.20
+  }
+}

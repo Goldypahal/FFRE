@@ -69,11 +69,30 @@ def calculate_percentiles(latencies):
         p99 = sorted_l[int(n * 0.99) if n > 1 else 0]
     return {"p50": p50, "p95": p95, "p99": p99}
 
+import threading
+
+class ThreadSafeMemorySaver(MemorySaver):
+    def __init__(self):
+        super().__init__()
+        self._lock = threading.RLock()
+
+    def get_tuple(self, config):
+        with self._lock:
+            return super().get_tuple(config)
+
+    def list(self, config, *, filter=None, before=None, limit=None):
+        with self._lock:
+            return super().list(config, filter=filter, before=before, limit=limit)
+
+    def put(self, config, checkpoint, metadata, new_versions=None):
+        with self._lock:
+            return super().put(config, checkpoint, metadata, new_versions or {})
+
 def test_concurrency_load_benchmark_suite():
     """Task 20/21/22 Real Concurrency Load Benchmark Suite: Evaluates graph executions, 100% success rate, & p95 < 8s target."""
     concurrency_levels = [1, 5, 10, 20]
     benchmark_results = {}
-    graph_app = build_graph(checkpointer=MemorySaver())
+    graph_app = build_graph(checkpointer=ThreadSafeMemorySaver())
 
     # Pre-seed DB records using clean isolated session
     db = SessionLocal()

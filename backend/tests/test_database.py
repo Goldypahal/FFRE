@@ -47,7 +47,7 @@ def test_alembic_migrations_configuration():
     script_dir = ScriptDirectory.from_config(alembic_cfg)
     head_rev = script_dir.get_current_head()
     assert head_rev is not None
-    assert head_rev == "338f66162493"
+    assert head_rev == "89a1b2c3d4e5"
 
 def test_production_postgres_pool_configuration():
     """Verify PostgreSQL engine initialization respects enterprise pooling parameters."""

@@ -36,8 +36,9 @@ def test_backend_dockerfile():
     with open(dockerfile_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    assert "FROM python:3.12-slim as builder" in content
-    assert "FROM python:3.12-slim as runner" in content
+    assert "from python:3.12-slim" in content.lower()
+    assert "as builder" in content.lower()
+    assert "as runner" in content.lower()
     assert "useradd" in content
     assert "ffireuser" in content
     assert "USER ffireuser" in content
@@ -55,8 +56,10 @@ def test_frontend_dockerfile_and_nginx():
     with open(dockerfile_path, "r", encoding="utf-8") as f:
         df_content = f.read()
 
-    assert "FROM node:20-alpine as builder" in df_content
-    assert "FROM nginx:alpine as runner" in df_content
+    assert "from node:" in df_content.lower()
+    assert "as builder" in df_content.lower()
+    assert "from nginx:alpine" in df_content.lower()
+    assert "as runner" in df_content.lower()
     assert "npm run build" in df_content
     assert "HEALTHCHECK" in df_content
 

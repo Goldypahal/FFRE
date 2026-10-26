@@ -1,6 +1,8 @@
 import os
+import sys
 import json
 import time
+import uuid
 import pytest
 import concurrent.futures
 from unittest.mock import MagicMock
@@ -147,27 +149,29 @@ def test_chaos_concurrent_duplicate_submission(client, db_session):
     Task 31 Chaos Test 6: 5 concurrent threads submit identical payload & Idempotency-Key.
     Verifies single investigation created and all threads receive identical investigation ID.
     """
+    u_tag = uuid.uuid4().hex[:8]
     reg_res = client.post("/api/v1/auth/register", json={
         "name": "Chaos User",
-        "email": "chaos.concurrent@example.com",
+        "email": f"chaos.concurrent_{u_tag}@example.com",
         "password": "Password123!",
         "role": "investigator"
     })
     token = reg_res.json()["access_token"]
+    idemp_key = f"idemp_chaos_concurrent_key_{u_tag}"
     headers = {
         "Authorization": f"Bearer {token}",
-        "Idempotency-Key": "idemp_chaos_concurrent_key_777"
+        "Idempotency-Key": idemp_key
     }
 
-    cust = models.Customer(customer_id="c_chaos_conc", name="Conc Cust", kyc_status="VERIFIED")
-    acct = models.Account(account_id="a_chaos_conc", customer_id="c_chaos_conc")
-    merch = models.Merchant(merchant_id="m_chaos_conc", name="Conc Merch", risk_score=0.01)
-    txn = models.Transaction(txn_id="T-CHAOS-CONC-1", account_id="a_chaos_conc", merchant_id="m_chaos_conc", amount=500.0, currency="USD", status="PENDING")
+    cust = models.Customer(customer_id=f"c_chaos_{u_tag}", name="Conc Cust", kyc_status="VERIFIED")
+    acct = models.Account(account_id=f"a_chaos_{u_tag}", customer_id=f"c_chaos_{u_tag}")
+    merch = models.Merchant(merchant_id=f"m_chaos_{u_tag}", name="Conc Merch", risk_score=0.01)
+    txn = models.Transaction(txn_id=f"T-CHAOS-{u_tag}", account_id=f"a_chaos_{u_tag}", merchant_id=f"m_chaos_{u_tag}", amount=500.0, currency="USD", status="PENDING")
 
     db_session.add_all([cust, acct, merch, txn])
     db_session.commit()
 
-    payload = {"transaction_id": "T-CHAOS-CONC-1", "user_id": "u_chaos_conc"}
+    payload = {"transaction_id": f"T-CHAOS-{u_tag}", "user_id": f"u_chaos_{u_tag}"}
 
     def submit_request():
         return client.post("/api/v1/investigations", json=payload, headers=headers)
@@ -178,8 +182,12 @@ def test_chaos_concurrent_duplicate_submission(client, db_session):
 
     status_codes = [r.status_code for r in responses]
     inv_ids = [r.json()["investigation_id"] for r in responses]
-
     # All calls returned 202
     assert all(code == 202 for code in status_codes)
     # All threads received the EXACT same investigation ID
     assert len(set(inv_ids)) == 1
+    # Verify exactly one investigation record exists in the database
+    db_session.expire_all()
+    db_records = db_session.query(models.Investigation).filter(models.Investigation.investigation_id == inv_ids[0]).all()
+    assert len(db_records) == 1
+    assert idemp_key in db_records[0].idempotency_key

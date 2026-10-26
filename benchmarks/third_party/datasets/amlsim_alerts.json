@@ -1,0 +1,61 @@
+[
+  {
+    "alert_id": "ALERT_FO_01",
+    "model_type": "fan_out",
+    "schedule_id": 1,
+    "source_account": "ACC_FO_SRC_1",
+    "destination_accounts": ["ACC_FO_DST_1", "ACC_FO_DST_2", "ACC_FO_DST_3"],
+    "transaction_steps": [1, 2],
+    "total_amount": 48900.00,
+    "reason": "Single source account rapidly disburses structured amounts below CTR threshold to multiple recipients"
+  },
+  {
+    "alert_id": "ALERT_FI_01",
+    "model_type": "fan_in",
+    "schedule_id": 2,
+    "source_accounts": ["ACC_FI_SRC_1", "ACC_FI_SRC_2", "ACC_FI_SRC_3"],
+    "destination_account": "ACC_FI_DST_1",
+    "transaction_steps": [3, 4],
+    "total_amount": 45000.00,
+    "reason": "Multiple originators aggregate structured deposits into single central collection account"
+  },
+  {
+    "alert_id": "ALERT_CYC_01",
+    "model_type": "cycle",
+    "schedule_id": 3,
+    "participating_accounts": ["ACC_CYC_1", "ACC_CYC_2", "ACC_CYC_3"],
+    "transaction_steps": [5, 6, 7, 8, 9],
+    "total_amount": 63600.00,
+    "reason": "Circular flow of funds among 3 accounts returning capital to initial originator"
+  },
+  {
+    "alert_id": "ALERT_SG_01",
+    "model_type": "scatter_gather",
+    "schedule_id": 4,
+    "source_account": "ACC_SG_SRC_1",
+    "intermediate_mules": ["ACC_SG_MULE_1", "ACC_SG_MULE_2"],
+    "destination_account": "ACC_SG_DST_1",
+    "transaction_steps": [10, 11, 12],
+    "total_amount": 68300.00,
+    "reason": "Layering: funds scattered to intermediate mule accounts then gathered into beneficiary account"
+  },
+  {
+    "alert_id": "ALERT_BIP_01",
+    "model_type": "bipartite",
+    "schedule_id": 5,
+    "group_a": ["ACC_BIP_A1", "ACC_BIP_A2"],
+    "group_b": ["ACC_BIP_B1", "ACC_BIP_B2"],
+    "transaction_steps": [13, 14, 15],
+    "total_amount": 43200.00,
+    "reason": "Dense bi-directional transfers across bipartite account clusters"
+  },
+  {
+    "alert_id": "ALERT_STK_01",
+    "model_type": "stack_linear",
+    "schedule_id": 6,
+    "chain_accounts": ["ACC_STK_1", "ACC_STK_2", "ACC_STK_3", "ACC_STK_4"],
+    "transaction_steps": [16, 17, 18, 19, 20],
+    "total_amount": 98200.00,
+    "reason": "Sequential linear chain multi-hop layering through pass-through entities"
+  }
+]

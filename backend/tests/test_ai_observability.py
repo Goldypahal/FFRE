@@ -153,3 +153,181 @@ def test_prometheus_metrics_export(client):
     assert "ffre_llm_call_duration_seconds{quantile=\"0.50\"}" in text
     assert "ffre_llm_model_tokens_total{model=\"gpt-4o\",type=\"prompt\"} 600" in text
     assert "ffre_llm_node_tokens_total{node=\"reporter\",type=\"prompt\"} 600" in text
+    assert "ffre_llm_tenant_cost_usd_total{tenant_id=\"default_tenant\"}" in text
+
+
+def test_privacy_preserving_metrics_no_pii(client):
+    """
+    T2.4: Verify zero PII leakage in Prometheus /metrics and telemetry APIs.
+    Metrics endpoints must NEVER expose customer names, email addresses, credit cards, or SSNs.
+    """
+    import re
+
+    # Record legitimate telemetry containing clean operational IDs
+    metrics_collector.record_llm_call(
+        investigation_id="inv_sec_001",
+        node_name="risk_reasoning",
+        model="gpt-4o-mini",
+        prompt_tokens=450,
+        completion_tokens=180,
+        latency_ms=195.0,
+        tenant_id="tenant_secure_corp"
+    )
+
+    res = client.get("/metrics")
+    assert res.status_code == 200
+    metrics_text = res.text
+
+    # Comprehensive PII Regex Patterns
+    email_regex = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b')
+    ssn_regex = re.compile(r'\b\d{3}-\d{2}-\d{4}\b')
+    credit_card_regex = re.compile(r'\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})\b')
+    name_patterns = ["Jonathan Doe", "Alice Smith", "Eleanor Vance", "Bob Jones", "Hacker", "Attacker"]
+
+    # Assert zero PII in Prometheus text
+    assert not email_regex.search(metrics_text), "Found leaked email address in /metrics output!"
+    assert not ssn_regex.search(metrics_text), "Found leaked SSN in /metrics output!"
+    assert not credit_card_regex.search(metrics_text), "Found leaked credit card number in /metrics output!"
+    for name in name_patterns:
+        assert name not in metrics_text, f"Found leaked personal name '{name}' in /metrics output!"
+
+
+def test_tenant_prometheus_metrics_attribution(client):
+    """T2.4: Verify multi-tenant Prometheus cost metrics accurately partition by tenant."""
+    metrics_collector.record_llm_call(
+        investigation_id="inv_ten_1",
+        node_name="planner",
+        model="gpt-4o",
+        prompt_tokens=1000,
+        completion_tokens=500,
+        latency_ms=250.0,
+        tenant_id="tenant_fintech_one"
+    )
+    metrics_collector.record_llm_call(
+        investigation_id="inv_ten_2",
+        node_name="critic",
+        model="gpt-4o-mini",
+        prompt_tokens=2000,
+        completion_tokens=800,
+        latency_ms=180.0,
+        tenant_id="tenant_bank_two"
+    )
+
+    res = client.get("/metrics")
+    assert res.status_code == 200
+    text = res.text
+
+    assert "ffre_llm_tenant_cost_usd_total{tenant_id=\"tenant_fintech_one\"}" in text
+    assert "ffre_llm_tenant_cost_usd_total{tenant_id=\"tenant_bank_two\"}" in text
+
+
+def test_prometheus_metric_label_sanitization_defense(client):
+    """T2.4: Verify metric label sanitization prevents exposition corruption or label injection."""
+    # Attempt label injection with quotes and newlines
+    metrics_collector.record_llm_call(
+        investigation_id="inv_inj_1\r\n",
+        node_name='planner",injected="true',
+        model='gpt-4o\nfake_gauge 123',
+        prompt_tokens=100,
+        completion_tokens=50,
+        latency_ms=50.0,
+        tenant_id='tenant_safe;DROP'
+    )
+
+    res = client.get("/metrics")
+    assert res.status_code == 200
+    text = res.text
+
+    # Verify no unescaped quote injections or fake metric injections occurred
+    assert 'injected="true"' not in text
+    assert "\nfake_gauge" not in text
+    assert "DROP" in text or "tenant_safe" in text
+    assert "ffre_llm_tenant_cost_usd_total{tenant_id=\"default_tenant\"}" in text
+
+
+def test_privacy_preserving_metrics_no_pii(client):
+    """
+    T2.4: Verify zero PII leakage in Prometheus /metrics and telemetry APIs.
+    Metrics endpoints must NEVER expose customer names, email addresses, credit cards, or SSNs.
+    """
+    import re
+
+    # Record legitimate telemetry containing clean operational IDs
+    metrics_collector.record_llm_call(
+        investigation_id="inv_sec_001",
+        node_name="risk_reasoning",
+        model="gpt-4o-mini",
+        prompt_tokens=450,
+        completion_tokens=180,
+        latency_ms=195.0,
+        tenant_id="tenant_secure_corp"
+    )
+
+    res = client.get("/metrics")
+    assert res.status_code == 200
+    metrics_text = res.text
+
+    # Comprehensive PII Regex Patterns
+    email_regex = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b')
+    ssn_regex = re.compile(r'\b\d{3}-\d{2}-\d{4}\b')
+    credit_card_regex = re.compile(r'\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})\b')
+    name_patterns = ["Jonathan Doe", "Alice Smith", "Eleanor Vance", "Bob Jones", "Hacker", "Attacker"]
+
+    # Assert zero PII in Prometheus text
+    assert not email_regex.search(metrics_text), "Found leaked email address in /metrics output!"
+    assert not ssn_regex.search(metrics_text), "Found leaked SSN in /metrics output!"
+    assert not credit_card_regex.search(metrics_text), "Found leaked credit card number in /metrics output!"
+    for name in name_patterns:
+        assert name not in metrics_text, f"Found leaked personal name '{name}' in /metrics output!"
+
+
+def test_tenant_prometheus_metrics_attribution(client):
+    """T2.4: Verify multi-tenant Prometheus cost metrics accurately partition by tenant."""
+    metrics_collector.record_llm_call(
+        investigation_id="inv_ten_1",
+        node_name="planner",
+        model="gpt-4o",
+        prompt_tokens=1000,
+        completion_tokens=500,
+        latency_ms=250.0,
+        tenant_id="tenant_fintech_one"
+    )
+    metrics_collector.record_llm_call(
+        investigation_id="inv_ten_2",
+        node_name="critic",
+        model="gpt-4o-mini",
+        prompt_tokens=2000,
+        completion_tokens=800,
+        latency_ms=180.0,
+        tenant_id="tenant_bank_two"
+    )
+
+    res = client.get("/metrics")
+    assert res.status_code == 200
+    text = res.text
+
+    assert "ffre_llm_tenant_cost_usd_total{tenant_id=\"tenant_fintech_one\"}" in text
+    assert "ffre_llm_tenant_cost_usd_total{tenant_id=\"tenant_bank_two\"}" in text
+
+
+def test_prometheus_metric_label_sanitization_defense(client):
+    """T2.4: Verify metric label sanitization prevents exposition corruption or label injection."""
+    # Attempt label injection with quotes and newlines
+    metrics_collector.record_llm_call(
+        investigation_id="inv_inj_1\r\n",
+        node_name='planner",injected="true',
+        model='gpt-4o\nfake_gauge 123',
+        prompt_tokens=100,
+        completion_tokens=50,
+        latency_ms=50.0,
+        tenant_id='tenant_safe;DROP'
+    )
+
+    res = client.get("/metrics")
+    assert res.status_code == 200
+    text = res.text
+
+    # Verify no unescaped quote injections or fake metric injections occurred
+    assert 'injected="true"' not in text
+    assert "\nfake_gauge" not in text
+    assert "DROP" in text or "tenant_safe" in text

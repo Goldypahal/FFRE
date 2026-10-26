@@ -1,0 +1,151 @@
+{
+  "status": "COMPLETED",
+  "dataset": {
+    "total_samples": 2037,
+    "neg_samples": 1941,
+    "pos_samples": 96,
+    "fraud_ratio": 0.0471,
+    "pos_weight": 20.22,
+    "num_features": 31
+  },
+  "models": {
+    "baseline_logistic_regression": {
+      "model_id": "baseline_logistic_regression_v1",
+      "stage": "staging",
+      "metrics": {
+        "true_positives": 24,
+        "false_positives": 0,
+        "true_negatives": 485,
+        "false_negatives": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1_score": 1.0,
+        "macro_f1": 1.0,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0,
+        "roc_auc": 1.0,
+        "pr_auc": 1.0,
+        "brier_score": 0.0,
+        "expected_calibration_error": 0.0003
+      },
+      "training_time_sec": 25.0
+    },
+    "uncalibrated_lightgbm": {
+      "metrics": {
+        "true_positives": 24,
+        "false_positives": 0,
+        "true_negatives": 485,
+        "false_negatives": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1_score": 1.0,
+        "macro_f1": 1.0,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0,
+        "roc_auc": 1.0,
+        "pr_auc": 1.0,
+        "brier_score": 0.0,
+        "expected_calibration_error": 0.0006
+      }
+    },
+    "calibrated_lightgbm": {
+      "model_id": "lightgbm_fraud_detector_v1",
+      "stage": "production",
+      "metrics": {
+        "true_positives": 24,
+        "false_positives": 0,
+        "true_negatives": 485,
+        "false_negatives": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1_score": 1.0,
+        "macro_f1": 1.0,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0,
+        "roc_auc": 1.0,
+        "pr_auc": 1.0,
+        "brier_score": 0.0001,
+        "expected_calibration_error": 0.0038
+      },
+      "training_time_sec": 3.31
+    }
+  },
+  "inference_benchmark": {
+    "active_production_model": "lightgbm_fraud_detector_v1",
+    "latency_ms": 16.11,
+    "sample_prediction": {
+      "risk_score": 0.002,
+      "raw_probability": 0.002,
+      "predicted_label": "BENIGN",
+      "model_id": "lightgbm_fraud_detector_v1",
+      "model_version": "1.0.0",
+      "model_type": "lightgbm_calibrated",
+      "top_features": [
+        {
+          "feature": "amount",
+          "importance": 518.0,
+          "value": 85000.0,
+          "impact": 44030000.0
+        },
+        {
+          "feature": "account_balance",
+          "importance": 44.0,
+          "value": 500000.0,
+          "impact": 22000000.0
+        },
+        {
+          "feature": "kyc_status_verified",
+          "importance": 99.0,
+          "value": 1.0,
+          "impact": 99.0
+        },
+        {
+          "feature": "risk_tier_low",
+          "importance": 68.0,
+          "value": 1.0,
+          "impact": 68.0
+        },
+        {
+          "feature": "amount_to_balance_ratio",
+          "importance": 93.0,
+          "value": 0.17,
+          "impact": 15.81
+        }
+      ],
+      "feature_vector": [
+        85000.0,
+        11.3504,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        1.0,
+        0.0,
+        1.0,
+        0.0,
+        1.0,
+        0.0,
+        1.0,
+        0.0,
+        500000.0,
+        0.17
+      ],
+      "latency_ms": 16.11
+    }
+  }
+}

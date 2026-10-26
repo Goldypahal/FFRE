@@ -55,57 +55,17 @@ def test_ha_gateway_liveness_readiness_probes(client):
     data = res.json()
     assert data["status"] in ["healthy", "HEALTHY", "OK", "UP"]
 
-def test_ha_postgres_multi_instance_checkpoint_sync(monkeypatch):
+def test_ha_postgres_multi_instance_checkpoint_sync():
     """
     Task 33 HA Test 3: Verify PostgreSQL multi-instance checkpointer (DurablePostgresSaver) state sync across worker pods.
     Pod A writes state to PostgreSQL checkpointer; Pod B reads synced state directly from PostgreSQL DB.
     """
-    import sqlite3
-    import psycopg2
-
-    # In-memory shared database connection simulating PostgreSQL HA DB
-    shared_sqlite_conn = sqlite3.connect(":memory:", check_same_thread=False)
-    with shared_sqlite_conn:
-        shared_sqlite_conn.execute("CREATE TABLE checkpoints (thread_id TEXT PRIMARY KEY, checkpoint_data BLOB, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
-
-    class MockPostgresCursor:
-        def __init__(self, conn):
-            self.cursor = conn.cursor()
-            self.fetchall = self.cursor.fetchall
-            self.fetchone = self.cursor.fetchone
-        def execute(self, sql, params=None):
-            sql_conv = sql.replace("%s", "?").replace("BYTEA", "BLOB").replace("VARCHAR(255)", "TEXT")
-            if params is None:
-                return self.cursor.execute(sql_conv)
-            params_conv = []
-            for p in params:
-                if hasattr(p, "adapted"):
-                    params_conv.append(bytes(p.adapted))
-                elif isinstance(p, (bytes, bytearray)):
-                    params_conv.append(bytes(p))
-                else:
-                    params_conv.append(p)
-            return self.cursor.execute(sql_conv, tuple(params_conv))
-        def __enter__(self):
-            return self
-        def __exit__(self, exc_type, exc_val, exc_tb):
-            pass
-
-    class MockPostgresConn:
-        def __init__(self, conn):
-            self.conn = conn
-        def cursor(self):
-            return MockPostgresCursor(self.conn)
-        def commit(self):
-            self.conn.commit()
-        def __enter__(self):
-            return self
-        def __exit__(self, exc_type, exc_val, exc_tb):
-            pass
-
-    monkeypatch.setattr(psycopg2, "connect", lambda dsn: MockPostgresConn(shared_sqlite_conn))
-
-    saver_pod_1 = DurablePostgresSaver("postgresql://postgres:postgres@localhost:5432/ffre_ha_db")
+    import os
+    pg_url = os.getenv("TEST_DATABASE_URL", "postgresql://ffire_user:ffire_password@localhost:5433/ffire_db")
+    
+    saver_pod_1 = DurablePostgresSaver(pg_url)
+    if saver_pod_1._pool is None:
+        pytest.skip("PostgreSQL test database not available at TEST_DATABASE_URL")
     config = {"configurable": {"thread_id": "thread_ha_pod_sync_888", "checkpoint_ns": ""}}
     
     # Pod 1 writes checkpoint to PostgreSQL
@@ -121,10 +81,13 @@ def test_ha_postgres_multi_instance_checkpoint_sync(monkeypatch):
     saver_pod_1.put(config, checkpoint, metadata, {})
 
     # Pod 2 initializes after write and loads checkpoint directly from PostgreSQL database
-    saver_pod_2 = DurablePostgresSaver("postgresql://postgres:postgres@localhost:5432/ffre_ha_db")
+    saver_pod_2 = DurablePostgresSaver(pg_url)
     cp_tuple_pod_2 = saver_pod_2.get_tuple(config)
     assert cp_tuple_pod_2 is not None
     assert cp_tuple_pod_2.checkpoint["id"] == "cp_ha_1"
+    assert cp_tuple_pod_2.checkpoint["channel_values"]["pod_id"] == "worker-pod-1"
+    saver_pod_1.close()
+    saver_pod_2.close()
 
 def test_ha_redis_broker_failover(monkeypatch):
     """

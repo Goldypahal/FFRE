@@ -3,6 +3,7 @@ Metrics collection utilities for monitoring FFIRE performance.
 """
 
 import time
+import re
 from threading import Lock
 from typing import Dict, List, Optional
 from collections import defaultdict, deque
@@ -14,6 +15,11 @@ MODEL_PRICING: Dict[str, Dict[str, float]] = {
     "gemini-1.5-pro": {"prompt": 1.25 / 1_000_000, "completion": 5.00 / 1_000_000},
     "gemini-1.5-flash": {"prompt": 0.075 / 1_000_000, "completion": 0.30 / 1_000_000},
     "claude-3-5-sonnet": {"prompt": 3.00 / 1_000_000, "completion": 15.00 / 1_000_000},
+    "null": {"prompt": 0.0, "completion": 0.0},
+    "null-deterministic-v1": {"prompt": 0.0, "completion": 0.0},
+    "mock": {"prompt": 0.0, "completion": 0.0},
+    "mock-v1": {"prompt": 0.0, "completion": 0.0},
+    "ollama": {"prompt": 0.0, "completion": 0.0},
     "default": {"prompt": 0.50 / 1_000_000, "completion": 1.50 / 1_000_000}
 }
 
@@ -256,7 +262,13 @@ class MetricsCollector:
         tenant_id: str = "default_tenant"
     ) -> float:
         """Record an LLM invocation telemetry event with token accounting and cost tracking."""
-        cost = self.calculate_token_cost(model, prompt_tokens, completion_tokens)
+        # Sanitize labels to prevent metric injection and PII leakage
+        safe_node = re.sub(r'[^a-zA-Z0-9_\-]', '', str(node_name)) or "unknown_node"
+        safe_model = re.sub(r'[^a-zA-Z0-9_\-\.:/]', '', str(model)) or "unknown_model"
+        safe_tenant = re.sub(r'[^a-zA-Z0-9_\-]', '', str(tenant_id)) or "default_tenant"
+        safe_inv_id = re.sub(r'[\r\n\t]', '', str(investigation_id))
+
+        cost = self.calculate_token_cost(safe_model, prompt_tokens, completion_tokens)
         total_toks = prompt_tokens + completion_tokens
 
         with self._lock:
@@ -265,37 +277,37 @@ class MetricsCollector:
             self._total_llm_cost_usd += cost
             self._total_llm_calls += 1
 
-            self._tokens_by_model[model]["prompt"] += prompt_tokens
-            self._tokens_by_model[model]["completion"] += completion_tokens
-            self._tokens_by_model[model]["cost"] += cost
-            self._tokens_by_model[model]["calls"] += 1
+            self._tokens_by_model[safe_model]["prompt"] += prompt_tokens
+            self._tokens_by_model[safe_model]["completion"] += completion_tokens
+            self._tokens_by_model[safe_model]["cost"] += cost
+            self._tokens_by_model[safe_model]["calls"] += 1
 
-            self._tokens_by_node[node_name]["prompt"] += prompt_tokens
-            self._tokens_by_node[node_name]["completion"] += completion_tokens
-            self._tokens_by_node[node_name]["cost"] += cost
-            self._tokens_by_node[node_name]["calls"] += 1
+            self._tokens_by_node[safe_node]["prompt"] += prompt_tokens
+            self._tokens_by_node[safe_node]["completion"] += completion_tokens
+            self._tokens_by_node[safe_node]["cost"] += cost
+            self._tokens_by_node[safe_node]["calls"] += 1
 
-            self._cost_by_tenant[tenant_id] += cost
-            self._tokens_by_tenant[tenant_id]["prompt"] += prompt_tokens
-            self._tokens_by_tenant[tenant_id]["completion"] += completion_tokens
-            self._tokens_by_tenant[tenant_id]["total"] += total_toks
+            self._cost_by_tenant[safe_tenant] += cost
+            self._tokens_by_tenant[safe_tenant]["prompt"] += prompt_tokens
+            self._tokens_by_tenant[safe_tenant]["completion"] += completion_tokens
+            self._tokens_by_tenant[safe_tenant]["total"] += total_toks
 
-            self._cost_per_investigation[investigation_id] += cost
+            self._cost_per_investigation[safe_inv_id] += cost
             self._llm_latencies.append(latency_ms)
             if len(self._llm_latencies) > self._max_history:
                 self._llm_latencies = self._llm_latencies[-self._max_history:]
 
             self._recent_llm_calls.append({
                 "timestamp": time.time(),
-                "investigation_id": investigation_id,
-                "node_name": node_name,
-                "model": model,
+                "investigation_id": safe_inv_id,
+                "node_name": safe_node,
+                "model": safe_model,
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,
                 "total_tokens": total_toks,
                 "latency_ms": round(latency_ms, 2),
                 "cost_usd": round(cost, 6),
-                "tenant_id": tenant_id
+                "tenant_id": safe_tenant
             })
 
         return cost

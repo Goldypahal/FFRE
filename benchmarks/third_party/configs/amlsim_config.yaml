@@ -1,0 +1,60 @@
+# IBM AMLSim Evaluation Configuration for FFIRE
+# Tracks synthetic AML transaction networks and suspicious-activity typologies.
+
+upstream:
+  project: "IBM/AMLSim"
+  repository: "https://github.com/IBM/AMLSim"
+  license: "Apache-2.0"
+  reference_commit: "912ec92f"
+  doc_url: "https://github.com/IBM/AMLSim/wiki"
+
+dataset:
+  name: "amlsim_typology_benchmark_v1"
+  version: "1.0.0"
+  seed: 42
+  default_currency: "USD"
+  tenant_id: "amlsim_eval_tenant"
+
+typologies:
+  - id: "fan_out"
+    name: "Fan-Out (Structuring / Disbursement)"
+    description: "One source account distributes funds to multiple destination accounts in rapid succession."
+  - id: "fan_in"
+    name: "Fan-In (Aggregation / Smurfing)"
+    description: "Multiple source accounts funnel deposits into a single destination account."
+  - id: "cycle"
+    name: "Cycle (Circular Layering)"
+    description: "Funds traverse a directed cycle of accounts (A -> B -> C -> A) to disguise origin."
+  - id: "scatter_gather"
+    name: "Scatter-Gather (Fan-out + Fan-in)"
+    description: "Funds dispersed to intermediate mules then recombined at a beneficiary account."
+  - id: "bipartite"
+    name: "Bipartite Flow"
+    description: "Two disjoint groups of accounts pass funds back and forth."
+  - id: "stack_linear"
+    name: "Stack / Linear Layering"
+    description: "Multi-hop sequential transfer across accounts without branching."
+
+evaluation:
+  configurations:
+    - name: "config_a_rules"
+      description: "Deterministic rules-only baseline (velocity, amount thresholds, geographic rules)"
+      use_llm: false
+      use_verifier: false
+    - name: "config_b_llm"
+      description: "LLM-assisted reasoning without claim-mutation verifier"
+      use_llm: true
+      use_verifier: false
+    - name: "config_c_full"
+      description: "Full FFIRE pipeline (rules + retrieval + reasoner + claim verifier + audit)"
+      use_llm: true
+      use_verifier: true
+
+thresholds:
+  risk_score_alert_threshold: 0.50
+  confidence_threshold: 0.85
+  alert_review_budgets: [0.05, 0.10, 0.20]
+
+statistical:
+  bootstrap_iterations: 1000
+  confidence_level: 0.95

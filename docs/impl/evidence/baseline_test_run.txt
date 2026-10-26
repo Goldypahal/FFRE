@@ -1,0 +1,12 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.11, pytest-9.1.1, pluggy-1.7.0 -- D:\Desktop\FFRE\backend\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: D:\Desktop\FFRE\backend
+configfile: pytest.ini
+plugins: anyio-4.15.1, langsmith-0.14.11, mock-3.17.0
+collected 276 items
+
+=========================== short test summary info ===========================
+FAILED backend\tests\srs\test_srs_ha_deployment.py::test_ha_postgres_multi_instance_checkpoint_sync (Docker / Live Postgres container unavailable)
+FAILED backend\tests\test_database.py::test_alembic_migrations_configuration (Alembic head revision was updated to d4d8811ec4ce, test asserted hardcoded 338f66162493)
+2 failed, 267 passed, 7 skipped, 1489 warnings in 110.31s (0:01:50)

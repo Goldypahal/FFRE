@@ -1,0 +1,463 @@
+[
+  {
+    "case_id": "CHALLENGE_BENIGN_HV_PAYROLL_01",
+    "dataset": "amlsim_hardened_challenge_v1",
+    "scenario_id": "scenario_payroll_batch",
+    "cluster_id": "cluster_payroll_corp",
+    "category": "benign_control",
+    "typology": null,
+    "target_transaction_id": "TXN_CHALLENGE_PAYROLL_01",
+    "related_transaction_ids": ["TXN_CHALLENGE_PAYROLL_02", "TXN_CHALLENGE_PAYROLL_03"],
+    "related_account_ids": ["ACC_CORP_PAYROLL_01", "ACC_EMP_101", "ACC_EMP_102"],
+    "ground_truth_label": "BENIGN",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_CORP_PAYROLL_01",
+        "dest": "ACC_EMP_101",
+        "amount": 48500.0,
+        "step": 1,
+        "is_sar": false
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_CHALLENGE_PAYROLL_01", "account_ACC_CORP_PAYROLL_01"],
+    "expected_abstention": false,
+    "user_query": "Investigate corporate disbursement of $48,500.00 from ACC_CORP_PAYROLL_01.",
+    "reference_answer": "Verified high-value corporate payroll batch disbursement; non-illicit normal business operations.",
+    "metadata": {
+      "amount": 48500.0,
+      "challenge_type": "benign_high_value",
+      "account_type": "BUSINESS_PAYROLL",
+      "counterparty_type": "EMPLOYEE_CHECKING"
+    }
+  },
+  {
+    "case_id": "CHALLENGE_BENIGN_HV_ESCROW_02",
+    "dataset": "amlsim_hardened_challenge_v1",
+    "scenario_id": "scenario_real_estate_escrow",
+    "cluster_id": "cluster_escrow_title",
+    "category": "benign_control",
+    "typology": null,
+    "target_transaction_id": "TXN_CHALLENGE_ESCROW_02",
+    "related_transaction_ids": [],
+    "related_account_ids": ["ACC_BUYER_01", "ACC_TITLE_ESCROW_01"],
+    "ground_truth_label": "BENIGN",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_BUYER_01",
+        "dest": "ACC_TITLE_ESCROW_01",
+        "amount": 82000.0,
+        "step": 2,
+        "is_sar": false
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_CHALLENGE_ESCROW_02", "account_ACC_BUYER_01"],
+    "expected_abstention": false,
+    "user_query": "Investigate $82,000.00 wire from ACC_BUYER_01 to ACC_TITLE_ESCROW_01.",
+    "reference_answer": "Residential real estate purchase escrow closing deposit with verified title company; benign.",
+    "metadata": {
+      "amount": 82000.0,
+      "challenge_type": "benign_high_value",
+      "account_type": "INDIVIDUAL_CHECKING",
+      "counterparty_type": "TITLE_ESCROW"
+    }
+  },
+  {
+    "case_id": "CHALLENGE_BENIGN_HV_SUPPLIER_03",
+    "dataset": "amlsim_hardened_challenge_v1",
+    "scenario_id": "scenario_supplier_invoice",
+    "cluster_id": "cluster_supply_corp",
+    "category": "benign_control",
+    "typology": null,
+    "target_transaction_id": "TXN_CHALLENGE_SUPPLIER_03",
+    "related_transaction_ids": [],
+    "related_account_ids": ["ACC_MANUFACTURER_01", "ACC_SUPPLIER_01"],
+    "ground_truth_label": "BENIGN",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_MANUFACTURER_01",
+        "dest": "ACC_SUPPLIER_01",
+        "amount": 34200.0,
+        "step": 3,
+        "is_sar": false
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_CHALLENGE_SUPPLIER_03", "account_ACC_MANUFACTURER_01"],
+    "expected_abstention": false,
+    "user_query": "Investigate commercial payment of $34,200.00 to ACC_SUPPLIER_01.",
+    "reference_answer": "Commercial inventory wholesale settlement matching standard net-30 terms.",
+    "metadata": {
+      "amount": 34200.0,
+      "challenge_type": "benign_high_value"
+    }
+  },
+  {
+    "case_id": "CHALLENGE_BENIGN_HV_TREASURY_04",
+    "dataset": "amlsim_hardened_challenge_v1",
+    "scenario_id": "scenario_treasury_rebalance",
+    "cluster_id": "cluster_treasury_internal",
+    "category": "benign_control",
+    "typology": null,
+    "target_transaction_id": "TXN_CHALLENGE_TREASURY_04",
+    "related_transaction_ids": [],
+    "related_account_ids": ["ACC_TREASURY_OP_01", "ACC_TREASURY_MM_01"],
+    "ground_truth_label": "BENIGN",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_TREASURY_OP_01",
+        "dest": "ACC_TREASURY_MM_01",
+        "amount": 125000.0,
+        "step": 4,
+        "is_sar": false
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_CHALLENGE_TREASURY_04", "account_ACC_TREASURY_OP_01"],
+    "expected_abstention": false,
+    "user_query": "Investigate $125,000.00 inter-account sweep from ACC_TREASURY_OP_01.",
+    "reference_answer": "Internal corporate liquidity rebalancing between accounts of the same legal entity.",
+    "metadata": {
+      "amount": 125000.0,
+      "challenge_type": "benign_high_value"
+    }
+  },
+  {
+    "case_id": "CHALLENGE_SUSP_LV_MICRO_STRUCT_05",
+    "dataset": "amlsim_hardened_challenge_v1",
+    "scenario_id": "scenario_micro_structuring",
+    "cluster_id": "cluster_micro_mule",
+    "category": "suspicious_typology",
+    "typology": "fan_out",
+    "target_transaction_id": "TXN_CHALLENGE_MICRO_STRUCT_05",
+    "related_transaction_ids": ["TXN_CHALLENGE_MS_B", "TXN_CHALLENGE_MS_C", "TXN_CHALLENGE_MS_D"],
+    "related_account_ids": ["ACC_SMURF_01", "ACC_MULE_A", "ACC_MULE_B", "ACC_MULE_C"],
+    "ground_truth_label": "SUSPICIOUS",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_SMURF_01",
+        "dest": "ACC_MULE_A",
+        "amount": 1450.0,
+        "step": 5,
+        "is_sar": true
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_CHALLENGE_MICRO_STRUCT_05", "account_ACC_SMURF_01"],
+    "expected_abstention": false,
+    "user_query": "Investigate rapid $1,450.00 transfer from ACC_SMURF_01.",
+    "reference_answer": "Micro-structuring fan-out: rapid sub-$2,000 bursts to unverified mule accounts.",
+    "metadata": {
+      "amount": 1450.0,
+      "challenge_type": "suspicious_low_value",
+      "velocity_count": 5
+    }
+  },
+  {
+    "case_id": "CHALLENGE_SUSP_LV_MULE_HOP_06",
+    "dataset": "amlsim_hardened_challenge_v1",
+    "scenario_id": "scenario_mule_pass_through",
+    "cluster_id": "cluster_rapid_mule",
+    "category": "suspicious_typology",
+    "typology": "scatter_gather",
+    "target_transaction_id": "TXN_CHALLENGE_MULE_HOP_06",
+    "related_transaction_ids": ["TXN_CHALLENGE_HOP_IN", "TXN_CHALLENGE_HOP_OUT"],
+    "related_account_ids": ["ACC_VICTIM_01", "ACC_MULE_HOP_01", "ACC_OFFSHORE_01"],
+    "ground_truth_label": "SUSPICIOUS",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_MULE_HOP_01",
+        "dest": "ACC_OFFSHORE_01",
+        "amount": 850.0,
+        "step": 6,
+        "is_sar": true
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_CHALLENGE_MULE_HOP_06", "account_ACC_MULE_HOP_01"],
+    "expected_abstention": false,
+    "user_query": "Investigate $850.00 disbursement from newly opened ACC_MULE_HOP_01.",
+    "reference_answer": "Rapid pass-through mule account draining funds within minutes of receipt.",
+    "metadata": {
+      "amount": 850.0,
+      "challenge_type": "suspicious_low_value"
+    }
+  },
+  {
+    "case_id": "CHALLENGE_NEAR_MISS_REFUND_07",
+    "dataset": "amlsim_hardened_challenge_v1",
+    "scenario_id": "scenario_bilateral_refund",
+    "cluster_id": "cluster_ecommerce_refund",
+    "category": "benign_control",
+    "typology": null,
+    "target_transaction_id": "TXN_CHALLENGE_REFUND_07",
+    "related_transaction_ids": ["TXN_CHALLENGE_ORIG_PURCHASE"],
+    "related_account_ids": ["ACC_SHOPPER_01", "ACC_MERCHANT_RETAIL_01"],
+    "ground_truth_label": "BENIGN",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_MERCHANT_RETAIL_01",
+        "dest": "ACC_SHOPPER_01",
+        "amount": 620.0,
+        "step": 7,
+        "is_sar": false
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_CHALLENGE_REFUND_07", "account_ACC_MERCHANT_RETAIL_01"],
+    "expected_abstention": false,
+    "user_query": "Investigate 2-hop bilateral transaction between ACC_SHOPPER_01 and ACC_MERCHANT_RETAIL_01.",
+    "reference_answer": "Ordinary e-commerce merchandise return refund following earlier purchase.",
+    "metadata": {
+      "amount": 620.0,
+      "challenge_type": "near_miss_graph"
+    }
+  },
+  {
+    "case_id": "CHALLENGE_NEAR_MISS_SUPPLY_CHAIN_08",
+    "dataset": "amlsim_hardened_challenge_v1",
+    "scenario_id": "scenario_linear_supply",
+    "cluster_id": "cluster_supply_chain_linear",
+    "category": "benign_control",
+    "typology": null,
+    "target_transaction_id": "TXN_CHALLENGE_SUPPLY_08",
+    "related_transaction_ids": ["TXN_SC_HOP1", "TXN_SC_HOP2"],
+    "related_account_ids": ["ACC_RAW_TIER1", "ACC_DISTRIB_TIER2", "ACC_RETAILER_TIER3"],
+    "ground_truth_label": "BENIGN",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_DISTRIB_TIER2",
+        "dest": "ACC_RETAILER_TIER3",
+        "amount": 12000.0,
+        "step": 8,
+        "is_sar": false
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_CHALLENGE_SUPPLY_08", "account_ACC_DISTRIB_TIER2"],
+    "expected_abstention": false,
+    "user_query": "Investigate sequential 3-hop transfer from raw materials to retailer.",
+    "reference_answer": "Commercial multi-tier distribution chain reflecting goods progression.",
+    "metadata": {
+      "amount": 12000.0,
+      "challenge_type": "near_miss_graph"
+    }
+  },
+  {
+    "case_id": "CHALLENGE_SUSP_IRREGULAR_STRUCT_09",
+    "dataset": "amlsim_hardened_challenge_v1",
+    "scenario_id": "scenario_irregular_structuring",
+    "cluster_id": "cluster_irregular_struct",
+    "category": "suspicious_typology",
+    "typology": "stack_linear",
+    "target_transaction_id": "TXN_CHALLENGE_STRUCT_09",
+    "related_transaction_ids": ["TXN_IRREG_A", "TXN_IRREG_B"],
+    "related_account_ids": ["ACC_STRUCT_SOURCE_01", "ACC_STRUCT_DEST_01"],
+    "ground_truth_label": "SUSPICIOUS",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_STRUCT_SOURCE_01",
+        "dest": "ACC_STRUCT_DEST_01",
+        "amount": 7900.0,
+        "step": 9,
+        "is_sar": true
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_CHALLENGE_STRUCT_09", "account_ACC_STRUCT_SOURCE_01"],
+    "expected_abstention": false,
+    "user_query": "Investigate non-uniform transfer of $7,900.00 from ACC_STRUCT_SOURCE_01.",
+    "reference_answer": "Intentional sub-threshold structuring avoiding $10,000 CTR triggers via varying amounts.",
+    "metadata": {
+      "amount": 7900.0,
+      "challenge_type": "varying_structuring"
+    }
+  },
+  {
+    "case_id": "CHALLENGE_SUSP_MIXED_SG_10",
+    "dataset": "amlsim_hardened_challenge_v1",
+    "scenario_id": "scenario_mixed_account_sg",
+    "cluster_id": "cluster_mixed_account",
+    "category": "suspicious_typology",
+    "typology": "scatter_gather",
+    "target_transaction_id": "TXN_CHALLENGE_MIXED_SG_10",
+    "related_transaction_ids": ["TXN_P2P_1", "TXN_P2P_2", "TXN_P2P_3"],
+    "related_account_ids": ["ACC_P2P_MULE1", "ACC_P2P_MULE2", "ACC_MIXED_HUB_01", "ACC_SINK_WIRE_01"],
+    "ground_truth_label": "SUSPICIOUS",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_MIXED_HUB_01",
+        "dest": "ACC_SINK_WIRE_01",
+        "amount": 10500.0,
+        "step": 10,
+        "is_sar": true
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_CHALLENGE_MIXED_SG_10", "account_ACC_MIXED_HUB_01"],
+    "expected_abstention": false,
+    "user_query": "Investigate wire of $10,500.00 from account with personal and aggregated P2P funds.",
+    "reference_answer": "Scatter-gather funnel account consolidating disparate P2P inflows into wire exit.",
+    "metadata": {
+      "amount": 10500.0,
+      "challenge_type": "mixed_network_activity"
+    }
+  },
+  {
+    "case_id": "CHALLENGE_BENIGN_RENT_SPLIT_11",
+    "dataset": "amlsim_hardened_challenge_v1",
+    "scenario_id": "scenario_split_rent",
+    "cluster_id": "cluster_roommates_rent",
+    "category": "benign_control",
+    "typology": null,
+    "target_transaction_id": "TXN_CHALLENGE_RENT_11",
+    "related_transaction_ids": ["TXN_RENT_ROOMMATE_2", "TXN_RENT_ROOMMATE_3"],
+    "related_account_ids": ["ACC_ROOMMATE_1", "ACC_ROOMMATE_2", "ACC_LANDLORD_01"],
+    "ground_truth_label": "BENIGN",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_ROOMMATE_1",
+        "dest": "ACC_LANDLORD_01",
+        "amount": 950.0,
+        "step": 11,
+        "is_sar": false
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_CHALLENGE_RENT_11", "account_ACC_ROOMMATE_1"],
+    "expected_abstention": false,
+    "user_query": "Investigate $950.00 monthly transfer to residential landlord ACC_LANDLORD_01.",
+    "reference_answer": "Routine residential rental split between roommates; verified landlord recipient.",
+    "metadata": {
+      "amount": 950.0,
+      "challenge_type": "near_miss_graph"
+    }
+  },
+  {
+    "case_id": "CHALLENGE_SUSP_SMURF_BRANCH_12",
+    "dataset": "amlsim_hardened_challenge_v1",
+    "scenario_id": "scenario_branch_smurfing",
+    "cluster_id": "cluster_branch_smurf",
+    "category": "suspicious_typology",
+    "typology": "fan_in",
+    "target_transaction_id": "TXN_CHALLENGE_SMURF_12",
+    "related_transaction_ids": ["TXN_CASH_DEP_1", "TXN_CASH_DEP_2"],
+    "related_account_ids": ["ACC_BRANCH_CASH_01", "ACC_CENTRAL_SMURF_01"],
+    "ground_truth_label": "SUSPICIOUS",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_BRANCH_CASH_01",
+        "dest": "ACC_CENTRAL_SMURF_01",
+        "amount": 2800.0,
+        "step": 12,
+        "is_sar": true
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_CHALLENGE_SMURF_12", "account_ACC_BRANCH_CASH_01"],
+    "expected_abstention": false,
+    "user_query": "Investigate branch cash deposit of $2,800.00 into ACC_CENTRAL_SMURF_01.",
+    "reference_answer": "Smurfing aggregation: repetitive sub-$3,000 cash deposits from geographically dispersed branches.",
+    "metadata": {
+      "amount": 2800.0,
+      "challenge_type": "suspicious_low_value"
+    }
+  },
+  {
+    "case_id": "CHALLENGE_BENIGN_HV_EQUIPMENT_13",
+    "dataset": "amlsim_hardened_challenge_v1",
+    "scenario_id": "scenario_capital_expenditure",
+    "cluster_id": "cluster_capex_vendor",
+    "category": "benign_control",
+    "typology": null,
+    "target_transaction_id": "TXN_CHALLENGE_EQUIP_13",
+    "related_transaction_ids": [],
+    "related_account_ids": ["ACC_CONSTRUCTION_CO_01", "ACC_CAT_DEALER_01"],
+    "ground_truth_label": "BENIGN",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_CONSTRUCTION_CO_01",
+        "dest": "ACC_CAT_DEALER_01",
+        "amount": 22500.0,
+        "step": 13,
+        "is_sar": false
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_CHALLENGE_EQUIP_13", "account_ACC_CONSTRUCTION_CO_01"],
+    "expected_abstention": false,
+    "user_query": "Investigate $22,500.00 machinery purchase from ACC_CAT_DEALER_01.",
+    "reference_answer": "Capital equipment acquisition matching commercial business profile.",
+    "metadata": {
+      "amount": 22500.0,
+      "challenge_type": "benign_high_value"
+    }
+  },
+  {
+    "case_id": "CHALLENGE_SUSP_VELOCITY_RAPID_14",
+    "dataset": "amlsim_hardened_challenge_v1",
+    "scenario_id": "scenario_rapid_velocity",
+    "cluster_id": "cluster_velocity_offshore",
+    "category": "suspicious_typology",
+    "typology": "stack_linear",
+    "target_transaction_id": "TXN_CHALLENGE_VELOCITY_14",
+    "related_transaction_ids": ["TXN_VEL_PREV_1"],
+    "related_account_ids": ["ACC_HIGH_VEL_01", "ACC_OFFSHORE_CRYPTO_01"],
+    "ground_truth_label": "SUSPICIOUS",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_HIGH_VEL_01",
+        "dest": "ACC_OFFSHORE_CRYPTO_01",
+        "amount": 4900.0,
+        "step": 14,
+        "is_sar": true
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_CHALLENGE_VELOCITY_14", "account_ACC_HIGH_VEL_01"],
+    "expected_abstention": false,
+    "user_query": "Investigate high-velocity $4,900.00 transfer to unhosted entity.",
+    "reference_answer": "Rapid layered fund transfer below reporting threshold directed to high-risk counterparty.",
+    "metadata": {
+      "amount": 4900.0,
+      "challenge_type": "suspicious_low_value"
+    }
+  },
+  {
+    "case_id": "CHALLENGE_BENIGN_FAMILY_REMIT_15",
+    "dataset": "amlsim_hardened_challenge_v1",
+    "scenario_id": "scenario_family_remittance",
+    "cluster_id": "cluster_family_remit",
+    "category": "benign_control",
+    "typology": null,
+    "target_transaction_id": "TXN_CHALLENGE_FAMILY_15",
+    "related_transaction_ids": [],
+    "related_account_ids": ["ACC_PARENT_01", "ACC_STUDENT_01"],
+    "ground_truth_label": "BENIGN",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_PARENT_01",
+        "dest": "ACC_STUDENT_01",
+        "amount": 2500.0,
+        "step": 15,
+        "is_sar": false
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_CHALLENGE_FAMILY_15", "account_ACC_PARENT_01"],
+    "expected_abstention": false,
+    "user_query": "Investigate $2,500.00 family remittance from ACC_PARENT_01.",
+    "reference_answer": "Routine verified familial support transfer for higher education expenses.",
+    "metadata": {
+      "amount": 2500.0,
+      "challenge_type": "benign_control"
+    }
+  },
+  {
+    "case_id": "CHALLENGE_INSUFFICIENT_EVIDENCE_16",
+    "dataset": "amlsim_hardened_challenge_v1",
+    "scenario_id": "scenario_insufficient_challenge",
+    "cluster_id": "cluster_challenge_disc",
+    "category": "insufficient_evidence",
+    "typology": null,
+    "target_transaction_id": "TXN_CHALLENGE_DISC_16",
+    "related_transaction_ids": [],
+    "related_account_ids": ["ACC_CHALLENGE_UNKNOWN_01"],
+    "ground_truth_label": "INSUFFICIENT_EVIDENCE",
+    "ground_truth_edges": [],
+    "expected_evidence_ids": [],
+    "expected_abstention": true,
+    "user_query": "Investigate disconnected transfer TXN_CHALLENGE_DISC_16 with missing ledger lineage.",
+    "reference_answer": "Missing counterparty records and missing ledger lineage mandate fail-closed human escalation.",
+    "metadata": {
+      "challenge_type": "insufficient_evidence",
+      "expected_abstention": true
+    }
+  }
+]

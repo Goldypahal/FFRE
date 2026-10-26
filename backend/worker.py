@@ -40,9 +40,10 @@ class DurableWorkerQueue:
         self.redis_url = redis_url or os.getenv("REDIS_URL")
         self._redis_client = None
 
-        strict_enterprise = (
+        self.strict_enterprise = (
             os.getenv("STRICT_ENTERPRISE_MODE", "false").lower() == "true" or
-            os.getenv("ENVIRONMENT") == "production"
+            os.getenv("ENVIRONMENT") == "production" or
+            os.getenv("ENV") == "production"
         )
 
         self.processed_count = 0
@@ -66,12 +67,12 @@ class DurableWorkerQueue:
                         pass
                 print(f"DurableWorkerQueue connected to Redis broker at {self.redis_url}")
             except Exception as e:
-                if strict_enterprise:
+                if self.strict_enterprise:
                     raise RuntimeError(f"STRICT_ENTERPRISE_MODE: Redis worker queue broker is unavailable ({e}). In-memory fallback is disabled in production.")
                 print(f"Redis connection unavailable ({e}). Falling back to in-memory queue broker.")
                 self._redis_client = None
         else:
-            if strict_enterprise:
+            if self.strict_enterprise:
                 raise RuntimeError("STRICT_ENTERPRISE_MODE: Redis URL/client not configured. In-memory fallback is disabled in production.")
 
     def get_broker_backend(self) -> str:
@@ -138,9 +139,13 @@ class DurableWorkerQueue:
                 else:
                     self._redis_client.rpush("ffre:worker:queue", json.dumps(job))
             except Exception as e:
+                if self.strict_enterprise:
+                    raise RuntimeError(f"STRICT_ENTERPRISE_MODE: Redis enqueue failed ({e}). In-memory fallback is disabled in production.")
                 print(f"Redis enqueue failed ({e}). Falling back to in-memory queue.")
                 self._queue.put(job)
         else:
+            if self.strict_enterprise:
+                raise RuntimeError("STRICT_ENTERPRISE_MODE: Redis broker is not configured or unavailable. In-memory fallback is disabled in production.")
             self._queue.put(job)
         self.transition_job_state(investigation_id, "QUEUED", db=db)
 
@@ -338,9 +343,13 @@ class DurableWorkerQueue:
                     self._redis_client.xadd(self.stream_key, {"payload": json.dumps(job)})
                 else:
                     self._redis_client.rpush("ffre:worker:queue", json.dumps(job))
-            except Exception:
+            except Exception as e:
+                if self.strict_enterprise:
+                    raise RuntimeError(f"STRICT_ENTERPRISE_MODE: Failed requeuing job into Redis broker ({e}).")
                 self._queue.put(job)
         else:
+            if self.strict_enterprise:
+                raise RuntimeError("STRICT_ENTERPRISE_MODE: Redis broker is not configured. Cannot requeue in production.")
             self._queue.put(job)
 
     def get_health_status(self, db=None) -> Dict[str, Any]:

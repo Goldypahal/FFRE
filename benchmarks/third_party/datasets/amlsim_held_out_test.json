@@ -1,0 +1,802 @@
+[
+  {
+    "case_id": "TEST_BENIGN_HV_EQUIP_01",
+    "dataset": "amlsim_held_out_test_v1",
+    "scenario_id": "scenario_equipment_wire",
+    "cluster_id": "cluster_equipment_mfg",
+    "category": "benign_control",
+    "typology": null,
+    "target_transaction_id": "TXN_TEST_HV_01",
+    "related_transaction_ids": [],
+    "related_account_ids": ["ACC_MFG_CORP_01", "ACC_HEAVY_MACHINERY_01"],
+    "ground_truth_label": "BENIGN",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_MFG_CORP_01",
+        "dest": "ACC_HEAVY_MACHINERY_01",
+        "amount": 54000.0,
+        "step": 1,
+        "is_sar": false
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_TEST_HV_01", "account_ACC_MFG_CORP_01"],
+    "expected_abstention": false,
+    "user_query": "Investigate capital equipment purchase wire of $54,000.00 from ACC_MFG_CORP_01.",
+    "reference_answer": "Legitimate commercial capital equipment purchase wire with verified supplier; benign.",
+    "metadata": {
+      "amount": 54000.0,
+      "test_category": "benign_high_value",
+      "account_type": "COMMERCIAL_OPERATING"
+    }
+  },
+  {
+    "case_id": "TEST_BENIGN_HV_TREASURY_02",
+    "dataset": "amlsim_held_out_test_v1",
+    "scenario_id": "scenario_treasury_sweep",
+    "cluster_id": "cluster_treasury_global",
+    "category": "benign_control",
+    "typology": null,
+    "target_transaction_id": "TXN_TEST_HV_02",
+    "related_transaction_ids": [],
+    "related_account_ids": ["ACC_GLOBAL_HOLDING_02", "ACC_TREASURY_SWEEP_02"],
+    "ground_truth_label": "BENIGN",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_GLOBAL_HOLDING_02",
+        "dest": "ACC_TREASURY_SWEEP_02",
+        "amount": 115000.0,
+        "step": 2,
+        "is_sar": false
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_TEST_HV_02", "account_ACC_GLOBAL_HOLDING_02"],
+    "expected_abstention": false,
+    "user_query": "Investigate treasury rebalancing wire of $115,000.00 from ACC_GLOBAL_HOLDING_02.",
+    "reference_answer": "Internal corporate treasury sweep between verified company accounts; benign.",
+    "metadata": {
+      "amount": 115000.0,
+      "test_category": "benign_high_value",
+      "account_type": "CORPORATE_TREASURY"
+    }
+  },
+  {
+    "case_id": "TEST_BENIGN_HV_SUPPLIER_03",
+    "dataset": "amlsim_held_out_test_v1",
+    "scenario_id": "scenario_supplier_invoice",
+    "cluster_id": "cluster_supply_retail",
+    "category": "benign_control",
+    "typology": null,
+    "target_transaction_id": "TXN_TEST_HV_03",
+    "related_transaction_ids": [],
+    "related_account_ids": ["ACC_RETAIL_CHAIN_03", "ACC_AGRI_COOP_SUPPLY_03"],
+    "ground_truth_label": "BENIGN",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_RETAIL_CHAIN_03",
+        "dest": "ACC_AGRI_COOP_SUPPLY_03",
+        "amount": 42800.0,
+        "step": 3,
+        "is_sar": false
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_TEST_HV_03", "account_ACC_RETAIL_CHAIN_03"],
+    "expected_abstention": false,
+    "user_query": "Investigate supplier invoice settlement wire of $42,800.00 from ACC_RETAIL_CHAIN_03.",
+    "reference_answer": "Wholesale food distributor supplier invoice payment; benign commercial trade.",
+    "metadata": {
+      "amount": 42800.0,
+      "test_category": "benign_high_value",
+      "account_type": "COMMERCIAL_OPERATING"
+    }
+  },
+  {
+    "case_id": "TEST_BENIGN_HV_BONUS_04",
+    "dataset": "amlsim_held_out_test_v1",
+    "scenario_id": "scenario_exec_payroll",
+    "cluster_id": "cluster_payroll_tech",
+    "category": "benign_control",
+    "typology": null,
+    "target_transaction_id": "TXN_TEST_HV_04",
+    "related_transaction_ids": [],
+    "related_account_ids": ["ACC_TECH_CORP_PAYROLL_04", "ACC_EXEC_VP_CHECKING_04"],
+    "ground_truth_label": "BENIGN",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_TECH_CORP_PAYROLL_04",
+        "dest": "ACC_EXEC_VP_CHECKING_04",
+        "amount": 68500.0,
+        "step": 4,
+        "is_sar": false
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_TEST_HV_04", "account_ACC_TECH_CORP_PAYROLL_04"],
+    "expected_abstention": false,
+    "user_query": "Investigate executive bonus payroll wire of $68,500.00 from ACC_TECH_CORP_PAYROLL_04.",
+    "reference_answer": "Verified annual executive bonus payroll disbursement; benign.",
+    "metadata": {
+      "amount": 68500.0,
+      "test_category": "benign_high_value",
+      "account_type": "BUSINESS_PAYROLL"
+    }
+  },
+  {
+    "case_id": "TEST_BENIGN_HV_LEASE_05",
+    "dataset": "amlsim_held_out_test_v1",
+    "scenario_id": "scenario_commercial_lease",
+    "cluster_id": "cluster_lease_law",
+    "category": "benign_control",
+    "typology": null,
+    "target_transaction_id": "TXN_TEST_HV_05",
+    "related_transaction_ids": [],
+    "related_account_ids": ["ACC_LAW_PARTNERSHIP_05", "ACC_COMMERCIAL_ESCROW_05"],
+    "ground_truth_label": "BENIGN",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_LAW_PARTNERSHIP_05",
+        "dest": "ACC_COMMERCIAL_ESCROW_05",
+        "amount": 76000.0,
+        "step": 5,
+        "is_sar": false
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_TEST_HV_05", "account_ACC_LAW_PARTNERSHIP_05"],
+    "expected_abstention": false,
+    "user_query": "Investigate commercial lease escrow transfer of $76,000.00 from ACC_LAW_PARTNERSHIP_05.",
+    "reference_answer": "Annual office space commercial lease wire to verified escrow trustee; benign.",
+    "metadata": {
+      "amount": 76000.0,
+      "test_category": "benign_high_value",
+      "account_type": "COMMERCIAL_ESCROW"
+    }
+  },
+  {
+    "case_id": "TEST_BENIGN_HV_DIVIDEND_06",
+    "dataset": "amlsim_held_out_test_v1",
+    "scenario_id": "scenario_subsidiary_dividend",
+    "cluster_id": "cluster_dividend_opco",
+    "category": "benign_control",
+    "typology": null,
+    "target_transaction_id": "TXN_TEST_HV_06",
+    "related_transaction_ids": [],
+    "related_account_ids": ["ACC_OPCO_SUBSIDIARY_06", "ACC_PARENT_HOLDCO_06"],
+    "ground_truth_label": "BENIGN",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_OPCO_SUBSIDIARY_06",
+        "dest": "ACC_PARENT_HOLDCO_06",
+        "amount": 89000.0,
+        "step": 6,
+        "is_sar": false
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_TEST_HV_06", "account_ACC_OPCO_SUBSIDIARY_06"],
+    "expected_abstention": false,
+    "user_query": "Investigate intercompany dividend distribution of $89,000.00 from ACC_OPCO_SUBSIDIARY_06.",
+    "reference_answer": "Quarterly intercompany dividend transfer between verified consolidated corporate entities; benign.",
+    "metadata": {
+      "amount": 89000.0,
+      "test_category": "benign_high_value",
+      "account_type": "COMMERCIAL_OPERATING"
+    }
+  },
+  {
+    "case_id": "TEST_SUSP_LV_STRUCT_07",
+    "dataset": "amlsim_held_out_test_v1",
+    "scenario_id": "scenario_micro_structuring",
+    "cluster_id": "cluster_struct_smurf",
+    "category": "structuring",
+    "typology": "structuring_avoidance",
+    "target_transaction_id": "TXN_TEST_LV_07",
+    "related_transaction_ids": [],
+    "related_account_ids": ["ACC_SMURF_INDIVIDUAL_07", "ACC_MULE_DROP_07"],
+    "ground_truth_label": "SUSPICIOUS",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_SMURF_INDIVIDUAL_07",
+        "dest": "ACC_MULE_DROP_07",
+        "amount": 9450.0,
+        "step": 7,
+        "is_sar": true
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_TEST_LV_07", "account_ACC_SMURF_INDIVIDUAL_07"],
+    "expected_abstention": false,
+    "user_query": "Investigate deposit of $9,450.00 from ACC_SMURF_INDIVIDUAL_07.",
+    "reference_answer": "Intentional structuring deposit just below statutory $10,000 CTR reporting threshold; suspicious.",
+    "metadata": {
+      "amount": 9450.0,
+      "test_category": "suspicious_low_value",
+      "account_type": "INDIVIDUAL_CHECKING"
+    }
+  },
+  {
+    "case_id": "TEST_SUSP_LV_RELAY_08",
+    "dataset": "amlsim_held_out_test_v1",
+    "scenario_id": "scenario_relay_mule",
+    "cluster_id": "cluster_relay_hop",
+    "category": "layering",
+    "typology": "scatter_gather_passthrough",
+    "target_transaction_id": "TXN_TEST_LV_08",
+    "related_transaction_ids": ["TXN_TEST_LV_08_IN"],
+    "related_account_ids": ["ACC_ANON_ORIG_08", "ACC_RELAY_MULE_08", "ACC_OFFSHORE_SINK_08"],
+    "ground_truth_label": "SUSPICIOUS",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_ANON_ORIG_08",
+        "dest": "ACC_RELAY_MULE_08",
+        "amount": 1480.0,
+        "step": 8,
+        "is_sar": true
+      },
+      {
+        "source": "ACC_RELAY_MULE_08",
+        "dest": "ACC_OFFSHORE_SINK_08",
+        "amount": 1450.0,
+        "step": 8,
+        "is_sar": true
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_TEST_LV_08", "account_ACC_RELAY_MULE_08"],
+    "expected_abstention": false,
+    "user_query": "Investigate rapid pass-through wire of $1,450.00 from ACC_RELAY_MULE_08.",
+    "reference_answer": "Rapid transit layering hop through zero-balance pass-through intermediary mule; suspicious.",
+    "metadata": {
+      "amount": 1450.0,
+      "test_category": "suspicious_low_value",
+      "account_type": "INDIVIDUAL_CHECKING"
+    }
+  },
+  {
+    "case_id": "TEST_SUSP_LV_BRANCH_SMURF_09",
+    "dataset": "amlsim_held_out_test_v1",
+    "scenario_id": "scenario_branch_smurfing",
+    "cluster_id": "cluster_smurf_branch",
+    "category": "structuring",
+    "typology": "velocity_burst",
+    "target_transaction_id": "TXN_TEST_LV_09",
+    "related_transaction_ids": [],
+    "related_account_ids": ["ACC_BRANCH_SMURF_09", "ACC_COLLECTOR_09"],
+    "ground_truth_label": "SUSPICIOUS",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_BRANCH_SMURF_09",
+        "dest": "ACC_COLLECTOR_09",
+        "amount": 2900.0,
+        "step": 9,
+        "is_sar": true
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_TEST_LV_09", "account_ACC_BRANCH_SMURF_09"],
+    "expected_abstention": false,
+    "user_query": "Investigate velocity burst transfer of $2,900.00 from ACC_BRANCH_SMURF_09.",
+    "reference_answer": "High-velocity smurfing burst aggregating across regional branch channels; suspicious.",
+    "metadata": {
+      "amount": 2900.0,
+      "test_category": "suspicious_low_value",
+      "account_type": "INDIVIDUAL_CHECKING"
+    }
+  },
+  {
+    "case_id": "TEST_SUSP_LV_CTR_AVOID_10",
+    "dataset": "amlsim_held_out_test_v1",
+    "scenario_id": "scenario_threshold_avoidance",
+    "cluster_id": "cluster_avoid_otc",
+    "category": "structuring",
+    "typology": "structuring_avoidance",
+    "target_transaction_id": "TXN_TEST_LV_10",
+    "related_transaction_ids": [],
+    "related_account_ids": ["ACC_STRUCT_TRADER_10", "ACC_CRYPTO_OTC_10"],
+    "ground_truth_label": "SUSPICIOUS",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_STRUCT_TRADER_10",
+        "dest": "ACC_CRYPTO_OTC_10",
+        "amount": 9100.0,
+        "step": 10,
+        "is_sar": true
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_TEST_LV_10", "account_ACC_STRUCT_TRADER_10"],
+    "expected_abstention": false,
+    "user_query": "Investigate transfer of $9,100.00 from ACC_STRUCT_TRADER_10.",
+    "reference_answer": "Intentional structuring avoidance transfer under 31 U.S.C. § 5324; suspicious.",
+    "metadata": {
+      "amount": 9100.0,
+      "test_category": "suspicious_low_value",
+      "account_type": "INDIVIDUAL_CHECKING"
+    }
+  },
+  {
+    "case_id": "TEST_SUSP_LV_LAYER_HOP_11",
+    "dataset": "amlsim_held_out_test_v1",
+    "scenario_id": "scenario_layer_shell",
+    "cluster_id": "cluster_shell_transit",
+    "category": "layering",
+    "typology": "scatter_gather_passthrough",
+    "target_transaction_id": "TXN_TEST_LV_11",
+    "related_transaction_ids": ["TXN_TEST_LV_11_IN"],
+    "related_account_ids": ["ACC_PRIMARY_SOURCE_11", "ACC_SHELL_HOP_11", "ACC_TERMINAL_SINK_11"],
+    "ground_truth_label": "SUSPICIOUS",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_PRIMARY_SOURCE_11",
+        "dest": "ACC_SHELL_HOP_11",
+        "amount": 3250.0,
+        "step": 11,
+        "is_sar": true
+      },
+      {
+        "source": "ACC_SHELL_HOP_11",
+        "dest": "ACC_TERMINAL_SINK_11",
+        "amount": 3200.0,
+        "step": 11,
+        "is_sar": true
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_TEST_LV_11", "account_ACC_SHELL_HOP_11"],
+    "expected_abstention": false,
+    "user_query": "Investigate intermediate layering hop of $3,200.00 from ACC_SHELL_HOP_11.",
+    "reference_answer": "Layering transit hop through unverified intermediary shell entity; suspicious.",
+    "metadata": {
+      "amount": 3200.0,
+      "test_category": "suspicious_low_value",
+      "account_type": "INDIVIDUAL_CHECKING"
+    }
+  },
+  {
+    "case_id": "TEST_SUSP_LV_MICRO_MULE_12",
+    "dataset": "amlsim_held_out_test_v1",
+    "scenario_id": "scenario_micro_mule_ring",
+    "cluster_id": "cluster_micro_mule",
+    "category": "layering",
+    "typology": "mule_aggregation",
+    "target_transaction_id": "TXN_TEST_LV_12",
+    "related_transaction_ids": [],
+    "related_account_ids": ["ACC_MICRO_MULE_12", "ACC_CENTRAL_SINK_12"],
+    "ground_truth_label": "SUSPICIOUS",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_MICRO_MULE_12",
+        "dest": "ACC_CENTRAL_SINK_12",
+        "amount": 850.0,
+        "step": 12,
+        "is_sar": true
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_TEST_LV_12", "account_ACC_MICRO_MULE_12"],
+    "expected_abstention": false,
+    "user_query": "Investigate fan-in transfer of $850.00 from ACC_MICRO_MULE_12.",
+    "reference_answer": "Micro-mule aggregation flow participating in decentralized smurfing ring; suspicious.",
+    "metadata": {
+      "amount": 850.0,
+      "test_category": "suspicious_low_value",
+      "account_type": "INDIVIDUAL_CHECKING"
+    }
+  },
+  {
+    "case_id": "TEST_NEARMISS_REFUND_13",
+    "dataset": "amlsim_held_out_test_v1",
+    "scenario_id": "scenario_retail_return",
+    "cluster_id": "cluster_refund_merch",
+    "category": "benign_control",
+    "typology": null,
+    "target_transaction_id": "TXN_TEST_NM_13",
+    "related_transaction_ids": ["TXN_TEST_NM_13_PRIOR"],
+    "related_account_ids": ["ACC_RETAIL_BUYER_13", "ACC_ECOMMERCE_MERCH_13"],
+    "ground_truth_label": "BENIGN",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_RETAIL_BUYER_13",
+        "dest": "ACC_ECOMMERCE_MERCH_13",
+        "amount": 480.0,
+        "step": 13,
+        "is_sar": false
+      },
+      {
+        "source": "ACC_ECOMMERCE_MERCH_13",
+        "dest": "ACC_RETAIL_BUYER_13",
+        "amount": 480.0,
+        "step": 13,
+        "is_sar": false
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_TEST_NM_13", "account_ACC_ECOMMERCE_MERCH_13"],
+    "expected_abstention": false,
+    "user_query": "Investigate return payment of $480.00 from ACC_ECOMMERCE_MERCH_13.",
+    "reference_answer": "E-commerce customer order return and refund reversal; benign non-illicit graph loop.",
+    "metadata": {
+      "amount": 480.0,
+      "test_category": "near_miss_graph",
+      "account_type": "COMMERCIAL_OPERATING"
+    }
+  },
+  {
+    "case_id": "TEST_NEARMISS_DISPUTE_14",
+    "dataset": "amlsim_held_out_test_v1",
+    "scenario_id": "scenario_dispute_settlement",
+    "cluster_id": "cluster_dispute_biz",
+    "category": "benign_control",
+    "typology": null,
+    "target_transaction_id": "TXN_TEST_NM_14",
+    "related_transaction_ids": ["TXN_TEST_NM_14_PRIOR"],
+    "related_account_ids": ["ACC_CLIENT_BIZ_14", "ACC_CONTRACTOR_CORP_14"],
+    "ground_truth_label": "BENIGN",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_CLIENT_BIZ_14",
+        "dest": "ACC_CONTRACTOR_CORP_14",
+        "amount": 1850.0,
+        "step": 14,
+        "is_sar": false
+      },
+      {
+        "source": "ACC_CONTRACTOR_CORP_14",
+        "dest": "ACC_CLIENT_BIZ_14",
+        "amount": 1850.0,
+        "step": 14,
+        "is_sar": false
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_TEST_NM_14", "account_ACC_CONTRACTOR_CORP_14"],
+    "expected_abstention": false,
+    "user_query": "Investigate commercial dispute settlement refund of $1,850.00 from ACC_CONTRACTOR_CORP_14.",
+    "reference_answer": "Commercial service warranty credit refund between verified business counterparties; benign.",
+    "metadata": {
+      "amount": 1850.0,
+      "test_category": "near_miss_graph",
+      "account_type": "COMMERCIAL_OPERATING"
+    }
+  },
+  {
+    "case_id": "TEST_NEARMISS_SUPPLY_CHAIN_15",
+    "dataset": "amlsim_held_out_test_v1",
+    "scenario_id": "scenario_linear_supply",
+    "cluster_id": "cluster_supply_chain_linear",
+    "category": "benign_control",
+    "typology": null,
+    "target_transaction_id": "TXN_TEST_NM_15",
+    "related_transaction_ids": ["TXN_TEST_NM_15_UPSTREAM"],
+    "related_account_ids": ["ACC_RAW_STEEL_15", "ACC_FABRICATOR_15", "ACC_DISTRIBUTOR_15"],
+    "ground_truth_label": "BENIGN",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_RAW_STEEL_15",
+        "dest": "ACC_FABRICATOR_15",
+        "amount": 16500.0,
+        "step": 15,
+        "is_sar": false
+      },
+      {
+        "source": "ACC_FABRICATOR_15",
+        "dest": "ACC_DISTRIBUTOR_15",
+        "amount": 23500.0,
+        "step": 15,
+        "is_sar": false
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_TEST_NM_15", "account_ACC_FABRICATOR_15"],
+    "expected_abstention": false,
+    "user_query": "Investigate multi-tier supply chain disbursement of $23,500.00 from ACC_FABRICATOR_15.",
+    "reference_answer": "Multi-tier industrial supply chain value-add transaction; benign linear non-cyclic commercial flow.",
+    "metadata": {
+      "amount": 23500.0,
+      "test_category": "near_miss_graph",
+      "account_type": "COMMERCIAL_OPERATING"
+    }
+  },
+  {
+    "case_id": "TEST_NEARMISS_RENT_SPLIT_16",
+    "dataset": "amlsim_held_out_test_v1",
+    "scenario_id": "scenario_shared_rent",
+    "cluster_id": "cluster_rent_split",
+    "category": "benign_control",
+    "typology": null,
+    "target_transaction_id": "TXN_TEST_NM_16",
+    "related_transaction_ids": [],
+    "related_account_ids": ["ACC_ROOMMATE_A_16", "ACC_PRIMARY_TENANT_16"],
+    "ground_truth_label": "BENIGN",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_ROOMMATE_A_16",
+        "dest": "ACC_PRIMARY_TENANT_16",
+        "amount": 1250.0,
+        "step": 16,
+        "is_sar": false
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_TEST_NM_16", "account_ACC_ROOMMATE_A_16"],
+    "expected_abstention": false,
+    "user_query": "Investigate roommate rent split of $1,250.00 from ACC_ROOMMATE_A_16.",
+    "reference_answer": "Monthly shared apartment rent reimbursement to primary leaseholder; benign.",
+    "metadata": {
+      "amount": 1250.0,
+      "test_category": "near_miss_graph",
+      "account_type": "INDIVIDUAL_CHECKING"
+    }
+  },
+  {
+    "case_id": "TEST_NEARMISS_EXPENSE_17",
+    "dataset": "amlsim_held_out_test_v1",
+    "scenario_id": "scenario_travel_reimb",
+    "cluster_id": "cluster_travel_expense",
+    "category": "benign_control",
+    "typology": null,
+    "target_transaction_id": "TXN_TEST_NM_17",
+    "related_transaction_ids": [],
+    "related_account_ids": ["ACC_EMPLOYER_CORP_17", "ACC_EMPLOYEE_INDIV_17"],
+    "ground_truth_label": "BENIGN",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_EMPLOYER_CORP_17",
+        "dest": "ACC_EMPLOYEE_INDIV_17",
+        "amount": 2150.0,
+        "step": 17,
+        "is_sar": false
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_TEST_NM_17", "account_ACC_EMPLOYER_CORP_17"],
+    "expected_abstention": false,
+    "user_query": "Investigate travel reimbursement transfer of $2,150.00 from ACC_EMPLOYER_CORP_17.",
+    "reference_answer": "Corporate employee business travel expense reimbursement; benign.",
+    "metadata": {
+      "amount": 2150.0,
+      "test_category": "near_miss_graph",
+      "account_type": "BUSINESS_PAYROLL"
+    }
+  },
+  {
+    "case_id": "TEST_NEARMISS_CONSTRUCT_DRAW_18",
+    "dataset": "amlsim_held_out_test_v1",
+    "scenario_id": "scenario_construction_milestone",
+    "cluster_id": "cluster_construction_draw",
+    "category": "benign_control",
+    "typology": null,
+    "target_transaction_id": "TXN_TEST_NM_18",
+    "related_transaction_ids": [],
+    "related_account_ids": ["ACC_GEN_CONTRACTOR_18", "ACC_SUBCONTRACTOR_PLUMB_18"],
+    "ground_truth_label": "BENIGN",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_GEN_CONTRACTOR_18",
+        "dest": "ACC_SUBCONTRACTOR_PLUMB_18",
+        "amount": 18500.0,
+        "step": 18,
+        "is_sar": false
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_TEST_NM_18", "account_ACC_GEN_CONTRACTOR_18"],
+    "expected_abstention": false,
+    "user_query": "Investigate contractor milestone disbursement of $18,500.00 from ACC_GEN_CONTRACTOR_18.",
+    "reference_answer": "Building construction progress draw to verified licensed subcontractor; benign.",
+    "metadata": {
+      "amount": 18500.0,
+      "test_category": "near_miss_graph",
+      "account_type": "COMMERCIAL_OPERATING"
+    }
+  },
+  {
+    "case_id": "TEST_ILLICIT_CYCLE_4HOP_19",
+    "dataset": "amlsim_held_out_test_v1",
+    "scenario_id": "scenario_layering_cycle_4hop",
+    "cluster_id": "cluster_cycle_4hop",
+    "category": "layering",
+    "typology": "circular_layering",
+    "target_transaction_id": "TXN_TEST_CYC_19",
+    "related_transaction_ids": ["TXN_TEST_CYC_19_B", "TXN_TEST_CYC_19_C", "TXN_TEST_CYC_19_D"],
+    "related_account_ids": ["ACC_A19", "ACC_B19", "ACC_C19", "ACC_D19"],
+    "ground_truth_label": "SUSPICIOUS",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_B19",
+        "dest": "ACC_C19",
+        "amount": 14500.0,
+        "step": 19,
+        "is_sar": true
+      },
+      {
+        "source": "ACC_C19",
+        "dest": "ACC_D19",
+        "amount": 14200.0,
+        "step": 19,
+        "is_sar": true
+      },
+      {
+        "source": "ACC_D19",
+        "dest": "ACC_A19",
+        "amount": 14000.0,
+        "step": 19,
+        "is_sar": true
+      },
+      {
+        "source": "ACC_A19",
+        "dest": "ACC_B19",
+        "amount": 14500.0,
+        "step": 19,
+        "is_sar": true
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_TEST_CYC_19", "account_ACC_A19"],
+    "expected_abstention": false,
+    "user_query": "Investigate circular money transfer of $14,500.00 from ACC_A19.",
+    "reference_answer": "Directed 4-hop circular laundering cycle concealing illicit funds; suspicious.",
+    "metadata": {
+      "amount": 14500.0,
+      "test_category": "illicit_graph_cycle",
+      "account_type": "CHECKING"
+    }
+  },
+  {
+    "case_id": "TEST_ILLICIT_CYCLE_3HOP_20",
+    "dataset": "amlsim_held_out_test_v1",
+    "scenario_id": "scenario_layering_cycle_3hop",
+    "cluster_id": "cluster_cycle_3hop",
+    "category": "layering",
+    "typology": "circular_layering",
+    "target_transaction_id": "TXN_TEST_CYC_20",
+    "related_transaction_ids": ["TXN_TEST_CYC_20_Y", "TXN_TEST_CYC_20_Z"],
+    "related_account_ids": ["ACC_X20", "ACC_Y20", "ACC_Z20"],
+    "ground_truth_label": "SUSPICIOUS",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_Y20",
+        "dest": "ACC_Z20",
+        "amount": 9200.0,
+        "step": 20,
+        "is_sar": true
+      },
+      {
+        "source": "ACC_Z20",
+        "dest": "ACC_X20",
+        "amount": 9000.0,
+        "step": 20,
+        "is_sar": true
+      },
+      {
+        "source": "ACC_X20",
+        "dest": "ACC_Y20",
+        "amount": 9200.0,
+        "step": 20,
+        "is_sar": true
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_TEST_CYC_20", "account_ACC_X20"],
+    "expected_abstention": false,
+    "user_query": "Investigate layered circular wire of $9,200.00 from ACC_X20.",
+    "reference_answer": "Directed 3-hop layered circular flow combined with structuring amounts; suspicious.",
+    "metadata": {
+      "amount": 9200.0,
+      "test_category": "illicit_graph_cycle",
+      "account_type": "CHECKING"
+    }
+  },
+  {
+    "case_id": "TEST_ILLICIT_SCATTER_GATHER_21",
+    "dataset": "amlsim_held_out_test_v1",
+    "scenario_id": "scenario_scatter_fanout",
+    "cluster_id": "cluster_scatter_mule",
+    "category": "layering",
+    "typology": "scatter_gather_passthrough",
+    "target_transaction_id": "TXN_TEST_SG_21",
+    "related_transaction_ids": ["TXN_TEST_SG_21_IN", "TXN_TEST_SG_21_SPLIT2"],
+    "related_account_ids": ["ACC_ORG_21", "ACC_MULE_HUB_21", "ACC_SMURF_1_21", "ACC_SMURF_2_21"],
+    "ground_truth_label": "SUSPICIOUS",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_ORG_21",
+        "dest": "ACC_MULE_HUB_21",
+        "amount": 12500.0,
+        "step": 21,
+        "is_sar": true
+      },
+      {
+        "source": "ACC_MULE_HUB_21",
+        "dest": "ACC_SMURF_1_21",
+        "amount": 6000.0,
+        "step": 21,
+        "is_sar": true
+      },
+      {
+        "source": "ACC_MULE_HUB_21",
+        "dest": "ACC_SMURF_2_21",
+        "amount": 6000.0,
+        "step": 21,
+        "is_sar": true
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_TEST_SG_21", "account_ACC_MULE_HUB_21"],
+    "expected_abstention": false,
+    "user_query": "Investigate scatter fan-out transfer of $6,000.00 from ACC_MULE_HUB_21.",
+    "reference_answer": "Scatter-gather intermediate pass-through hub fanning out funds to multiple mules; suspicious.",
+    "metadata": {
+      "amount": 6000.0,
+      "test_category": "illicit_graph_scatter",
+      "account_type": "CHECKING"
+    }
+  },
+  {
+    "case_id": "TEST_ILLICIT_FANIN_22",
+    "dataset": "amlsim_held_out_test_v1",
+    "scenario_id": "scenario_fanin_aggregation",
+    "cluster_id": "cluster_fanin_agg",
+    "category": "layering",
+    "typology": "mule_aggregation",
+    "target_transaction_id": "TXN_TEST_FANIN_22",
+    "related_transaction_ids": ["TXN_TEST_FANIN_22_A", "TXN_TEST_FANIN_22_B"],
+    "related_account_ids": ["ACC_MULE_A_22", "ACC_MULE_B_22", "ACC_MULE_C_22", "ACC_SINK_22"],
+    "ground_truth_label": "SUSPICIOUS",
+    "ground_truth_edges": [
+      {
+        "source": "ACC_MULE_A_22",
+        "dest": "ACC_SINK_22",
+        "amount": 4800.0,
+        "step": 22,
+        "is_sar": true
+      },
+      {
+        "source": "ACC_MULE_B_22",
+        "dest": "ACC_SINK_22",
+        "amount": 4900.0,
+        "step": 22,
+        "is_sar": true
+      },
+      {
+        "source": "ACC_MULE_C_22",
+        "dest": "ACC_SINK_22",
+        "amount": 4800.0,
+        "step": 22,
+        "is_sar": true
+      }
+    ],
+    "expected_evidence_ids": ["txn_TXN_TEST_FANIN_22", "account_ACC_MULE_C_22"],
+    "expected_abstention": false,
+    "user_query": "Investigate fan-in deposit of $4,800.00 from ACC_MULE_C_22 into ACC_SINK_22.",
+    "reference_answer": "Fan-in reconsolidation mule network aggregating structured disbursements onto centralized sink; suspicious.",
+    "metadata": {
+      "amount": 4800.0,
+      "test_category": "illicit_graph_fanin",
+      "account_type": "CHECKING"
+    }
+  },
+  {
+    "case_id": "TEST_ABSTENTION_MISSING_PROV_23",
+    "dataset": "amlsim_held_out_test_v1",
+    "scenario_id": "scenario_missing_provenance",
+    "cluster_id": "cluster_missing_prov",
+    "category": "insufficient_evidence",
+    "typology": null,
+    "target_transaction_id": "TXN_TEST_DISCONNECTED_23",
+    "related_transaction_ids": [],
+    "related_account_ids": ["ACC_DISC_UNKNOWN_23"],
+    "ground_truth_label": "INSUFFICIENT_EVIDENCE",
+    "ground_truth_edges": [],
+    "expected_evidence_ids": [],
+    "expected_abstention": true,
+    "user_query": "Investigate disconnected transaction TXN_TEST_DISCONNECTED_23.",
+    "reference_answer": "Transaction disconnected from database records; fail-closed abstention required.",
+    "metadata": {
+      "amount": 5000.0,
+      "test_category": "insufficient_evidence"
+    }
+  },
+  {
+    "case_id": "TEST_ABSTENTION_ORPHAN_24",
+    "dataset": "amlsim_held_out_test_v1",
+    "scenario_id": "scenario_orphan_entity",
+    "cluster_id": "cluster_orphan_entity",
+    "category": "insufficient_evidence",
+    "typology": null,
+    "target_transaction_id": "TXN_TEST_DISCONNECTED_24",
+    "related_transaction_ids": [],
+    "related_account_ids": ["ACC_ORPHAN_UNKNOWN_24"],
+    "ground_truth_label": "INSUFFICIENT_EVIDENCE",
+    "ground_truth_edges": [],
+    "expected_evidence_ids": [],
+    "expected_abstention": true,
+    "user_query": "Investigate orphaned transaction record TXN_TEST_DISCONNECTED_24.",
+    "reference_answer": "Unresolvable entity lineage with missing counterparty; fail-closed escalation required.",
+    "metadata": {
+      "amount": 12500.0,
+      "test_category": "insufficient_evidence"
+    }
+  }
+]

@@ -1,30 +1,44 @@
 import os
-import chromadb
-from chromadb.utils import embedding_functions
 from typing import List, Dict, Any
+
+try:
+    import chromadb
+    from chromadb.utils import embedding_functions
+    HAS_CHROMADB = True
+except ImportError:
+    chromadb = None
+    embedding_functions = None
+    HAS_CHROMADB = False
 
 class FraudVectorDB:
     def __init__(self, db_path: str = "./chroma_db"):
         self.db_path = db_path
+        self.collection = None
         
+        if not HAS_CHROMADB:
+            print("[VectorDB] chromadb not installed; operating in fallback mode.")
+            return
+
         # Initialize ChromaDB client
         self.client = chromadb.PersistentClient(path=self.db_path)
         
         # Use a lightweight sentence-transformer model for local embeddings
-        self.embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name="all-MiniLM-L6-v2"
-        )
-        
-        # Create or get the collection
-        self.collection = self.client.get_or_create_collection(
-            name="historical_fraud_cases",
-            embedding_function=self.embedding_fn,
-            metadata={"hnsw:space": "cosine"} # Use cosine similarity
-        )
-        
-        # Pre-seed if empty
-        if self.collection.count() == 0:
-            self._seed_database()
+        try:
+            self.embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
+                model_name="all-MiniLM-L6-v2"
+            )
+            # Create or get the collection
+            self.collection = self.client.get_or_create_collection(
+                name="historical_fraud_cases",
+                embedding_function=self.embedding_fn,
+                metadata={"hnsw:space": "cosine"} # Use cosine similarity
+            )
+            # Pre-seed if empty
+            if self.collection.count() == 0:
+                self._seed_database()
+        except Exception as e:
+            print(f"[VectorDB] Local embedding engine unavailable ({e}); operating in fallback mode.")
+            self.collection = None
             
     def _seed_database(self):
         cases = [
@@ -112,53 +126,82 @@ class FraudVectorDB:
         
         self.collection.add(
             documents=[c["description"] for c in cases],
-            metadatas=[{"case_id": c["case_id"], "outcome": c["outcome"]} for c in cases],
+            metadatas=[{"case_id": c["case_id"], "outcome": c["outcome"], "tenant_id": "default_tenant"} for c in cases],
             ids=[c["case_id"] for c in cases]
         )
         print("Vector Database seeded with initial historical cases.")
 
-    def similarity_search(self, query: str, top_k: int = 2) -> List[Dict[str, Any]]:
-        if not self.collection or self.collection.count() == 0:
-            return []
-
-        results = self.collection.query(
-            query_texts=[query],
-            n_results=top_k
+    def add_case(self, case_id: str, description: str, outcome: str, tenant_id: str = "default_tenant"):
+        """Add a historical fraud case tagged with a tenant_id."""
+        if not self.collection:
+            return
+        doc_id = f"{tenant_id}:{case_id}"
+        self.collection.add(
+            documents=[description],
+            metadatas=[{"case_id": case_id, "outcome": outcome, "tenant_id": tenant_id}],
+            ids=[doc_id]
         )
 
-        formatted_results = []
-        if results and isinstance(results, dict) and results.get("documents") and len(results["documents"]) > 0:
-            docs = results["documents"][0]
-            ids = results.get("ids", [[]])[0] if results.get("ids") else []
-            metas = results.get("metadatas", [[]])[0] if results.get("metadatas") else []
-            dists = results.get("distances", [[]])[0] if results.get("distances") else []
+    def similarity_search(self, query: str, top_k: int = 2, tenant_id: str = None) -> List[Dict[str, Any]]:
+        if not self.collection:
+            return []
 
-            for i, doc in enumerate(docs):
-                case_id = ids[i] if i < len(ids) else f"C-{i+1}"
-                meta = metas[i] if i < len(metas) and isinstance(metas[i], dict) else {}
-                outcome = meta.get("outcome", "UNKNOWN") if meta else "UNKNOWN"
-                distance = dists[i] if i < len(dists) else 0.0
+        try:
+            if self.collection.count() == 0:
+                return []
 
-                formatted_results.append({
-                    "case_id": case_id,
-                    "description": doc,
-                    "outcome": outcome,
-                    "similarity_distance": distance
-                })
-        return formatted_results
+            query_kwargs = {
+                "query_texts": [query],
+                "n_results": top_k
+            }
+            if tenant_id:
+                query_kwargs["where"] = {"tenant_id": tenant_id}
 
+            results = self.collection.query(**query_kwargs)
+
+            formatted_results = []
+            if results and isinstance(results, dict) and results.get("documents") and len(results["documents"]) > 0:
+                docs = results["documents"][0]
+                ids = results.get("ids", [[]])[0] if results.get("ids") else []
+                metas = results.get("metadatas", [[]])[0] if results.get("metadatas") else []
+                dists = results.get("distances", [[]])[0] if results.get("distances") else []
+
+                for i, doc in enumerate(docs):
+                    case_id = ids[i] if i < len(ids) else f"C-{i+1}"
+                    meta = metas[i] if i < len(metas) and isinstance(metas[i], dict) else {}
+                    outcome = meta.get("outcome", "UNKNOWN") if meta else "UNKNOWN"
+                    distance = dists[i] if i < len(dists) else 0.0
+
+                    formatted_results.append({
+                        "case_id": case_id,
+                        "description": doc,
+                        "outcome": outcome,
+                        "similarity_distance": distance
+                    })
+            return formatted_results
+        except Exception as e:
+            print(f"[VectorDB] similarity_search fallback: {e}")
+            return []
+
+import threading
 _vector_store_instance = None
+_vector_store_lock = threading.Lock()
 
 def get_vector_store() -> FraudVectorDB:
     global _vector_store_instance
     if _vector_store_instance is None:
-        _vector_store_instance = FraudVectorDB()
+        with _vector_store_lock:
+            if _vector_store_instance is None:
+                _vector_store_instance = FraudVectorDB()
     return _vector_store_instance
 
 class LazyVectorStoreProxy:
     """Proxy object that defers FraudVectorDB instantiation until first call."""
     def similarity_search(self, *args, **kwargs):
         return get_vector_store().similarity_search(*args, **kwargs)
+
+    def add_case(self, *args, **kwargs):
+        return get_vector_store().add_case(*args, **kwargs)
 
     @property
     def collection(self):

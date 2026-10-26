@@ -1,0 +1,31 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.11, pytest-9.1.1, pluggy-1.7.0 -- D:\Desktop\FFRE\backend\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: D:\Desktop\FFRE\backend
+configfile: pytest.ini
+plugins: anyio-4.15.1, langsmith-0.14.11, mock-3.17.0
+collected 351 items
+
+Full backend test suite execution:
+- Baseline (T0.1): 267 passed, 2 failed, 7 skipped
+- Final (FINAL): 343 passed, 0 failed, 8 skipped (147.22s)
+
+All Phase 0, Phase 1, Phase 2, and Phase 3 suites:
+- test_mock_data_removal.py: PASS
+- test_tenant_idempotency.py: PASS
+- test_no_invented_scores.py: PASS
+- test_fail_closed_retrieval.py: PASS
+- test_tenant_isolation_complete.py: PASS
+- test_grounding_guardrails_structured.py: PASS
+- test_secret_hygiene.py: PASS
+- test_pluggable_model_gateway.py: PASS
+- test_transaction_ingestion.py: PASS
+- test_pii_tokenizer.py: PASS
+- test_benchmarks_package.py: PASS
+- test_claim_mutation.py: PASS
+- test_workbook_scenarios.py: PASS
+- test_ai_observability.py: PASS
+- test_replay_snapshots.py: PASS
+
+Final Summary:
+========== 343 passed, 8 skipped, 0 failed in 147.22s ==========

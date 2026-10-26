@@ -8,8 +8,10 @@ def test_health_check(client):
     assert response.status_code == 200
     assert response.json() == {"status": "healthy", "version": "1.0"}
 
-def test_create_investigation(client):
+def test_create_investigation(client, db_session):
     """Test creating a new investigation"""
+    from scripts.seed_demo_data import seed_transaction
+    seed_transaction(db_session, "T-12345", tenant_id="default_tenant")
     response = client.post(
         "/api/v1/investigations",
         json={
@@ -28,8 +30,10 @@ def test_get_investigation_not_found(client):
     response = client.get("/api/v1/investigations/non-existent-id")
     assert response.status_code == 404
 
-def test_get_investigation_after_creation(client):
+def test_get_investigation_after_creation(client, db_session):
     """Test getting an investigation after creation"""
+    from scripts.seed_demo_data import seed_transaction
+    seed_transaction(db_session, "T-67890", tenant_id="default_tenant")
     # Create an investigation
     create_response = client.post(
         "/api/v1/investigations",
@@ -50,8 +54,10 @@ def test_get_investigation_after_creation(client):
     # Status might be QUEUED, RUNNING, or COMPLETED depending on async processing
     assert data["status"] in ["QUEUED", "RUNNING", "COMPLETED", "WAITING_HUMAN", "ESCALATED"]
 
-def test_export_investigation_pdf_format(client):
+def test_export_investigation_pdf_format(client, db_session):
     """Test exporting investigation report in genuine binary PDF format"""
+    from scripts.seed_demo_data import seed_transaction
+    seed_transaction(db_session, "T-PDF-TEST", tenant_id="default_tenant")
     create_response = client.post(
         "/api/v1/investigations",
         json={"transaction_id": "T-PDF-TEST", "user_id": "user_pdf"}
@@ -64,10 +70,12 @@ def test_export_investigation_pdf_format(client):
     assert export_response.headers["content-type"] == "application/pdf"
     assert export_response.content.startswith(b"%PDF")
 
-def test_multitenancy_isolation(client):
+def test_multitenancy_isolation(client, db_session):
     """Test that users from different tenants cannot access or manipulate each other's investigations"""
     import models
     from auth import get_current_user
+    from scripts.seed_demo_data import seed_transaction
+    seed_transaction(db_session, "T-ALPHA-01", tenant_id="tenant_alpha")
 
     # Create investigation as tenant_alpha
     app.dependency_overrides[get_current_user] = lambda: models.User(

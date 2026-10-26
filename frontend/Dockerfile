@@ -1,5 +1,5 @@
 # Multi-stage production container for FFIRE Frontend UI (Chapter 60)
-FROM node:20-alpine as builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -16,7 +16,7 @@ COPY . .
 RUN npm run build
 
 # Serve stage with minimal Nginx Alpine
-FROM nginx:alpine as runner
+FROM nginx:alpine AS runner
 
 WORKDIR /usr/share/nginx/html
 
