@@ -188,7 +188,8 @@ def test_security_strict_tenant_isolation_fails_closed(client, db_session):
         "email": "super.admin@bank.com",
         "password": "Password123!",
         "role": "admin",
-        "tenant_id": "master_tenant"
+        "tenant_id": "master_tenant",
+        "invite_token": "enterprise-admin-invite-secret"
     })
     token_admin = reg_admin.json()["access_token"]
     res_admin = client.get(
@@ -270,7 +271,8 @@ def test_security_strict_tenant_isolation_fails_closed(client, db_session):
         "email": "super.admin@bank.com",
         "password": "Password123!",
         "role": "admin",
-        "tenant_id": "master_tenant"
+        "tenant_id": "master_tenant",
+        "invite_token": "enterprise-admin-invite-secret"
     })
     token_admin = reg_admin.json()["access_token"]
     res_admin = client.get(

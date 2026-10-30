@@ -1,0 +1,1566 @@
+[
+  {
+    "case_id": "HC-018",
+    "archetype": "LEGITIMATE_CORPORATE_B2B",
+    "customer_profile": "ENTERPRISE_COMMERCIAL",
+    "error_type": "FALSE_POSITIVE",
+    "failure_category": "RULE_LOGIC_AND_THRESHOLD_SELECTION",
+    "scenario": {
+      "amount": 10000.0,
+      "currency": "USD",
+      "merchant": "Authorized Cloud Supplier #3",
+      "merchant_risk": 0.01,
+      "device_os": "Windows Server 2022",
+      "device_trusted": true,
+      "ip_address": "10.0.4.50",
+      "location": "New York, NY, USA",
+      "cardholder_home": "New York, NY, USA",
+      "kyc_status": "VERIFIED",
+      "risk_tier": "LOW"
+    },
+    "ground_truth": {
+      "label": "ALLOW",
+      "is_fraud": false
+    },
+    "system_output": {
+      "decision": "ALLOW",
+      "confidence": 0.75,
+      "predicted_risk_score": 0.75,
+      "predicted_fraud": true
+    },
+    "evidence_available": {
+      "customer_evidence": {
+        "evidence_status": "OK",
+        "kyc_status": "VERIFIED",
+        "risk_tier": "LOW",
+        "customer_id": "c_hc-018",
+        "name": "Cardholder HC-018",
+        "account_type": "CHECKING"
+      },
+      "transaction_evidence": {
+        "evidence_status": "OK",
+        "amount": 10000.0,
+        "currency": "USD",
+        "status": "PENDING",
+        "account_id": "a_hc-018",
+        "counterparty": null,
+        "timestamp": "2026-10-26T16:58:12.648734",
+        "txn_id": "txn_hc-018"
+      },
+      "merchant_evidence": {
+        "evidence_status": "OK",
+        "name": "Authorized Cloud Supplier #3",
+        "category": "RETAIL",
+        "historical_fraud_rate": 0.01
+      },
+      "device_evidence": {
+        "evidence_status": "OK",
+        "os": "Windows Server 2022",
+        "new_device": true,
+        "device_id": "fp_hc-018"
+      },
+      "location_evidence": {
+        "evidence_status": "OK",
+        "geo_coord": "41.8781, -87.6298",
+        "country": "US"
+      },
+      "velocity_evidence": {
+        "evidence_status": "OK",
+        "velocity_count_1h": 1,
+        "velocity_sum_1h": 10000.0,
+        "velocity_5m": {
+          "count": 1,
+          "sum": 10000.0
+        },
+        "velocity_1h": {
+          "count": 1,
+          "sum": 10000.0
+        },
+        "velocity_24h": {
+          "count": 1,
+          "sum": 10000.0
+        },
+        "velocity_7d": {
+          "count": 1,
+          "sum": 10000.0
+        },
+        "high_velocity_flag": false,
+        "anomaly_patterns": [],
+        "velocity_score": 0.15
+      }
+    },
+    "executed_rules": {
+      "rule_score": 0.75,
+      "triggered_reasons": [
+        "CTR reporting threshold transfer ($10,000.00 >= $10,000.00).",
+        "New device detected."
+      ]
+    },
+    "executed_nodes": [
+      "planner",
+      "retrieve_customer",
+      "retrieve_device",
+      "retrieve_location",
+      "retrieve_merchant",
+      "retrieve_transaction",
+      "evidence_verifier",
+      "velocity_check",
+      "rule_engine",
+      "knowledge_lookup",
+      "risk_reasoning",
+      "critic",
+      "validator",
+      "human_review"
+    ],
+    "attribution_breakdown": {
+      "missing_telemetry": false,
+      "rule_logic": true,
+      "retrieval": false,
+      "model_reasoning": false,
+      "threshold_selection": true
+    },
+    "root_cause_explanation": "The transaction amount ($10,000.00) crossed the retail high-value/CTR threshold in rules.py (triggering +0.55 penalty). Because rules.py does not condition amount anomaly thresholds on customer profile ('ENTERPRISE_COMMERCIAL' corporate B2B vendor payments), the rule engine assigned an uncalibrated high risk score (0.750). While the LLM reasoner correctly identified legitimate commercial intent and outputted decision='ALLOW', the evaluation metric's decision boundary flagged it as fraud because predicted_risk_score >= 0.50.",
+    "duration_ms": 3150.77
+  },
+  {
+    "case_id": "HC-019",
+    "archetype": "LEGITIMATE_CORPORATE_B2B",
+    "customer_profile": "ENTERPRISE_COMMERCIAL",
+    "error_type": "FALSE_POSITIVE",
+    "failure_category": "RULE_LOGIC_AND_THRESHOLD_SELECTION",
+    "scenario": {
+      "amount": 12500.0,
+      "currency": "USD",
+      "merchant": "Authorized Cloud Supplier #4",
+      "merchant_risk": 0.01,
+      "device_os": "Windows Server 2022",
+      "device_trusted": true,
+      "ip_address": "10.0.4.50",
+      "location": "New York, NY, USA",
+      "cardholder_home": "New York, NY, USA",
+      "kyc_status": "VERIFIED",
+      "risk_tier": "LOW"
+    },
+    "ground_truth": {
+      "label": "ALLOW",
+      "is_fraud": false
+    },
+    "system_output": {
+      "decision": "ALLOW",
+      "confidence": 0.75,
+      "predicted_risk_score": 0.75,
+      "predicted_fraud": true
+    },
+    "evidence_available": {
+      "customer_evidence": {
+        "evidence_status": "OK",
+        "kyc_status": "VERIFIED",
+        "risk_tier": "LOW",
+        "customer_id": "c_hc-019",
+        "name": "Cardholder HC-019",
+        "account_type": "CHECKING"
+      },
+      "transaction_evidence": {
+        "evidence_status": "OK",
+        "amount": 12500.0,
+        "currency": "USD",
+        "status": "PENDING",
+        "account_id": "a_hc-019",
+        "counterparty": null,
+        "timestamp": "2026-10-26T16:58:15.856878",
+        "txn_id": "txn_hc-019"
+      },
+      "merchant_evidence": {
+        "evidence_status": "OK",
+        "name": "Authorized Cloud Supplier #4",
+        "category": "RETAIL",
+        "historical_fraud_rate": 0.01
+      },
+      "device_evidence": {
+        "evidence_status": "OK",
+        "os": "Windows Server 2022",
+        "new_device": true,
+        "device_id": "fp_hc-019"
+      },
+      "location_evidence": {
+        "evidence_status": "OK",
+        "geo_coord": "41.8781, -87.6298",
+        "country": "US"
+      },
+      "velocity_evidence": {
+        "evidence_status": "OK",
+        "velocity_count_1h": 1,
+        "velocity_sum_1h": 12500.0,
+        "velocity_5m": {
+          "count": 1,
+          "sum": 12500.0
+        },
+        "velocity_1h": {
+          "count": 1,
+          "sum": 12500.0
+        },
+        "velocity_24h": {
+          "count": 1,
+          "sum": 12500.0
+        },
+        "velocity_7d": {
+          "count": 1,
+          "sum": 12500.0
+        },
+        "high_velocity_flag": false,
+        "anomaly_patterns": [],
+        "velocity_score": 0.15
+      }
+    },
+    "executed_rules": {
+      "rule_score": 0.75,
+      "triggered_reasons": [
+        "CTR reporting threshold transfer ($12,500.00 >= $10,000.00).",
+        "New device detected."
+      ]
+    },
+    "executed_nodes": [
+      "planner",
+      "retrieve_customer",
+      "retrieve_device",
+      "retrieve_location",
+      "retrieve_merchant",
+      "retrieve_transaction",
+      "evidence_verifier",
+      "velocity_check",
+      "rule_engine",
+      "knowledge_lookup",
+      "risk_reasoning",
+      "critic",
+      "validator",
+      "human_review"
+    ],
+    "attribution_breakdown": {
+      "missing_telemetry": false,
+      "rule_logic": true,
+      "retrieval": false,
+      "model_reasoning": false,
+      "threshold_selection": true
+    },
+    "root_cause_explanation": "The transaction amount ($12,500.00) crossed the retail high-value/CTR threshold in rules.py (triggering +0.55 penalty). Because rules.py does not condition amount anomaly thresholds on customer profile ('ENTERPRISE_COMMERCIAL' corporate B2B vendor payments), the rule engine assigned an uncalibrated high risk score (0.750). While the LLM reasoner correctly identified legitimate commercial intent and outputted decision='ALLOW', the evaluation metric's decision boundary flagged it as fraud because predicted_risk_score >= 0.50.",
+    "duration_ms": 134.42
+  },
+  {
+    "case_id": "HC-020",
+    "archetype": "LEGITIMATE_CORPORATE_B2B",
+    "customer_profile": "ENTERPRISE_COMMERCIAL",
+    "error_type": "FALSE_POSITIVE",
+    "failure_category": "RULE_LOGIC_AND_THRESHOLD_SELECTION",
+    "scenario": {
+      "amount": 15000.0,
+      "currency": "USD",
+      "merchant": "Authorized Cloud Supplier #5",
+      "merchant_risk": 0.01,
+      "device_os": "Windows Server 2022",
+      "device_trusted": true,
+      "ip_address": "10.0.4.50",
+      "location": "New York, NY, USA",
+      "cardholder_home": "New York, NY, USA",
+      "kyc_status": "VERIFIED",
+      "risk_tier": "LOW"
+    },
+    "ground_truth": {
+      "label": "ALLOW",
+      "is_fraud": false
+    },
+    "system_output": {
+      "decision": "ALLOW",
+      "confidence": 0.75,
+      "predicted_risk_score": 0.75,
+      "predicted_fraud": true
+    },
+    "evidence_available": {
+      "customer_evidence": {
+        "evidence_status": "OK",
+        "kyc_status": "VERIFIED",
+        "risk_tier": "LOW",
+        "customer_id": "c_hc-020",
+        "name": "Cardholder HC-020",
+        "account_type": "CHECKING"
+      },
+      "transaction_evidence": {
+        "evidence_status": "OK",
+        "amount": 15000.0,
+        "currency": "USD",
+        "status": "PENDING",
+        "account_id": "a_hc-020",
+        "counterparty": null,
+        "timestamp": "2026-10-26T16:58:16.020616",
+        "txn_id": "txn_hc-020"
+      },
+      "merchant_evidence": {
+        "evidence_status": "OK",
+        "name": "Authorized Cloud Supplier #5",
+        "category": "RETAIL",
+        "historical_fraud_rate": 0.01
+      },
+      "device_evidence": {
+        "evidence_status": "OK",
+        "os": "Windows Server 2022",
+        "new_device": true,
+        "device_id": "fp_hc-020"
+      },
+      "location_evidence": {
+        "evidence_status": "OK",
+        "geo_coord": "41.8781, -87.6298",
+        "country": "US"
+      },
+      "velocity_evidence": {
+        "evidence_status": "OK",
+        "velocity_count_1h": 1,
+        "velocity_sum_1h": 15000.0,
+        "velocity_5m": {
+          "count": 1,
+          "sum": 15000.0
+        },
+        "velocity_1h": {
+          "count": 1,
+          "sum": 15000.0
+        },
+        "velocity_24h": {
+          "count": 1,
+          "sum": 15000.0
+        },
+        "velocity_7d": {
+          "count": 1,
+          "sum": 15000.0
+        },
+        "high_velocity_flag": false,
+        "anomaly_patterns": [],
+        "velocity_score": 0.15
+      }
+    },
+    "executed_rules": {
+      "rule_score": 0.75,
+      "triggered_reasons": [
+        "CTR reporting threshold transfer ($15,000.00 >= $10,000.00).",
+        "New device detected."
+      ]
+    },
+    "executed_nodes": [
+      "planner",
+      "retrieve_customer",
+      "retrieve_device",
+      "retrieve_location",
+      "retrieve_merchant",
+      "retrieve_transaction",
+      "evidence_verifier",
+      "velocity_check",
+      "rule_engine",
+      "knowledge_lookup",
+      "risk_reasoning",
+      "critic",
+      "validator",
+      "human_review"
+    ],
+    "attribution_breakdown": {
+      "missing_telemetry": false,
+      "rule_logic": true,
+      "retrieval": false,
+      "model_reasoning": false,
+      "threshold_selection": true
+    },
+    "root_cause_explanation": "The transaction amount ($15,000.00) crossed the retail high-value/CTR threshold in rules.py (triggering +0.55 penalty). Because rules.py does not condition amount anomaly thresholds on customer profile ('ENTERPRISE_COMMERCIAL' corporate B2B vendor payments), the rule engine assigned an uncalibrated high risk score (0.750). While the LLM reasoner correctly identified legitimate commercial intent and outputted decision='ALLOW', the evaluation metric's decision boundary flagged it as fraud because predicted_risk_score >= 0.50.",
+    "duration_ms": 144.04
+  },
+  {
+    "case_id": "HC-021",
+    "archetype": "LEGITIMATE_CORPORATE_B2B",
+    "customer_profile": "ENTERPRISE_COMMERCIAL",
+    "error_type": "FALSE_POSITIVE",
+    "failure_category": "RULE_LOGIC_AND_THRESHOLD_SELECTION",
+    "scenario": {
+      "amount": 17500.0,
+      "currency": "USD",
+      "merchant": "Authorized Cloud Supplier #6",
+      "merchant_risk": 0.01,
+      "device_os": "Windows Server 2022",
+      "device_trusted": true,
+      "ip_address": "10.0.4.50",
+      "location": "New York, NY, USA",
+      "cardholder_home": "New York, NY, USA",
+      "kyc_status": "VERIFIED",
+      "risk_tier": "LOW"
+    },
+    "ground_truth": {
+      "label": "ALLOW",
+      "is_fraud": false
+    },
+    "system_output": {
+      "decision": "ALLOW",
+      "confidence": 0.75,
+      "predicted_risk_score": 0.75,
+      "predicted_fraud": true
+    },
+    "evidence_available": {
+      "customer_evidence": {
+        "evidence_status": "OK",
+        "kyc_status": "VERIFIED",
+        "risk_tier": "LOW",
+        "customer_id": "c_hc-021",
+        "name": "Cardholder HC-021",
+        "account_type": "CHECKING"
+      },
+      "transaction_evidence": {
+        "evidence_status": "OK",
+        "amount": 17500.0,
+        "currency": "USD",
+        "status": "PENDING",
+        "account_id": "a_hc-021",
+        "counterparty": null,
+        "timestamp": "2026-10-26T16:58:16.195449",
+        "txn_id": "txn_hc-021"
+      },
+      "merchant_evidence": {
+        "evidence_status": "OK",
+        "name": "Authorized Cloud Supplier #6",
+        "category": "RETAIL",
+        "historical_fraud_rate": 0.01
+      },
+      "device_evidence": {
+        "evidence_status": "OK",
+        "os": "Windows Server 2022",
+        "new_device": true,
+        "device_id": "fp_hc-021"
+      },
+      "location_evidence": {
+        "evidence_status": "OK",
+        "geo_coord": "41.8781, -87.6298",
+        "country": "US"
+      },
+      "velocity_evidence": {
+        "evidence_status": "OK",
+        "velocity_count_1h": 1,
+        "velocity_sum_1h": 17500.0,
+        "velocity_5m": {
+          "count": 1,
+          "sum": 17500.0
+        },
+        "velocity_1h": {
+          "count": 1,
+          "sum": 17500.0
+        },
+        "velocity_24h": {
+          "count": 1,
+          "sum": 17500.0
+        },
+        "velocity_7d": {
+          "count": 1,
+          "sum": 17500.0
+        },
+        "high_velocity_flag": false,
+        "anomaly_patterns": [],
+        "velocity_score": 0.15
+      }
+    },
+    "executed_rules": {
+      "rule_score": 0.75,
+      "triggered_reasons": [
+        "CTR reporting threshold transfer ($17,500.00 >= $10,000.00).",
+        "New device detected."
+      ]
+    },
+    "executed_nodes": [
+      "planner",
+      "retrieve_customer",
+      "retrieve_device",
+      "retrieve_location",
+      "retrieve_merchant",
+      "retrieve_transaction",
+      "evidence_verifier",
+      "velocity_check",
+      "rule_engine",
+      "knowledge_lookup",
+      "risk_reasoning",
+      "critic",
+      "validator",
+      "human_review"
+    ],
+    "attribution_breakdown": {
+      "missing_telemetry": false,
+      "rule_logic": true,
+      "retrieval": false,
+      "model_reasoning": false,
+      "threshold_selection": true
+    },
+    "root_cause_explanation": "The transaction amount ($17,500.00) crossed the retail high-value/CTR threshold in rules.py (triggering +0.55 penalty). Because rules.py does not condition amount anomaly thresholds on customer profile ('ENTERPRISE_COMMERCIAL' corporate B2B vendor payments), the rule engine assigned an uncalibrated high risk score (0.750). While the LLM reasoner correctly identified legitimate commercial intent and outputted decision='ALLOW', the evaluation metric's decision boundary flagged it as fraud because predicted_risk_score >= 0.50.",
+    "duration_ms": 152.06
+  },
+  {
+    "case_id": "HC-022",
+    "archetype": "LEGITIMATE_CORPORATE_B2B",
+    "customer_profile": "ENTERPRISE_COMMERCIAL",
+    "error_type": "FALSE_POSITIVE",
+    "failure_category": "RULE_LOGIC_AND_THRESHOLD_SELECTION",
+    "scenario": {
+      "amount": 20000.0,
+      "currency": "USD",
+      "merchant": "Authorized Cloud Supplier #7",
+      "merchant_risk": 0.01,
+      "device_os": "Windows Server 2022",
+      "device_trusted": true,
+      "ip_address": "10.0.4.50",
+      "location": "New York, NY, USA",
+      "cardholder_home": "New York, NY, USA",
+      "kyc_status": "VERIFIED",
+      "risk_tier": "LOW"
+    },
+    "ground_truth": {
+      "label": "ALLOW",
+      "is_fraud": false
+    },
+    "system_output": {
+      "decision": "ALLOW",
+      "confidence": 0.67,
+      "predicted_risk_score": 1.0,
+      "predicted_fraud": true
+    },
+    "evidence_available": {
+      "customer_evidence": {
+        "evidence_status": "OK",
+        "kyc_status": "VERIFIED",
+        "risk_tier": "LOW",
+        "customer_id": "c_hc-022",
+        "name": "Cardholder HC-022",
+        "account_type": "CHECKING"
+      },
+      "transaction_evidence": {
+        "evidence_status": "OK",
+        "amount": 20000.0,
+        "currency": "USD",
+        "status": "PENDING",
+        "account_id": "a_hc-022",
+        "counterparty": null,
+        "timestamp": "2026-10-26T16:58:16.376816",
+        "txn_id": "txn_hc-022"
+      },
+      "merchant_evidence": {
+        "evidence_status": "OK",
+        "name": "Authorized Cloud Supplier #7",
+        "category": "RETAIL",
+        "historical_fraud_rate": 0.01
+      },
+      "device_evidence": {
+        "evidence_status": "OK",
+        "os": "Windows Server 2022",
+        "new_device": true,
+        "device_id": "fp_hc-022"
+      },
+      "location_evidence": {
+        "evidence_status": "OK",
+        "geo_coord": "41.8781, -87.6298",
+        "country": "US"
+      },
+      "velocity_evidence": {
+        "evidence_status": "OK",
+        "velocity_count_1h": 1,
+        "velocity_sum_1h": 20000.0,
+        "velocity_5m": {
+          "count": 1,
+          "sum": 20000.0
+        },
+        "velocity_1h": {
+          "count": 1,
+          "sum": 20000.0
+        },
+        "velocity_24h": {
+          "count": 1,
+          "sum": 20000.0
+        },
+        "velocity_7d": {
+          "count": 1,
+          "sum": 20000.0
+        },
+        "high_velocity_flag": false,
+        "anomaly_patterns": [],
+        "velocity_score": 0.15
+      }
+    },
+    "executed_rules": {
+      "rule_score": 1.0,
+      "triggered_reasons": [
+        "High-value transaction anomaly ($20,000.00 >= $20,000.00).",
+        "New device detected."
+      ]
+    },
+    "executed_nodes": [
+      "planner",
+      "retrieve_customer",
+      "retrieve_device",
+      "retrieve_location",
+      "retrieve_merchant",
+      "retrieve_transaction",
+      "evidence_verifier",
+      "velocity_check",
+      "rule_engine",
+      "knowledge_lookup",
+      "risk_reasoning",
+      "critic",
+      "validator",
+      "human_review"
+    ],
+    "attribution_breakdown": {
+      "missing_telemetry": false,
+      "rule_logic": true,
+      "retrieval": false,
+      "model_reasoning": false,
+      "threshold_selection": true
+    },
+    "root_cause_explanation": "The transaction amount ($20,000.00) crossed the retail high-value/CTR threshold in rules.py (triggering +0.85 penalty). Because rules.py does not condition amount anomaly thresholds on customer profile ('ENTERPRISE_COMMERCIAL' corporate B2B vendor payments), the rule engine assigned an uncalibrated high risk score (1.000). While the LLM reasoner correctly identified legitimate commercial intent and outputted decision='ALLOW', the evaluation metric's decision boundary flagged it as fraud because predicted_risk_score >= 0.50.",
+    "duration_ms": 152.98
+  },
+  {
+    "case_id": "HC-023",
+    "archetype": "LEGITIMATE_CORPORATE_B2B",
+    "customer_profile": "ENTERPRISE_COMMERCIAL",
+    "error_type": "FALSE_POSITIVE",
+    "failure_category": "RULE_LOGIC_AND_THRESHOLD_SELECTION",
+    "scenario": {
+      "amount": 22500.0,
+      "currency": "USD",
+      "merchant": "Authorized Cloud Supplier #8",
+      "merchant_risk": 0.01,
+      "device_os": "Windows Server 2022",
+      "device_trusted": true,
+      "ip_address": "10.0.4.50",
+      "location": "New York, NY, USA",
+      "cardholder_home": "New York, NY, USA",
+      "kyc_status": "VERIFIED",
+      "risk_tier": "LOW"
+    },
+    "ground_truth": {
+      "label": "ALLOW",
+      "is_fraud": false
+    },
+    "system_output": {
+      "decision": "ALLOW",
+      "confidence": 0.67,
+      "predicted_risk_score": 1.0,
+      "predicted_fraud": true
+    },
+    "evidence_available": {
+      "customer_evidence": {
+        "evidence_status": "OK",
+        "kyc_status": "VERIFIED",
+        "risk_tier": "LOW",
+        "customer_id": "c_hc-023",
+        "name": "Cardholder HC-023",
+        "account_type": "CHECKING"
+      },
+      "transaction_evidence": {
+        "evidence_status": "OK",
+        "amount": 22500.0,
+        "currency": "USD",
+        "status": "PENDING",
+        "account_id": "a_hc-023",
+        "counterparty": null,
+        "timestamp": "2026-10-26T16:58:16.552395",
+        "txn_id": "txn_hc-023"
+      },
+      "merchant_evidence": {
+        "evidence_status": "OK",
+        "name": "Authorized Cloud Supplier #8",
+        "category": "RETAIL",
+        "historical_fraud_rate": 0.01
+      },
+      "device_evidence": {
+        "evidence_status": "OK",
+        "os": "Windows Server 2022",
+        "new_device": true,
+        "device_id": "fp_hc-023"
+      },
+      "location_evidence": {
+        "evidence_status": "OK",
+        "geo_coord": "41.8781, -87.6298",
+        "country": "US"
+      },
+      "velocity_evidence": {
+        "evidence_status": "OK",
+        "velocity_count_1h": 1,
+        "velocity_sum_1h": 22500.0,
+        "velocity_5m": {
+          "count": 1,
+          "sum": 22500.0
+        },
+        "velocity_1h": {
+          "count": 1,
+          "sum": 22500.0
+        },
+        "velocity_24h": {
+          "count": 1,
+          "sum": 22500.0
+        },
+        "velocity_7d": {
+          "count": 1,
+          "sum": 22500.0
+        },
+        "high_velocity_flag": false,
+        "anomaly_patterns": [],
+        "velocity_score": 0.15
+      }
+    },
+    "executed_rules": {
+      "rule_score": 1.0,
+      "triggered_reasons": [
+        "High-value transaction anomaly ($22,500.00 >= $20,000.00).",
+        "New device detected."
+      ]
+    },
+    "executed_nodes": [
+      "planner",
+      "retrieve_customer",
+      "retrieve_device",
+      "retrieve_location",
+      "retrieve_merchant",
+      "retrieve_transaction",
+      "evidence_verifier",
+      "velocity_check",
+      "rule_engine",
+      "knowledge_lookup",
+      "risk_reasoning",
+      "critic",
+      "validator",
+      "human_review"
+    ],
+    "attribution_breakdown": {
+      "missing_telemetry": false,
+      "rule_logic": true,
+      "retrieval": false,
+      "model_reasoning": false,
+      "threshold_selection": true
+    },
+    "root_cause_explanation": "The transaction amount ($22,500.00) crossed the retail high-value/CTR threshold in rules.py (triggering +0.85 penalty). Because rules.py does not condition amount anomaly thresholds on customer profile ('ENTERPRISE_COMMERCIAL' corporate B2B vendor payments), the rule engine assigned an uncalibrated high risk score (1.000). While the LLM reasoner correctly identified legitimate commercial intent and outputted decision='ALLOW', the evaluation metric's decision boundary flagged it as fraud because predicted_risk_score >= 0.50.",
+    "duration_ms": 152.55
+  },
+  {
+    "case_id": "HC-024",
+    "archetype": "LEGITIMATE_CORPORATE_B2B",
+    "customer_profile": "ENTERPRISE_COMMERCIAL",
+    "error_type": "FALSE_POSITIVE",
+    "failure_category": "RULE_LOGIC_AND_THRESHOLD_SELECTION",
+    "scenario": {
+      "amount": 25000.0,
+      "currency": "USD",
+      "merchant": "Authorized Cloud Supplier #9",
+      "merchant_risk": 0.01,
+      "device_os": "Windows Server 2022",
+      "device_trusted": true,
+      "ip_address": "10.0.4.50",
+      "location": "New York, NY, USA",
+      "cardholder_home": "New York, NY, USA",
+      "kyc_status": "VERIFIED",
+      "risk_tier": "LOW"
+    },
+    "ground_truth": {
+      "label": "ALLOW",
+      "is_fraud": false
+    },
+    "system_output": {
+      "decision": "ALLOW",
+      "confidence": 0.67,
+      "predicted_risk_score": 1.0,
+      "predicted_fraud": true
+    },
+    "evidence_available": {
+      "customer_evidence": {
+        "evidence_status": "OK",
+        "kyc_status": "VERIFIED",
+        "risk_tier": "LOW",
+        "customer_id": "c_hc-024",
+        "name": "Cardholder HC-024",
+        "account_type": "CHECKING"
+      },
+      "transaction_evidence": {
+        "evidence_status": "OK",
+        "amount": 25000.0,
+        "currency": "USD",
+        "status": "PENDING",
+        "account_id": "a_hc-024",
+        "counterparty": null,
+        "timestamp": "2026-10-26T16:58:16.738501",
+        "txn_id": "txn_hc-024"
+      },
+      "merchant_evidence": {
+        "evidence_status": "OK",
+        "name": "Authorized Cloud Supplier #9",
+        "category": "RETAIL",
+        "historical_fraud_rate": 0.01
+      },
+      "device_evidence": {
+        "evidence_status": "OK",
+        "os": "Windows Server 2022",
+        "new_device": true,
+        "device_id": "fp_hc-024"
+      },
+      "location_evidence": {
+        "evidence_status": "OK",
+        "geo_coord": "41.8781, -87.6298",
+        "country": "US"
+      },
+      "velocity_evidence": {
+        "evidence_status": "OK",
+        "velocity_count_1h": 1,
+        "velocity_sum_1h": 25000.0,
+        "velocity_5m": {
+          "count": 1,
+          "sum": 25000.0
+        },
+        "velocity_1h": {
+          "count": 1,
+          "sum": 25000.0
+        },
+        "velocity_24h": {
+          "count": 1,
+          "sum": 25000.0
+        },
+        "velocity_7d": {
+          "count": 1,
+          "sum": 25000.0
+        },
+        "high_velocity_flag": false,
+        "anomaly_patterns": [],
+        "velocity_score": 0.15
+      }
+    },
+    "executed_rules": {
+      "rule_score": 1.0,
+      "triggered_reasons": [
+        "High-value transaction anomaly ($25,000.00 >= $20,000.00).",
+        "New device detected."
+      ]
+    },
+    "executed_nodes": [
+      "planner",
+      "retrieve_customer",
+      "retrieve_device",
+      "retrieve_location",
+      "retrieve_merchant",
+      "retrieve_transaction",
+      "evidence_verifier",
+      "velocity_check",
+      "rule_engine",
+      "knowledge_lookup",
+      "risk_reasoning",
+      "critic",
+      "validator",
+      "human_review"
+    ],
+    "attribution_breakdown": {
+      "missing_telemetry": false,
+      "rule_logic": true,
+      "retrieval": false,
+      "model_reasoning": false,
+      "threshold_selection": true
+    },
+    "root_cause_explanation": "The transaction amount ($25,000.00) crossed the retail high-value/CTR threshold in rules.py (triggering +0.85 penalty). Because rules.py does not condition amount anomaly thresholds on customer profile ('ENTERPRISE_COMMERCIAL' corporate B2B vendor payments), the rule engine assigned an uncalibrated high risk score (1.000). While the LLM reasoner correctly identified legitimate commercial intent and outputted decision='ALLOW', the evaluation metric's decision boundary flagged it as fraud because predicted_risk_score >= 0.50.",
+    "duration_ms": 148.42
+  },
+  {
+    "case_id": "HC-025",
+    "archetype": "LEGITIMATE_CORPORATE_B2B",
+    "customer_profile": "ENTERPRISE_COMMERCIAL",
+    "error_type": "FALSE_POSITIVE",
+    "failure_category": "RULE_LOGIC_AND_THRESHOLD_SELECTION",
+    "scenario": {
+      "amount": 27500.0,
+      "currency": "USD",
+      "merchant": "Authorized Cloud Supplier #10",
+      "merchant_risk": 0.01,
+      "device_os": "Windows Server 2022",
+      "device_trusted": true,
+      "ip_address": "10.0.4.50",
+      "location": "New York, NY, USA",
+      "cardholder_home": "New York, NY, USA",
+      "kyc_status": "VERIFIED",
+      "risk_tier": "LOW"
+    },
+    "ground_truth": {
+      "label": "ALLOW",
+      "is_fraud": false
+    },
+    "system_output": {
+      "decision": "ALLOW",
+      "confidence": 0.67,
+      "predicted_risk_score": 1.0,
+      "predicted_fraud": true
+    },
+    "evidence_available": {
+      "customer_evidence": {
+        "evidence_status": "OK",
+        "kyc_status": "VERIFIED",
+        "risk_tier": "LOW",
+        "customer_id": "c_hc-025",
+        "name": "Cardholder HC-025",
+        "account_type": "CHECKING"
+      },
+      "transaction_evidence": {
+        "evidence_status": "OK",
+        "amount": 27500.0,
+        "currency": "USD",
+        "status": "PENDING",
+        "account_id": "a_hc-025",
+        "counterparty": null,
+        "timestamp": "2026-10-26T16:58:16.917882",
+        "txn_id": "txn_hc-025"
+      },
+      "merchant_evidence": {
+        "evidence_status": "OK",
+        "name": "Authorized Cloud Supplier #10",
+        "category": "RETAIL",
+        "historical_fraud_rate": 0.01
+      },
+      "device_evidence": {
+        "evidence_status": "OK",
+        "os": "Windows Server 2022",
+        "new_device": true,
+        "device_id": "fp_hc-025"
+      },
+      "location_evidence": {
+        "evidence_status": "OK",
+        "geo_coord": "41.8781, -87.6298",
+        "country": "US"
+      },
+      "velocity_evidence": {
+        "evidence_status": "OK",
+        "velocity_count_1h": 1,
+        "velocity_sum_1h": 27500.0,
+        "velocity_5m": {
+          "count": 1,
+          "sum": 27500.0
+        },
+        "velocity_1h": {
+          "count": 1,
+          "sum": 27500.0
+        },
+        "velocity_24h": {
+          "count": 1,
+          "sum": 27500.0
+        },
+        "velocity_7d": {
+          "count": 1,
+          "sum": 27500.0
+        },
+        "high_velocity_flag": false,
+        "anomaly_patterns": [],
+        "velocity_score": 0.15
+      }
+    },
+    "executed_rules": {
+      "rule_score": 1.0,
+      "triggered_reasons": [
+        "High-value transaction anomaly ($27,500.00 >= $20,000.00).",
+        "New device detected."
+      ]
+    },
+    "executed_nodes": [
+      "planner",
+      "retrieve_customer",
+      "retrieve_device",
+      "retrieve_location",
+      "retrieve_merchant",
+      "retrieve_transaction",
+      "evidence_verifier",
+      "velocity_check",
+      "rule_engine",
+      "knowledge_lookup",
+      "risk_reasoning",
+      "critic",
+      "validator",
+      "human_review"
+    ],
+    "attribution_breakdown": {
+      "missing_telemetry": false,
+      "rule_logic": true,
+      "retrieval": false,
+      "model_reasoning": false,
+      "threshold_selection": true
+    },
+    "root_cause_explanation": "The transaction amount ($27,500.00) crossed the retail high-value/CTR threshold in rules.py (triggering +0.85 penalty). Because rules.py does not condition amount anomaly thresholds on customer profile ('ENTERPRISE_COMMERCIAL' corporate B2B vendor payments), the rule engine assigned an uncalibrated high risk score (1.000). While the LLM reasoner correctly identified legitimate commercial intent and outputted decision='ALLOW', the evaluation metric's decision boundary flagged it as fraud because predicted_risk_score >= 0.50.",
+    "duration_ms": 157.5
+  },
+  {
+    "case_id": "HC-096",
+    "archetype": "INSUFFICIENT_EVIDENCE_KYC",
+    "customer_profile": "NEW_UNVERIFIED_ACCOUNT",
+    "error_type": "FALSE_NEGATIVE",
+    "failure_category": "RULE_LOGIC_AND_MISSING_TELEMETRY_FAILSAFE",
+    "scenario": {
+      "amount": 150.0,
+      "currency": "USD",
+      "merchant": "PeerTransfer #1",
+      "merchant_risk": 0.2,
+      "device_os": "Unknown Device",
+      "device_trusted": false,
+      "ip_address": "10.10.10.10",
+      "location": "Unknown",
+      "cardholder_home": "Unknown",
+      "kyc_status": "UNVERIFIED",
+      "risk_tier": "UNVERIFIED"
+    },
+    "ground_truth": {
+      "label": "ESCALATE",
+      "is_fraud": true
+    },
+    "system_output": {
+      "decision": "ALLOW",
+      "confidence": 0.77,
+      "predicted_risk_score": 0.1711,
+      "predicted_fraud": false
+    },
+    "evidence_available": {
+      "customer_evidence": {
+        "evidence_status": "NOT_FOUND",
+        "error": "Customer Not Found"
+      },
+      "transaction_evidence": {
+        "evidence_status": "OK",
+        "amount": 150.0,
+        "currency": "USD",
+        "status": "PENDING",
+        "account_id": null,
+        "counterparty": null,
+        "timestamp": "2026-10-26T16:58:17.106585",
+        "txn_id": "txn_hc-096"
+      },
+      "merchant_evidence": {
+        "evidence_status": "OK",
+        "name": "PeerTransfer #1",
+        "category": "RETAIL",
+        "historical_fraud_rate": 0.2
+      },
+      "device_evidence": {
+        "evidence_status": "NOT_FOUND",
+        "error": "Device Not Found"
+      },
+      "location_evidence": {
+        "evidence_status": "OK",
+        "geo_coord": "50.4501, 30.5234",
+        "country": "US"
+      },
+      "velocity_evidence": {
+        "evidence_status": "OK",
+        "velocity_count_1h": 0,
+        "velocity_sum_1h": 0.0,
+        "velocity_5m": {
+          "count": 0,
+          "sum": 0.0
+        },
+        "velocity_1h": {
+          "count": 0,
+          "sum": 0.0
+        },
+        "velocity_24h": {
+          "count": 0,
+          "sum": 0.0
+        },
+        "velocity_7d": {
+          "count": 0,
+          "sum": 0.0
+        },
+        "high_velocity_flag": false,
+        "anomaly_patterns": [],
+        "velocity_score": 0.15
+      }
+    },
+    "executed_rules": {
+      "rule_score": 0.2,
+      "triggered_reasons": [
+        "Merchant has high historical fraud rate (20.0%)."
+      ]
+    },
+    "executed_nodes": [
+      "planner",
+      "retrieve_customer",
+      "retrieve_device",
+      "retrieve_location",
+      "retrieve_merchant",
+      "retrieve_transaction",
+      "evidence_verifier",
+      "velocity_check",
+      "rule_engine",
+      "knowledge_lookup",
+      "risk_reasoning",
+      "critic",
+      "validator",
+      "human_review"
+    ],
+    "attribution_breakdown": {
+      "missing_telemetry": true,
+      "rule_logic": true,
+      "retrieval": false,
+      "model_reasoning": true,
+      "threshold_selection": false
+    },
+    "root_cause_explanation": "Customer profile has kyc_status='UNVERIFIED' and risk_tier='UNVERIFIED'. The rule engine in rules.py lacks an explicit CIP/KYC check to penalize unverified accounts or fail closed. Because the amount ($150.00) is low and velocity is 1, the rule engine scored it only 0.200. The system allowed the transaction with low risk score (0.171) instead of escalating for manual human KYC verification (ground truth: ESCALATE).",
+    "duration_ms": 93.02
+  },
+  {
+    "case_id": "HC-097",
+    "archetype": "INSUFFICIENT_EVIDENCE_KYC",
+    "customer_profile": "NEW_UNVERIFIED_ACCOUNT",
+    "error_type": "FALSE_NEGATIVE",
+    "failure_category": "RULE_LOGIC_AND_MISSING_TELEMETRY_FAILSAFE",
+    "scenario": {
+      "amount": 230.0,
+      "currency": "USD",
+      "merchant": "PeerTransfer #2",
+      "merchant_risk": 0.2,
+      "device_os": "Unknown Device",
+      "device_trusted": false,
+      "ip_address": "10.10.10.10",
+      "location": "Unknown",
+      "cardholder_home": "Unknown",
+      "kyc_status": "UNVERIFIED",
+      "risk_tier": "UNVERIFIED"
+    },
+    "ground_truth": {
+      "label": "ESCALATE",
+      "is_fraud": true
+    },
+    "system_output": {
+      "decision": "ALLOW",
+      "confidence": 0.77,
+      "predicted_risk_score": 0.1711,
+      "predicted_fraud": false
+    },
+    "evidence_available": {
+      "customer_evidence": {
+        "evidence_status": "NOT_FOUND",
+        "error": "Customer Not Found"
+      },
+      "transaction_evidence": {
+        "evidence_status": "OK",
+        "amount": 230.0,
+        "currency": "USD",
+        "status": "PENDING",
+        "account_id": null,
+        "counterparty": null,
+        "timestamp": "2026-10-26T16:58:17.229892",
+        "txn_id": "txn_hc-097"
+      },
+      "merchant_evidence": {
+        "evidence_status": "OK",
+        "name": "PeerTransfer #2",
+        "category": "RETAIL",
+        "historical_fraud_rate": 0.2
+      },
+      "device_evidence": {
+        "evidence_status": "NOT_FOUND",
+        "error": "Device Not Found"
+      },
+      "location_evidence": {
+        "evidence_status": "OK",
+        "geo_coord": "50.4501, 30.5234",
+        "country": "US"
+      },
+      "velocity_evidence": {
+        "evidence_status": "OK",
+        "velocity_count_1h": 0,
+        "velocity_sum_1h": 0.0,
+        "velocity_5m": {
+          "count": 0,
+          "sum": 0.0
+        },
+        "velocity_1h": {
+          "count": 0,
+          "sum": 0.0
+        },
+        "velocity_24h": {
+          "count": 0,
+          "sum": 0.0
+        },
+        "velocity_7d": {
+          "count": 0,
+          "sum": 0.0
+        },
+        "high_velocity_flag": false,
+        "anomaly_patterns": [],
+        "velocity_score": 0.15
+      }
+    },
+    "executed_rules": {
+      "rule_score": 0.2,
+      "triggered_reasons": [
+        "Merchant has high historical fraud rate (20.0%)."
+      ]
+    },
+    "executed_nodes": [
+      "planner",
+      "retrieve_customer",
+      "retrieve_device",
+      "retrieve_location",
+      "retrieve_merchant",
+      "retrieve_transaction",
+      "evidence_verifier",
+      "velocity_check",
+      "rule_engine",
+      "knowledge_lookup",
+      "risk_reasoning",
+      "critic",
+      "validator",
+      "human_review"
+    ],
+    "attribution_breakdown": {
+      "missing_telemetry": true,
+      "rule_logic": true,
+      "retrieval": false,
+      "model_reasoning": true,
+      "threshold_selection": false
+    },
+    "root_cause_explanation": "Customer profile has kyc_status='UNVERIFIED' and risk_tier='UNVERIFIED'. The rule engine in rules.py lacks an explicit CIP/KYC check to penalize unverified accounts or fail closed. Because the amount ($230.00) is low and velocity is 1, the rule engine scored it only 0.200. The system allowed the transaction with low risk score (0.171) instead of escalating for manual human KYC verification (ground truth: ESCALATE).",
+    "duration_ms": 123.02
+  },
+  {
+    "case_id": "HC-098",
+    "archetype": "INSUFFICIENT_EVIDENCE_KYC",
+    "customer_profile": "NEW_UNVERIFIED_ACCOUNT",
+    "error_type": "FALSE_NEGATIVE",
+    "failure_category": "RULE_LOGIC_AND_MISSING_TELEMETRY_FAILSAFE",
+    "scenario": {
+      "amount": 310.0,
+      "currency": "USD",
+      "merchant": "PeerTransfer #3",
+      "merchant_risk": 0.2,
+      "device_os": "Unknown Device",
+      "device_trusted": false,
+      "ip_address": "10.10.10.10",
+      "location": "Unknown",
+      "cardholder_home": "Unknown",
+      "kyc_status": "UNVERIFIED",
+      "risk_tier": "UNVERIFIED"
+    },
+    "ground_truth": {
+      "label": "ESCALATE",
+      "is_fraud": true
+    },
+    "system_output": {
+      "decision": "ALLOW",
+      "confidence": 0.77,
+      "predicted_risk_score": 0.1711,
+      "predicted_fraud": false
+    },
+    "evidence_available": {
+      "customer_evidence": {
+        "evidence_status": "NOT_FOUND",
+        "error": "Customer Not Found"
+      },
+      "transaction_evidence": {
+        "evidence_status": "OK",
+        "amount": 310.0,
+        "currency": "USD",
+        "status": "PENDING",
+        "account_id": null,
+        "counterparty": null,
+        "timestamp": "2026-10-26T16:58:17.382168",
+        "txn_id": "txn_hc-098"
+      },
+      "merchant_evidence": {
+        "evidence_status": "OK",
+        "name": "PeerTransfer #3",
+        "category": "RETAIL",
+        "historical_fraud_rate": 0.2
+      },
+      "device_evidence": {
+        "evidence_status": "NOT_FOUND",
+        "error": "Device Not Found"
+      },
+      "location_evidence": {
+        "evidence_status": "OK",
+        "geo_coord": "50.4501, 30.5234",
+        "country": "US"
+      },
+      "velocity_evidence": {
+        "evidence_status": "OK",
+        "velocity_count_1h": 0,
+        "velocity_sum_1h": 0.0,
+        "velocity_5m": {
+          "count": 0,
+          "sum": 0.0
+        },
+        "velocity_1h": {
+          "count": 0,
+          "sum": 0.0
+        },
+        "velocity_24h": {
+          "count": 0,
+          "sum": 0.0
+        },
+        "velocity_7d": {
+          "count": 0,
+          "sum": 0.0
+        },
+        "high_velocity_flag": false,
+        "anomaly_patterns": [],
+        "velocity_score": 0.15
+      }
+    },
+    "executed_rules": {
+      "rule_score": 0.2,
+      "triggered_reasons": [
+        "Merchant has high historical fraud rate (20.0%)."
+      ]
+    },
+    "executed_nodes": [
+      "planner",
+      "retrieve_customer",
+      "retrieve_device",
+      "retrieve_location",
+      "retrieve_merchant",
+      "retrieve_transaction",
+      "evidence_verifier",
+      "velocity_check",
+      "rule_engine",
+      "knowledge_lookup",
+      "risk_reasoning",
+      "critic",
+      "validator",
+      "human_review"
+    ],
+    "attribution_breakdown": {
+      "missing_telemetry": true,
+      "rule_logic": true,
+      "retrieval": false,
+      "model_reasoning": true,
+      "threshold_selection": false
+    },
+    "root_cause_explanation": "Customer profile has kyc_status='UNVERIFIED' and risk_tier='UNVERIFIED'. The rule engine in rules.py lacks an explicit CIP/KYC check to penalize unverified accounts or fail closed. Because the amount ($310.00) is low and velocity is 1, the rule engine scored it only 0.200. The system allowed the transaction with low risk score (0.171) instead of escalating for manual human KYC verification (ground truth: ESCALATE).",
+    "duration_ms": 120.07
+  },
+  {
+    "case_id": "HC-099",
+    "archetype": "INSUFFICIENT_EVIDENCE_KYC",
+    "customer_profile": "NEW_UNVERIFIED_ACCOUNT",
+    "error_type": "FALSE_NEGATIVE",
+    "failure_category": "RULE_LOGIC_AND_MISSING_TELEMETRY_FAILSAFE",
+    "scenario": {
+      "amount": 390.0,
+      "currency": "USD",
+      "merchant": "PeerTransfer #4",
+      "merchant_risk": 0.2,
+      "device_os": "Unknown Device",
+      "device_trusted": false,
+      "ip_address": "10.10.10.10",
+      "location": "Unknown",
+      "cardholder_home": "Unknown",
+      "kyc_status": "UNVERIFIED",
+      "risk_tier": "UNVERIFIED"
+    },
+    "ground_truth": {
+      "label": "ESCALATE",
+      "is_fraud": true
+    },
+    "system_output": {
+      "decision": "ALLOW",
+      "confidence": 0.77,
+      "predicted_risk_score": 0.1711,
+      "predicted_fraud": false
+    },
+    "evidence_available": {
+      "customer_evidence": {
+        "evidence_status": "NOT_FOUND",
+        "error": "Customer Not Found"
+      },
+      "transaction_evidence": {
+        "evidence_status": "OK",
+        "amount": 390.0,
+        "currency": "USD",
+        "status": "PENDING",
+        "account_id": null,
+        "counterparty": null,
+        "timestamp": "2026-10-26T16:58:17.533806",
+        "txn_id": "txn_hc-099"
+      },
+      "merchant_evidence": {
+        "evidence_status": "OK",
+        "name": "PeerTransfer #4",
+        "category": "RETAIL",
+        "historical_fraud_rate": 0.2
+      },
+      "device_evidence": {
+        "evidence_status": "NOT_FOUND",
+        "error": "Device Not Found"
+      },
+      "location_evidence": {
+        "evidence_status": "OK",
+        "geo_coord": "50.4501, 30.5234",
+        "country": "US"
+      },
+      "velocity_evidence": {
+        "evidence_status": "OK",
+        "velocity_count_1h": 0,
+        "velocity_sum_1h": 0.0,
+        "velocity_5m": {
+          "count": 0,
+          "sum": 0.0
+        },
+        "velocity_1h": {
+          "count": 0,
+          "sum": 0.0
+        },
+        "velocity_24h": {
+          "count": 0,
+          "sum": 0.0
+        },
+        "velocity_7d": {
+          "count": 0,
+          "sum": 0.0
+        },
+        "high_velocity_flag": false,
+        "anomaly_patterns": [],
+        "velocity_score": 0.15
+      }
+    },
+    "executed_rules": {
+      "rule_score": 0.2,
+      "triggered_reasons": [
+        "Merchant has high historical fraud rate (20.0%)."
+      ]
+    },
+    "executed_nodes": [
+      "planner",
+      "retrieve_customer",
+      "retrieve_device",
+      "retrieve_location",
+      "retrieve_merchant",
+      "retrieve_transaction",
+      "evidence_verifier",
+      "velocity_check",
+      "rule_engine",
+      "knowledge_lookup",
+      "risk_reasoning",
+      "critic",
+      "validator",
+      "human_review"
+    ],
+    "attribution_breakdown": {
+      "missing_telemetry": true,
+      "rule_logic": true,
+      "retrieval": false,
+      "model_reasoning": true,
+      "threshold_selection": false
+    },
+    "root_cause_explanation": "Customer profile has kyc_status='UNVERIFIED' and risk_tier='UNVERIFIED'. The rule engine in rules.py lacks an explicit CIP/KYC check to penalize unverified accounts or fail closed. Because the amount ($390.00) is low and velocity is 1, the rule engine scored it only 0.200. The system allowed the transaction with low risk score (0.171) instead of escalating for manual human KYC verification (ground truth: ESCALATE).",
+    "duration_ms": 103.79
+  },
+  {
+    "case_id": "HC-100",
+    "archetype": "INSUFFICIENT_EVIDENCE_KYC",
+    "customer_profile": "NEW_UNVERIFIED_ACCOUNT",
+    "error_type": "FALSE_NEGATIVE",
+    "failure_category": "RULE_LOGIC_AND_MISSING_TELEMETRY_FAILSAFE",
+    "scenario": {
+      "amount": 470.0,
+      "currency": "USD",
+      "merchant": "PeerTransfer #5",
+      "merchant_risk": 0.2,
+      "device_os": "Unknown Device",
+      "device_trusted": false,
+      "ip_address": "10.10.10.10",
+      "location": "Unknown",
+      "cardholder_home": "Unknown",
+      "kyc_status": "UNVERIFIED",
+      "risk_tier": "UNVERIFIED"
+    },
+    "ground_truth": {
+      "label": "ESCALATE",
+      "is_fraud": true
+    },
+    "system_output": {
+      "decision": "ALLOW",
+      "confidence": 0.77,
+      "predicted_risk_score": 0.1711,
+      "predicted_fraud": false
+    },
+    "evidence_available": {
+      "customer_evidence": {
+        "evidence_status": "NOT_FOUND",
+        "error": "Customer Not Found"
+      },
+      "transaction_evidence": {
+        "evidence_status": "OK",
+        "amount": 470.0,
+        "currency": "USD",
+        "status": "PENDING",
+        "account_id": null,
+        "counterparty": null,
+        "timestamp": "2026-10-26T16:58:17.670392",
+        "txn_id": "txn_hc-100"
+      },
+      "merchant_evidence": {
+        "evidence_status": "OK",
+        "name": "PeerTransfer #5",
+        "category": "RETAIL",
+        "historical_fraud_rate": 0.2
+      },
+      "device_evidence": {
+        "evidence_status": "NOT_FOUND",
+        "error": "Device Not Found"
+      },
+      "location_evidence": {
+        "evidence_status": "OK",
+        "geo_coord": "50.4501, 30.5234",
+        "country": "US"
+      },
+      "velocity_evidence": {
+        "evidence_status": "OK",
+        "velocity_count_1h": 0,
+        "velocity_sum_1h": 0.0,
+        "velocity_5m": {
+          "count": 0,
+          "sum": 0.0
+        },
+        "velocity_1h": {
+          "count": 0,
+          "sum": 0.0
+        },
+        "velocity_24h": {
+          "count": 0,
+          "sum": 0.0
+        },
+        "velocity_7d": {
+          "count": 0,
+          "sum": 0.0
+        },
+        "high_velocity_flag": false,
+        "anomaly_patterns": [],
+        "velocity_score": 0.15
+      }
+    },
+    "executed_rules": {
+      "rule_score": 0.2,
+      "triggered_reasons": [
+        "Merchant has high historical fraud rate (20.0%)."
+      ]
+    },
+    "executed_nodes": [
+      "planner",
+      "retrieve_customer",
+      "retrieve_device",
+      "retrieve_location",
+      "retrieve_merchant",
+      "retrieve_transaction",
+      "evidence_verifier",
+      "velocity_check",
+      "rule_engine",
+      "knowledge_lookup",
+      "risk_reasoning",
+      "critic",
+      "validator",
+      "human_review"
+    ],
+    "attribution_breakdown": {
+      "missing_telemetry": true,
+      "rule_logic": true,
+      "retrieval": false,
+      "model_reasoning": true,
+      "threshold_selection": false
+    },
+    "root_cause_explanation": "Customer profile has kyc_status='UNVERIFIED' and risk_tier='UNVERIFIED'. The rule engine in rules.py lacks an explicit CIP/KYC check to penalize unverified accounts or fail closed. Because the amount ($470.00) is low and velocity is 1, the rule engine scored it only 0.200. The system allowed the transaction with low risk score (0.171) instead of escalating for manual human KYC verification (ground truth: ESCALATE).",
+    "duration_ms": 96.91
+  }
+]

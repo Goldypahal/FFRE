@@ -7,23 +7,43 @@ export function Auth() {
   const [password, setPassword] = useState("securepassword123");
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { login } = useAuthStore();
   const navigate = useNavigate();
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Simulate auto-login or store dispatch
-    setTimeout(() => {
-      login("demo-access-token-12345", {
-        id: "1",
-        name: "Demo Analyst",
-        email,
-        role: "investigator",
+    setError(null);
+    try {
+      const body = new URLSearchParams();
+      body.append("username", email);
+      body.append("password", password);
+
+      const res = await fetch("/api/v1/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: body.toString(),
       });
-      setLoading(false);
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || "Incorrect username or password");
+      }
+
+      const data = await res.json();
+      login(data.access_token, {
+        id: data.user?.id || "1",
+        name: data.user?.name || email.split("@")[0],
+        email,
+        role: data.role || "investigator",
+      });
       navigate("/");
-    }, 600);
+    } catch (err: any) {
+      setError(err.message || "Failed to authenticate");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -62,6 +82,12 @@ export function Auth() {
               <span className="flex-shrink mx-4 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">OR</span>
               <div className="flex-grow border-t border-outline-variant"></div>
             </div>
+            {error && (
+              <div role="alert" className="p-3 bg-red-950/50 border border-red-500/50 rounded-lg text-red-200 text-sm flex items-center gap-2">
+                <span>⚠️</span>
+                <span>{error}</span>
+              </div>
+            )}
             {/* Manual Credentials */}
             <div className="space-y-stack-sm">
               <div>

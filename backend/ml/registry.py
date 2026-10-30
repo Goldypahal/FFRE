@@ -2,25 +2,36 @@
 Model Registry & Artifact Persistence for Fraud Models (Phase 2).
 
 Manages model lifecycle, versioning, staging (production / staging / archived),
-schema metadata tracking, and serialized artifact storage using joblib.
+schema metadata tracking, cryptographic SHA-256 integrity checks, and serialized
+artifact storage using joblib.
 """
 
 import os
 import json
+import hashlib
 import datetime
 from typing import Dict, Any, List, Optional, Tuple
 import joblib
 
 
+def compute_file_sha256(filepath: str) -> str:
+    """Compute cryptographic SHA-256 digest of a model artifact."""
+    hasher = hashlib.sha256()
+    with open(filepath, "rb") as f:
+        while chunk := f.read(65536):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
 class ModelRegistry:
-    """Local, auditable model registry for ML fraud detection artifacts."""
+    """Local, auditable model registry for ML fraud detection artifacts with cryptographic verification."""
 
     def __init__(self, registry_dir: Optional[str] = None):
         if registry_dir is None:
             backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             registry_dir = os.path.join(backend_dir, "ml", "model_store")
 
-        self.registry_dir = registry_dir
+        self.registry_dir = os.path.abspath(registry_dir)
         self.manifest_path = os.path.join(self.registry_dir, "registry_manifest.json")
         os.makedirs(self.registry_dir, exist_ok=True)
         self._ensure_manifest()
@@ -42,6 +53,26 @@ class ModelRegistry:
         with open(self.manifest_path, "w", encoding="utf-8") as f:
             json.dump(manifest, f, indent=2)
 
+    def resolve_artifact_path(self, artifact_path: str) -> str:
+        """
+        Resolves artifact path portably. If an absolute path from another machine
+        is stored in the manifest, gracefully falls back to the local registry_dir.
+        """
+        if os.path.isabs(artifact_path) and os.path.exists(artifact_path):
+            return artifact_path
+        
+        # Check relative to self.registry_dir
+        local_path = os.path.join(self.registry_dir, os.path.basename(artifact_path))
+        if os.path.exists(local_path):
+            return local_path
+
+        # Also check relative path if specified
+        rel_path = os.path.join(self.registry_dir, artifact_path)
+        if os.path.exists(rel_path):
+            return rel_path
+
+        return local_path
+
     def register_model(
         self,
         model: Any,
@@ -54,11 +85,14 @@ class ModelRegistry:
         notes: str = ""
     ) -> Dict[str, Any]:
         """
-        Saves a trained model artifact and registers its metadata.
+        Saves a trained model artifact, verifies its SHA-256 digest, and registers metadata.
         """
         artifact_filename = f"{model_id}.joblib"
-        artifact_path = os.path.join(self.registry_dir, artifact_filename)
-        joblib.dump(model, artifact_path)
+        artifact_full_path = os.path.join(self.registry_dir, artifact_filename)
+        joblib.dump(model, artifact_full_path)
+
+        # Compute SHA-256 digest for supply-chain integrity verification
+        artifact_hash = compute_file_sha256(artifact_full_path)
 
         manifest = self._load_manifest()
 
@@ -76,7 +110,8 @@ class ModelRegistry:
             "stage": stage,
             "metrics": metrics,
             "feature_names": feature_names,
-            "artifact_path": artifact_path,
+            "artifact_path": artifact_filename,
+            "sha256": artifact_hash,
             "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "notes": notes
         }
@@ -104,7 +139,20 @@ class ModelRegistry:
             raise ValueError(f"Model ID '{model_id}' not found in registry")
 
         meta = manifest["models"][model_id]
-        artifact_path = meta["artifact_path"]
+        artifact_path = self.resolve_artifact_path(meta["artifact_path"])
+        if not os.path.exists(artifact_path):
+            raise FileNotFoundError(f"Model artifact not found at resolved path: {artifact_path}")
+
+        # Cryptographic integrity check: verify SHA-256 before loading untrusted binary
+        expected_hash = meta.get("sha256")
+        if expected_hash:
+            actual_hash = compute_file_sha256(artifact_path)
+            if actual_hash != expected_hash:
+                raise ValueError(
+                    f"Model integrity violation: SHA-256 mismatch for model '{model_id}'. "
+                    f"Expected: {expected_hash}, Actual: {actual_hash}"
+                )
+
         model = joblib.load(artifact_path)
         return model, meta
 

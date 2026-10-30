@@ -3,9 +3,20 @@ import yaml
 import pytest
 from pathlib import Path
 
+def _get_k8s_dir() -> Path:
+    candidates = [
+        Path("k8s"),
+        Path(__file__).resolve().parent.parent.parent / "k8s",
+        Path(__file__).resolve().parent.parent / "k8s",
+    ]
+    for c in candidates:
+        if c.exists() and c.is_dir():
+            return c
+    return Path("k8s")
+
 def test_kubernetes_manifests_syntax_and_structure():
     """Verify all Kubernetes manifests in k8s/ are valid YAML and contain required metadata."""
-    k8s_dir = Path("k8s")
+    k8s_dir = _get_k8s_dir()
     assert k8s_dir.exists(), "k8s directory must exist"
 
     manifest_files = list(k8s_dir.glob("*.yaml")) + list(k8s_dir.glob("*.yml"))
@@ -28,7 +39,8 @@ def test_kubernetes_manifests_syntax_and_structure():
 
 def test_gateway_deployment_production_specs():
     """Verify gateway deployment enforces 3 replicas, health probes, non-root user, and resource limits."""
-    with open("k8s/gateway-deployment.yaml", "r", encoding="utf-8") as f:
+    k8s_dir = _get_k8s_dir()
+    with open(k8s_dir / "gateway-deployment.yaml", "r", encoding="utf-8") as f:
         doc = yaml.safe_load(f)
 
     assert doc["kind"] == "Deployment"
@@ -52,7 +64,8 @@ def test_gateway_deployment_production_specs():
 
 def test_ingress_tls_security_standards():
     """Verify Ingress enforces TLS 1.2+, HTTPS redirect, and HSTS security headers (NFR-4)."""
-    with open("k8s/ingress-and-network-policy.yaml", "r", encoding="utf-8") as f:
+    k8s_dir = _get_k8s_dir()
+    with open(k8s_dir / "ingress-and-network-policy.yaml", "r", encoding="utf-8") as f:
         docs = list(yaml.safe_load_all(f))
 
     ingress_doc = next(d for d in docs if d.get("kind") == "Ingress")

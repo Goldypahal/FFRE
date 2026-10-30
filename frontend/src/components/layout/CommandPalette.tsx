@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuthStore } from "../../store/useAuthStore";
 import {
   Search,
   X,
@@ -178,7 +179,7 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
 
   // Execute search queries
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = useAuthStore.getState().token || localStorage.getItem("ffre_token") || localStorage.getItem("token");
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
 

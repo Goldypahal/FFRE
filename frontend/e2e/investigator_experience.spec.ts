@@ -281,4 +281,102 @@ test.describe('FFRE End-to-End Investigator Journey (Browser Qualification)', ()
     const invData = await invRes.json();
     expect(invData.investigations).toBeDefined();
   });
+
+  test('Auth Security: Invalid Credentials Displays Error Alert', async ({ page }) => {
+    await page.route('**/api/v1/auth/login', async (route) => {
+      await route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: JSON.stringify({ detail: 'Incorrect username or password' }),
+      });
+    });
+
+    await page.goto('/auth');
+    await page.fill('input[type="email"]', 'unauthorized@attacker.com');
+    await page.fill('input[type="password"]', 'WrongPassword999!');
+    await page.click('button[type="submit"]');
+
+    const alert = page.locator('[role="alert"]');
+    await expect(alert).toBeVisible();
+    await expect(alert).toContainText('Incorrect username or password');
+    // Ensure user remains on auth page
+    await expect(page).toHaveURL(/.*\/auth/);
+  });
+
+  test('Session Resilience: LocalStorage Persistence Across Browser Refresh', async ({ page }) => {
+    // Seed authenticated session in localStorage
+    await page.addInitScript(() => {
+      localStorage.setItem('ffre_token', 'mock-jwt-persistent-session');
+      localStorage.setItem('ffre_user', JSON.stringify({
+        id: 'user_persistent_1',
+        name: 'Persistent Investigator',
+        email: 'persistent@ffre.internal',
+        role: 'investigator'
+      }));
+    });
+
+    await page.route('**/api/v1/investigations', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ investigations: [] }),
+      });
+    });
+
+    await page.goto('/investigations');
+    await expect(page.getByRole('heading', { name: 'Investigations Queue' })).toBeVisible();
+
+    // Perform hard browser refresh
+    await page.reload();
+    // User should remain authenticated and on investigations queue
+    await expect(page.getByRole('heading', { name: 'Investigations Queue' })).toBeVisible();
+  });
+
+  test('Queue Resilience: Empty Investigations State Displays Clean UI', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('ffre_token', 'mock-jwt-persistent-session');
+      localStorage.setItem('ffre_user', JSON.stringify({
+        id: 'user_persistent_1',
+        name: 'Persistent Investigator',
+        email: 'persistent@ffre.internal',
+        role: 'investigator'
+      }));
+    });
+
+    await page.route('**/api/v1/investigations', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ investigations: [] }),
+      });
+    });
+
+    await page.goto('/investigations');
+    await expect(page.getByRole('heading', { name: 'Investigations Queue' })).toBeVisible();
+    // Page renders without crashing or blank screen
+    await expect(page.locator('body')).not.toBeEmpty();
+  });
+
+  test('Cross-Tenant Boundary: Access Denied for Cross-Tenant Resource', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('ffre_token', 'mock-jwt-tenant-alpha');
+      localStorage.setItem('ffre_user', JSON.stringify({
+        id: 'user_alpha_1',
+        name: 'Tenant Alpha Investigator',
+        email: 'alpha@bank.internal',
+        role: 'investigator'
+      }));
+    });
+
+    await page.route('**/api/v1/investigations/inv_foreign_tenant', async (route) => {
+      await route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({ detail: 'Forbidden: Cross-tenant investigation access is strictly prohibited.' }),
+      });
+    });
+
+    await page.goto('/investigations/inv_foreign_tenant');
+    await expect(page.locator('body')).toContainText(/Forbidden|Access denied|Error|Failed/i);
+  });
 });

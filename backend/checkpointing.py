@@ -167,14 +167,14 @@ class DurablePostgresSaver(MemorySaver):
         except Exception as e:
             if self._strict_mode:
                 raise RuntimeError(f"STRICT_ENTERPRISE_MODE: Failed connecting to PostgreSQL checkpointer at {self.db_url}: {e}")
-                print(f"Warning: Native PostgreSQL checkpointer initialization failed ({e}). Falling back to memory storage.")
-                if self._pool is not None:
-                    try:
-                        self._pool.close(timeout=1.0)
-                    except Exception:
-                        pass
-                self._pool = None
-                self._native_saver = None
+            print(f"Warning: Native PostgreSQL checkpointer initialization failed ({e}). Falling back to memory storage.")
+            if self._pool is not None:
+                try:
+                    self._pool.close(timeout=1.0)
+                except Exception:
+                    pass
+            self._pool = None
+            self._native_saver = None
 
     def close(self):
         """Gracefully drain and close connection pool."""
@@ -184,8 +184,8 @@ class DurablePostgresSaver(MemorySaver):
                     self._pool.close(timeout=1.0)
                 except Exception:
                     pass
-                self._pool = None
-                self._native_saver = None
+            self._pool = None
+            self._native_saver = None
 
     def list(self, config: Optional[Dict[str, Any]], *, filter: Optional[Dict[str, Any]] = None, before: Optional[Dict[str, Any]] = None, limit: Optional[int] = None):
         if self._native_saver is not None:

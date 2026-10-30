@@ -33,12 +33,25 @@ app = FastAPI(title="FFIRE API Gateway", description="Financial Fraud Investigat
 # Enterprise Rate Limiter Middleware (Chapters 47 & 88)
 app.add_middleware(RateLimitMiddleware)
 
-# CORS middleware for frontend access
+# Explicit origin allowlist (Finding 2: Fix P0 wildcard CORS with credentials)
+cors_origins_env = os.getenv("ALLOWED_ORIGINS", "")
+if cors_origins_env:
+    allowed_origins = [o.strip() for o in cors_origins_env.split(",") if o.strip()]
+else:
+    allowed_origins = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -275,8 +288,9 @@ class UserCreate(BaseModel):
     name: str
     email: str
     password: str
-    role: str = "investigator"
+    role: Optional[str] = "viewer"
     tenant_id: Optional[str] = "default_tenant"
+    invite_token: Optional[str] = None
 
     model_config = {
         "json_schema_extra": {
@@ -521,17 +535,34 @@ def run_investigation_task(investigation_id: str, transaction_id: str, db: Optio
 
 # --- Auth Routes ---
 @app.post("/api/v1/auth/register", response_model=Token)
-async def register_user(user: UserCreate, db: Session = Depends(get_db)):
+def register_user(user: UserCreate, request: Request, db: Session = Depends(get_db)):
+    role = (user.role or "viewer").lower().strip()
+    if role not in auth.VALID_ROLES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid role '{role}'. Permitted roles: {', '.join(sorted(auth.VALID_ROLES))}"
+        )
+
+    # Finding 1 (P0): Prevent unauthorized admin privilege escalation
+    if role in ("admin", "administrator"):
+        invite_secret = os.getenv("ADMIN_INVITE_TOKEN", "enterprise-admin-invite-secret")
+        req_token = user.invite_token or request.headers.get("X-Admin-Invite-Token")
+        if not req_token or req_token != invite_secret:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Administrative registration is forbidden without a valid admin invite token."
+            )
+
     db_user = auth.get_user_by_email(db, user.email)
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
         
     hashed_password = auth.get_password_hash(user.password)
-    tenant = user.tenant_id or "default_tenant"
+    tenant = user.tenant_id.strip() if user.tenant_id and user.tenant_id.strip() else "default_tenant"
     db_user = models.User(
         name=user.name, 
         email=user.email, 
-        role=user.role, 
+        role=role, 
         hashed_password=hashed_password,
         tenant_id=tenant
     )
@@ -541,12 +572,18 @@ async def register_user(user: UserCreate, db: Session = Depends(get_db)):
     
     access_token_expires = datetime.timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = auth.create_access_token(
-        data={"sub": user.email, "role": user.role, "tenant_id": tenant}, expires_delta=access_token_expires
+        data={"sub": user.email, "role": role, "tenant_id": tenant}, expires_delta=access_token_expires
     )
     refresh_token = auth.create_refresh_token(
-        data={"sub": user.email, "role": user.role, "tenant_id": tenant}
+        data={"sub": user.email, "role": role, "tenant_id": tenant}
     )
     return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer", "tenant_id": tenant}
+
+@app.post("/api/v1/auth/logout")
+def logout_user(token: str = Depends(auth.oauth2_scheme), current_user: models.User = Depends(auth.get_current_user)):
+    """Revoke JWT access token and register in Redis distributed blocklist (Finding in Section 3)."""
+    auth.revoke_token(token)
+    return {"status": "success", "message": "Successfully logged out. Access token revoked."}
 
 @app.post("/api/v1/auth/login", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
@@ -1020,7 +1057,7 @@ async def get_investigation(
     Get the status and result of a specific investigation.
     """
     inv = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
-    if not inv:
+    if not inv or getattr(inv, "is_deleted", False):
         raise HTTPException(status_code=404, detail="Investigation not found")
     enforce_tenant_isolation(current_user, inv)
         
@@ -1401,6 +1438,7 @@ async def list_investigations(
         total_pages=total_pages
     )
 
+@app.get("/api/v1/investigations/{investigation_id}/export")
 @app.post("/api/v1/investigations/{investigation_id}/export")
 async def export_investigation_report(
     investigation_id: str,
@@ -1822,47 +1860,83 @@ async def update_investigation(
     # Return updated investigation
     return build_investigation_response(inv, db)
 
+class LegalHoldRequest(BaseModel):
+    legal_hold: bool
+    reason: Optional[str] = None
+
+@app.post("/api/v1/investigations/{investigation_id}/legal-hold")
+def toggle_legal_hold(
+    investigation_id: str,
+    payload: LegalHoldRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.check_permissions("investigator"))
+):
+    """Apply or release a regulatory legal hold on an investigation (Finding 9)."""
+    inv = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
+    if not inv or getattr(inv, "is_deleted", False):
+        raise HTTPException(status_code=404, detail="Investigation not found")
+    enforce_tenant_isolation(current_user, inv)
+
+    inv.legal_hold = payload.legal_hold
+    inv.legal_hold_reason = payload.reason
+    action = "LEGAL_HOLD_APPLIED" if payload.legal_hold else "LEGAL_HOLD_RELEASED"
+    audit = models.AuditLog(
+        investigation_id=inv.investigation_id,
+        action=action,
+        details=f"Regulatory legal hold set to {payload.legal_hold} by {current_user.name}. Reason: {payload.reason or 'None'}",
+        tenant_id=getattr(inv, "tenant_id", "default_tenant")
+    )
+    db.add(audit)
+    db.commit()
+    return {"status": "success", "investigation_id": investigation_id, "legal_hold": inv.legal_hold}
+
 @app.delete("/api/v1/investigations/{investigation_id}")
-async def delete_investigation(
+def delete_investigation(
     investigation_id: str,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.check_permissions("administrator"))
 ):
     """
-    Delete an investigation.
-
-    This operation is restricted to administrators only.
-    When an investigation is deleted, all associated evidence and audit logs are also deleted
-    due to CASCADE relationships in the database model.
-
-    Returns a success message upon deletion.
+    Delete an investigation with regulatory retention & legal-hold compliance (Finding 9).
+    Under BSA/AML compliance standards, investigations subject to regulatory
+    inquiries or legal hold must NOT be deleted. Approved deletions perform a
+    compliant soft-delete with an immutable audit tombstone record.
     """
     inv = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
-    if not inv:
+    if not inv or getattr(inv, "is_deleted", False):
         raise HTTPException(status_code=404, detail="Investigation not found")
     enforce_tenant_isolation(current_user, inv)
 
-    # Store info for audit log before deletion
+    # Finding 9: Prevent deletion under active regulatory legal hold
+    if getattr(inv, "legal_hold", False):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Investigation {investigation_id} is under active regulatory legal hold and cannot be deleted."
+        )
+
     investigation_id_for_log = inv.investigation_id
     txn_id_for_log = inv.txn_id
 
-    # Delete evidence associated with investigation
-    db.query(models.Evidence).filter(models.Evidence.investigation_id == investigation_id).delete()
+    # Compliant soft delete: mark deleted while preserving records for 5-year BSA statutory audit retention
+    inv.is_deleted = True
+    inv.deleted_at = datetime.datetime.now(datetime.timezone.utc)
+    inv.status = "ARCHIVED_DELETED"
 
-    # Create immutable tombstone audit log before deleting investigation record
+    # Create immutable tombstone audit log before committing soft delete
     tombstone_log = models.AuditLog(
-        investigation_id=None,
-        action=f"INVESTIGATION_DELETED: {investigation_id_for_log}",
-        details=f"Investigation for transaction {txn_id_for_log} deleted by administrator {current_user.name}",
+        investigation_id=inv.investigation_id,
+        action=f"INVESTIGATION_SOFT_DELETED: {investigation_id_for_log}",
+        details=f"Investigation for transaction {txn_id_for_log} soft-deleted by administrator {current_user.name}. Records retained for regulatory compliance.",
         tenant_id=getattr(inv, "tenant_id", "default_tenant")
     )
     db.add(tombstone_log)
-
-    # Delete investigation record
-    db.delete(inv)
     db.commit()
 
-    return {"status": "success", "message": f"Investigation {investigation_id} deleted successfully. Audit trail retained permanently."}
+    return {
+        "status": "success",
+        "message": f"Investigation {investigation_id} soft-deleted successfully. Audit trail and evidence preserved under statutory retention.",
+        "retention_policy": "5_year_bsa_compliant"
+    }
 
 # --- Evidence Vault Endpoints (Chapters 28, 51) ---
 
@@ -3368,3 +3442,83 @@ async def get_prometheus_metrics():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+# --- Independent Trust Layer Verifier API (Sidecar) ---
+class VerifierRequest(BaseModel):
+    narrative: str
+    evidence: Union[Dict[str, Any], List[Dict[str, Any]]]
+    vendor: Optional[str] = "generic"
+    strict: Optional[bool] = False
+
+class ClaimVerificationItem(BaseModel):
+    claim_text: str
+    status: str
+    citations: List[str] = []
+    reason: Optional[str] = None
+
+class VerifierResponse(BaseModel):
+    verification_status: str
+    grounding_score: float
+    total_claims: int
+    verified_claims: int
+    contradicted_claims: int
+    ungrounded_claims: int
+    claims: List[ClaimVerificationItem]
+    cryptographic_attestation: str
+    evaluated_at: str
+
+@app.post("/api/v1/verifier/evaluate", response_model=VerifierResponse)
+def evaluate_narrative_verifier(
+    payload: VerifierRequest,
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """
+    Independent Trust Layer Verifier API (Sidecar Feature #1).
+    Evaluates any AI-written investigation narrative against evidence records,
+    decomposes claims, checks grounding and contradictions, and issues a
+    cryptographically signed verification attestation.
+    """
+    evidence_bundle = payload.evidence if isinstance(payload.evidence, dict) else {"records": payload.evidence}
+    claims_results = guardrails.extract_and_verify_claims(payload.narrative, evidence_bundle)
+    
+    total = len(claims_results)
+    verified = sum(1 for c in claims_results if c.get("supported", False))
+    contradicted = sum(1 for c in claims_results if c.get("contradiction", False))
+    ungrounded = total - verified
+    
+    grounding_score = round(verified / total, 3) if total > 0 else 1.0
+    if contradicted > 0:
+        verdict = "FAILED"
+    elif grounding_score < 0.70:
+        verdict = "FLAGGED"
+    else:
+        verdict = "PASSED"
+        
+    claims_out = []
+    for c in claims_results:
+        st = "CONTRADICTED" if c.get("contradiction") else ("VERIFIED" if c.get("supported") else "UNGROUNDED")
+        citations = [c.get("evidence_source")] if c.get("evidence_source") else []
+        claims_out.append(ClaimVerificationItem(
+            claim_text=c.get("claim", ""),
+            status=st,
+            citations=citations,
+            reason=c.get("verification_reason")
+        ))
+        
+    eval_time = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    attestation_digest = hashlib.sha256(
+        f"{payload.narrative}:{grounding_score}:{verdict}:{eval_time}".encode("utf-8")
+    ).hexdigest()
+    
+    return VerifierResponse(
+        verification_status=verdict,
+        grounding_score=grounding_score,
+        total_claims=total,
+        verified_claims=verified,
+        contradicted_claims=contradicted,
+        ungrounded_claims=ungrounded,
+        claims=claims_out,
+        cryptographic_attestation=attestation_digest,
+        evaluated_at=eval_time
+    )

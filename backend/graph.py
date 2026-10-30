@@ -761,7 +761,10 @@ def rule_engine_node(state: AgentState):
 
     # Phase 4: Heterogeneous Graph Fraud & Suspicious Cluster Detection
     try:
-        from backend.graph_fraud.integration import analyze_graph_fraud_clusters
+        try:
+            from backend.graph_fraud.integration import analyze_graph_fraud_clusters
+        except ImportError:
+            from graph_fraud.integration import analyze_graph_fraud_clusters
         graph_res = analyze_graph_fraud_clusters(state)
         state["graph_cluster_evidence"] = graph_res
         cluster_signals = graph_res.get("risk_signals", [])
@@ -817,7 +820,10 @@ def knowledge_lookup_node(state: AgentState):
     print(f"Executing 4-way Hybrid Case Search for query: {query} (tenant: {tenant})")
     formatted_results = []
     try:
-        from backend.cases.hybrid_search import get_hybrid_search_engine, HybridSearchQuery
+        try:
+            from backend.cases.hybrid_search import get_hybrid_search_engine, HybridSearchQuery
+        except ImportError:
+            from cases.hybrid_search import get_hybrid_search_engine, HybridSearchQuery
         engine = get_hybrid_search_engine()
         q = HybridSearchQuery(
             query_text=query,
@@ -974,7 +980,10 @@ def risk_reasoning_node(state: AgentState):
     # Phase 2: Tabular ML Fraud Inference (LightGBM with Platt Calibration)
     ml_score = None
     try:
-        from backend.ml.inference import get_inference_service
+        try:
+            from backend.ml.inference import get_inference_service
+        except ImportError:
+            from ml.inference import get_inference_service
         inf_svc = get_inference_service()
         ml_pred = inf_svc.predict_from_state(state)
         state["ml_risk_score"] = ml_pred.risk_score

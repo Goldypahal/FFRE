@@ -160,6 +160,10 @@ class Investigation(Base):
     report = Column(String, nullable=True)
     idempotency_key = Column(String(100), nullable=True, index=True)
     request_fingerprint = Column(String(64), nullable=True, index=True)
+    is_deleted = Column(Boolean, default=False, nullable=False, index=True)
+    deleted_at = Column(DateTime, nullable=True)
+    legal_hold = Column(Boolean, default=False, nullable=False, index=True)
+    legal_hold_reason = Column(String(255), nullable=True)
 
     transaction = relationship("Transaction", back_populates="investigations")
     evidence = relationship("Evidence", back_populates="investigation")

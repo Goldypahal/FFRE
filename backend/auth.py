@@ -11,13 +11,26 @@ import security
 import os
 from sqlalchemy import func
 
-ENV = os.getenv("ENV", "development").lower()
+def is_strict_mode() -> bool:
+    return (
+        os.getenv("STRICT_ENTERPRISE_MODE", "false").lower() == "true" or
+        os.getenv("ENV", "").lower() == "production" or
+        os.getenv("ENVIRONMENT", "").lower() == "production"
+    )
+
+ENV = os.getenv("ENV", os.getenv("ENVIRONMENT", "development")).lower()
 SECRET_KEY = security.validate_production_secret("SECRET_KEY", os.environ.get("SECRET_KEY"), min_length=32)
 if SECRET_KEY == "dev-secret-key-change-in-production":
+    if ENV == "production" or is_strict_mode():
+        raise RuntimeError("CRITICAL SECURITY VIOLATION: Default development SECRET_KEY is strictly forbidden in production!")
     print("WARNING: Using default development SECRET_KEY. Set SECRET_KEY in production!")
 
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 # 1 day for dev
+# Finding 10: Access token lifetime read from env (defaults to 15m in production/strict, 60m in dev)
+_default_expire = 15 if (is_strict_mode() or ENV == "production") else 60
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", str(_default_expire)))
+
+VALID_ROLES = {"admin", "administrator", "investigator", "analyst", "compliance_officer", "viewer"}
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
@@ -109,13 +122,6 @@ def get_user_by_email(db: Session, email: str) -> Optional[models.User]:
 
 _REVOKED_TOKENS = set()
 _REVOCATION_REDIS = None
-
-def is_strict_mode() -> bool:
-    return (
-        os.getenv("STRICT_ENTERPRISE_MODE", "false").lower() == "true" or
-        os.getenv("ENV", "").lower() == "production" or
-        os.getenv("ENVIRONMENT", "").lower() == "production"
-    )
 
 def _get_revocation_redis():
     global _REVOCATION_REDIS

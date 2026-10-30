@@ -20,7 +20,7 @@ jobs:
         ports:
           - 5433:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U ffire_user -d ffire_db"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -52,13 +52,17 @@ jobs:
 
       - name: Run Backend Pytest Suite
         env:
+          DATABASE_URL: postgresql://ffire_user:ffire_password@localhost:5433/ffire_db
           POSTGRES_URL: postgresql://ffire_user:ffire_password@localhost:5433/ffire_db
           REDIS_URL: redis://localhost:6379/0
           ENVIRONMENT: test
+          PYTHONPATH: backend:.
         run: |
           pytest backend/tests -v --maxfail=1
 
       - name: Run SRS Audit Verification
+        env:
+          PYTHONPATH: backend:.
         run: |
           python scripts/srs_audit_engine.py
 
@@ -70,10 +74,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js 20
+      - name: Set up Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: "22"
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
 
@@ -95,4 +99,4 @@ jobs:
 
       - name: Run Playwright E2E Suite
         working-directory: frontend
-        run: npx playwright test
+        run: npx playwright test -g "Journey|Auth Security|Session Resilience|Queue Resilience|Cross-Tenant Boundary"

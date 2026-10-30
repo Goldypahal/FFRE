@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { api } from "../../lib/api";
+import { useAuthStore } from "../../store/useAuthStore";
 import { Button } from "../../components/ui/Button";
 
 interface ReportItem {
@@ -93,10 +94,9 @@ export function Reports() {
   }
 
   function handleExport(report: ReportItem) {
-    const token = localStorage.getItem("auth-storage")
-      ? JSON.parse(localStorage.getItem("auth-storage") || "{}")?.state?.token
-      : "";
-    const url = `http://127.0.0.1:8000/api/v1/reports/${report.report_id}/download?format=${report.file_format}`;
+    const token = useAuthStore.getState().token || localStorage.getItem("ffre_token") || "";
+    const apiBase = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+    const url = `${apiBase}/reports/${report.report_id}/download?format=${report.file_format}`;
 
     // Fetch with auth to download blob
     fetch(url, {
