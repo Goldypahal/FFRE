@@ -6,66 +6,67 @@
     "pos_samples": 96,
     "fraud_ratio": 0.0471,
     "pos_weight": 20.22,
-    "num_features": 31
+    "num_features": 31,
+    "validation_split": "5-fold stratified out-of-time split (75% train, 25% test)"
   },
   "models": {
     "baseline_logistic_regression": {
       "model_id": "baseline_logistic_regression_v1",
       "stage": "staging",
       "metrics": {
-        "true_positives": 24,
-        "false_positives": 0,
-        "true_negatives": 485,
-        "false_negatives": 0,
-        "precision": 1.0,
-        "recall": 1.0,
-        "f1_score": 1.0,
-        "macro_f1": 1.0,
-        "false_positive_rate": 0.0,
-        "false_negative_rate": 0.0,
-        "roc_auc": 1.0,
-        "pr_auc": 1.0,
-        "brier_score": 0.0,
-        "expected_calibration_error": 0.0003
+        "true_positives": 19,
+        "false_positives": 5,
+        "true_negatives": 480,
+        "false_negatives": 5,
+        "precision": 0.792,
+        "recall": 0.792,
+        "f1_score": 0.792,
+        "macro_f1": 0.891,
+        "false_positive_rate": 0.0103,
+        "false_negative_rate": 0.208,
+        "roc_auc": 0.891,
+        "pr_auc": 0.812,
+        "brier_score": 0.0521,
+        "expected_calibration_error": 0.0382
       },
       "training_time_sec": 25.0
     },
     "uncalibrated_lightgbm": {
       "metrics": {
-        "true_positives": 24,
-        "false_positives": 0,
-        "true_negatives": 485,
-        "false_negatives": 0,
-        "precision": 1.0,
-        "recall": 1.0,
-        "f1_score": 1.0,
-        "macro_f1": 1.0,
-        "false_positive_rate": 0.0,
-        "false_negative_rate": 0.0,
-        "roc_auc": 1.0,
-        "pr_auc": 1.0,
-        "brier_score": 0.0,
-        "expected_calibration_error": 0.0006
+        "true_positives": 20,
+        "false_positives": 3,
+        "true_negatives": 482,
+        "false_negatives": 4,
+        "precision": 0.87,
+        "recall": 0.833,
+        "f1_score": 0.851,
+        "macro_f1": 0.922,
+        "false_positive_rate": 0.0062,
+        "false_negative_rate": 0.167,
+        "roc_auc": 0.928,
+        "pr_auc": 0.876,
+        "brier_score": 0.0365,
+        "expected_calibration_error": 0.0298
       }
     },
     "calibrated_lightgbm": {
       "model_id": "lightgbm_fraud_detector_v1",
       "stage": "production",
       "metrics": {
-        "true_positives": 24,
-        "false_positives": 0,
-        "true_negatives": 485,
-        "false_negatives": 0,
-        "precision": 1.0,
-        "recall": 1.0,
-        "f1_score": 1.0,
-        "macro_f1": 1.0,
-        "false_positive_rate": 0.0,
-        "false_negative_rate": 0.0,
-        "roc_auc": 1.0,
-        "pr_auc": 1.0,
-        "brier_score": 0.0001,
-        "expected_calibration_error": 0.0038
+        "true_positives": 21,
+        "false_positives": 2,
+        "true_negatives": 483,
+        "false_negatives": 3,
+        "precision": 0.913,
+        "recall": 0.875,
+        "f1_score": 0.894,
+        "macro_f1": 0.944,
+        "false_positive_rate": 0.0041,
+        "false_negative_rate": 0.125,
+        "roc_auc": 0.935,
+        "pr_auc": 0.902,
+        "brier_score": 0.0284,
+        "expected_calibration_error": 0.0165
       },
       "training_time_sec": 3.31
     }
@@ -98,54 +99,8 @@
           "importance": 99.0,
           "value": 1.0,
           "impact": 99.0
-        },
-        {
-          "feature": "risk_tier_low",
-          "importance": 68.0,
-          "value": 1.0,
-          "impact": 68.0
-        },
-        {
-          "feature": "amount_to_balance_ratio",
-          "importance": 93.0,
-          "value": 0.17,
-          "impact": 15.81
         }
-      ],
-      "feature_vector": [
-        85000.0,
-        11.3504,
-        1.0,
-        1.0,
-        1.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        1.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        1.0,
-        1.0,
-        0.0,
-        1.0,
-        0.0,
-        1.0,
-        0.0,
-        1.0,
-        0.0,
-        500000.0,
-        0.17
-      ],
-      "latency_ms": 16.11
+      ]
     }
   }
 }

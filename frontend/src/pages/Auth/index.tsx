@@ -3,8 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../store/useAuthStore";
 
 export function Auth() {
-  const [email, setEmail] = useState("analyst@ffire.ai");
-  const [password, setPassword] = useState("securepassword123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

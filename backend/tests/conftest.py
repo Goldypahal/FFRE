@@ -97,6 +97,31 @@ def db_session():
     finally:
         db.close()
 
+def create_test_invitation(db, tenant_id="default_tenant", role="investigator", email=None, expires_in_hours=48):
+    import secrets
+    import datetime
+    token = f"inv_{secrets.token_urlsafe(24)}"
+    inv = models.TenantInvitation(
+        token=token,
+        tenant_id=tenant_id,
+        role=role,
+        email=email,
+        created_by="test_harness",
+        created_at=datetime.datetime.utcnow(),
+        expires_at=datetime.datetime.utcnow() + datetime.timedelta(hours=expires_in_hours),
+        is_used=False
+    )
+    db.add(inv)
+    db.commit()
+    db.refresh(inv)
+    return inv
+
+@pytest.fixture
+def make_invitation(db_session):
+    def _make(tenant_id="default_tenant", role="investigator", email=None, expires_in_hours=48):
+        return create_test_invitation(db_session, tenant_id, role, email, expires_in_hours)
+    return _make
+
 @pytest.fixture(autouse=True)
 def clean_db():
     from rate_limiter import rate_limiter

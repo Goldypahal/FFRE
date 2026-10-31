@@ -164,6 +164,8 @@ class Investigation(Base):
     deleted_at = Column(DateTime, nullable=True)
     legal_hold = Column(Boolean, default=False, nullable=False, index=True)
     legal_hold_reason = Column(String(255), nullable=True)
+    is_degraded = Column(Boolean, default=False, nullable=False, index=True)
+    degraded_reason = Column(String(255), nullable=True)
 
     transaction = relationship("Transaction", back_populates="investigations")
     evidence = relationship("Evidence", back_populates="investigation")
@@ -544,3 +546,23 @@ class PromptRecord(Base):
     created_by = Column(String(100), default="System")
     created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=True)
+
+class TenantInvitation(Base):
+    """
+    Zero-Trust Enterprise Invitation Model (P0 Remediation).
+    Enforces authenticated, expiring, single-use administrator invitations.
+    Prevents public callers from selecting arbitrary tenant IDs or escalated roles.
+    """
+    __tablename__ = "tenant_invitations"
+
+    invitation_id = Column(String(64), primary_key=True, default=generate_uuid)
+    token = Column(String(128), unique=True, index=True, nullable=False)
+    tenant_id = Column(String(50), nullable=False, index=True)
+    email = Column(String(255), nullable=True)
+    role = Column(String(50), nullable=False, default="investigator")
+    created_by = Column(String(100), nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    is_used = Column(Boolean, default=False, nullable=False, index=True)
+    used_at = Column(DateTime, nullable=True)
+    used_by = Column(String(255), nullable=True)

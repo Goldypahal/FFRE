@@ -1,7 +1,7 @@
 {
   "metadata": {
     "project": "Financial Fraud Investigation Reasoning Engine (FFRE)",
-    "generated_at": "2026-10-26 16:20:16 UTC",
+    "generated_at": "2026-10-30 17:17:39 UTC",
     "audit_engine": "Task 39 Final Evidence Package Engine v13.0",
     "reconciliation": {
       "status": "PASSED",
@@ -68,7 +68,7 @@
         "backend/tests/test_main.py"
       ],
       "behavior_spec": "POST /api/investigations endpoint accepts JSON payload and validates input.",
-      "source_snippet": "async def create_investigation(",
+      "source_snippet": "def create_investigation(",
       "production_notes": []
     },
     {
@@ -271,7 +271,7 @@
         "backend/tests/test_main.py"
       ],
       "behavior_spec": "Generates structured PDF and Markdown reports with executive summary and citation list.",
-      "source_snippet": "async def export_investigation_report(",
+      "source_snippet": "def export_investigation_report(",
       "production_notes": []
     },
     {

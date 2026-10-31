@@ -100,6 +100,10 @@ class AgentState(TypedDict):
     ml_top_features: Optional[List[Dict[str, Any]]]
     ml_model_id: Optional[str]
     graph_cluster_evidence: Optional[Dict[str, Any]]
+    is_degraded: Optional[bool]
+    pipeline_health: Optional[str]
+    degraded_components: Optional[List[str]]
+    degraded_reasons: Optional[List[str]]
 
 from langgraph.checkpoint.memory import MemorySaver
 
@@ -775,9 +779,20 @@ def rule_engine_node(state: AgentState):
             for cl in graph_res["clusters"]:
                 reasons.append(f"Graph Cluster Anomaly: {cl.get('explanation')}")
     except Exception as g_err:
+        if os.getenv("STRICT_ENTERPRISE_MODE", "false").lower() in ("true", "1"):
+            raise RuntimeError(f"STRICT_ENTERPRISE_MODE: Graph cluster detection failed: {g_err}")
         print(f"Warning: Graph cluster detection fallback ({g_err})")
         state["graph_cluster_evidence"] = None
         cluster_signals = []
+        # Finding 3: Explicit pipeline degradation accounting (never silent fallback)
+        state["is_degraded"] = True
+        state["pipeline_health"] = "DEGRADED"
+        deg_comps = state.get("degraded_components") or []
+        deg_comps.append("graph_cluster_detection")
+        state["degraded_components"] = deg_comps
+        deg_reasons = state.get("degraded_reasons") or []
+        deg_reasons.append(f"Graph cluster detection unavailable: {g_err}")
+        state["degraded_reasons"] = deg_reasons
 
     state["rule_score"] = score
     state["rule_reasons"] = reasons
@@ -992,11 +1007,22 @@ def risk_reasoning_node(state: AgentState):
         state["ml_model_id"] = ml_pred.model_id
         ml_score = ml_pred.risk_score
     except Exception as ml_err:
+        if os.getenv("STRICT_ENTERPRISE_MODE", "false").lower() in ("true", "1"):
+            raise RuntimeError(f"STRICT_ENTERPRISE_MODE: Tabular ML inference failed: {ml_err}")
         print(f"Warning: ML inference fallback ({ml_err})")
         state["ml_risk_score"] = None
         state["ml_calibrated_probability"] = None
         state["ml_top_features"] = []
         state["ml_model_id"] = "fallback"
+        # Finding 3: Explicit pipeline degradation accounting (never silent fallback)
+        state["is_degraded"] = True
+        state["pipeline_health"] = "DEGRADED"
+        deg_comps = state.get("degraded_components") or []
+        deg_comps.append("ml_inference_service")
+        state["degraded_components"] = deg_comps
+        deg_reasons = state.get("degraded_reasons") or []
+        deg_reasons.append(f"Tabular ML inference unavailable: {ml_err}")
+        state["degraded_reasons"] = deg_reasons
 
     if ml_score is not None:
         base_combined = (0.25 * rule_score) + (0.30 * ml_score) + (0.30 * llm_risk_estimate) + (0.15 * avg_hist_score)

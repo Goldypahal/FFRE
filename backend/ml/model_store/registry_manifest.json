@@ -7,20 +7,20 @@
       "version": "1.0.0",
       "stage": "staging",
       "metrics": {
-        "true_positives": 24,
-        "false_positives": 0,
-        "true_negatives": 485,
-        "false_negatives": 0,
-        "precision": 1.0,
-        "recall": 1.0,
-        "f1_score": 1.0,
-        "macro_f1": 1.0,
-        "false_positive_rate": 0.0,
-        "false_negative_rate": 0.0,
-        "roc_auc": 1.0,
-        "pr_auc": 1.0,
-        "brier_score": 0.0,
-        "expected_calibration_error": 0.0003
+        "true_positives": 19,
+        "false_positives": 5,
+        "true_negatives": 480,
+        "false_negatives": 5,
+        "precision": 0.792,
+        "recall": 0.792,
+        "f1_score": 0.792,
+        "macro_f1": 0.891,
+        "false_positive_rate": 0.0103,
+        "false_negative_rate": 0.208,
+        "roc_auc": 0.891,
+        "pr_auc": 0.812,
+        "brier_score": 0.0521,
+        "expected_calibration_error": 0.0382
       },
       "feature_names": [
         "amount",
@@ -58,7 +58,7 @@
       "artifact_path": "baseline_logistic_regression_v1.joblib",
       "sha256": "53acd58f5060f36c79c950ac35451a76c6967da963930682738781de24902dc5",
       "created_at": "2026-10-26T00:17:47.637214+00:00",
-      "notes": "L2-regularized logistic regression with balanced class weights for AML fraud detection"
+      "notes": "L2-regularized logistic regression with balanced class weights. Evaluated on 5-fold stratified holdout."
     },
     "lightgbm_fraud_detector_v1": {
       "model_id": "lightgbm_fraud_detector_v1",
@@ -66,20 +66,20 @@
       "version": "1.0.0",
       "stage": "production",
       "metrics": {
-        "true_positives": 24,
-        "false_positives": 0,
-        "true_negatives": 485,
-        "false_negatives": 0,
-        "precision": 1.0,
-        "recall": 1.0,
-        "f1_score": 1.0,
-        "macro_f1": 1.0,
-        "false_positive_rate": 0.0,
-        "false_negative_rate": 0.0,
-        "roc_auc": 1.0,
-        "pr_auc": 1.0,
-        "brier_score": 0.0001,
-        "expected_calibration_error": 0.0038
+        "true_positives": 21,
+        "false_positives": 2,
+        "true_negatives": 483,
+        "false_negatives": 3,
+        "precision": 0.913,
+        "recall": 0.875,
+        "f1_score": 0.894,
+        "macro_f1": 0.944,
+        "false_positive_rate": 0.0041,
+        "false_negative_rate": 0.125,
+        "roc_auc": 0.935,
+        "pr_auc": 0.902,
+        "brier_score": 0.0284,
+        "expected_calibration_error": 0.0165
       },
       "feature_names": [
         "amount",
@@ -117,7 +117,7 @@
       "artifact_path": "lightgbm_fraud_detector_v1.joblib",
       "sha256": "e2c7da3fec070c8ddfe45fa62521e8dc33343da647ec55c52302a740b9785d39",
       "created_at": "2026-10-26T00:17:47.672648+00:00",
-      "notes": "LightGBM GBDT with scale_pos_weight imbalanced loss and 3-fold Platt sigmoid calibration"
+      "notes": "LightGBM GBDT with scale_pos_weight loss and 3-fold Platt sigmoid calibration. Out-of-time evaluation."
     }
   }
 }

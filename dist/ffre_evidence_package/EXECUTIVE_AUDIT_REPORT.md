@@ -1,7 +1,7 @@
 # Financial Fraud Investigation Reasoning Engine (FFRE)
 ## Reviewer-Ready Executive SRS Compliance & Audit Report
 
-**Generated**: 2026-10-26 16:20:16 UTC  
+**Generated**: 2026-10-30 17:17:39 UTC  
 **System Version**: v1.0 Hardened Production Candidate  
 **Audit Verdict**: 🟢 **CORE SRS VERIFIED (~85–90% COMPLETE, ~70–75% PRODUCTION READINESS DEMONSTRATED)**  
 
@@ -45,7 +45,7 @@ DEMONSTRATED PRODUCTION READINESS:     🟡 ~70-75% (QUALIFIED HARDENED CANDIDAT
 
 | Artifact File | Description | SHA-256 Checksum | Verification Verdict |
 |:---|:---|:---|:---:|
-| `audit_the_auditor_report.md` | Reviewer Deliverable File | `cca5a984ec1186afcd734f038ebe9e27785301abe0c8bd3788a7105685a707b2` | 🟢 VERIFIED |
+| `audit_the_auditor_report.md` | Reviewer Deliverable File | `3f04b47224c41a26ff70477abe244ec49725a6aa279d5d25d5b0fc2fcf4b6142` | 🟢 VERIFIED |
 | `BROWSER_E2E_QUALIFICATION_REPORT.md` | Reviewer Deliverable File | `9eca698707c2f600246d9aba6cfe629ae168eb8106e03d7b776fe1cfafee5a65` | 🟢 VERIFIED |
 | `FFIRE_SRS.txt` | Reviewer Deliverable File | `c23727e08d9c7fc9e797f8f4f829087f86b70d43046dedd0cf7b06eeb5e2ca36` | 🟢 VERIFIED |
 | `held_out_100_evaluation_report.json` | Reviewer Deliverable File | `962823b10bd068670352ba1ef46f9cd6b80f19be21f16d6cc402f85605dddc6b` | 🟢 VERIFIED |
@@ -56,8 +56,8 @@ DEMONSTRATED PRODUCTION READINESS:     🟡 ~70-75% (QUALIFIED HARDENED CANDIDAT
 | `recovery_qualification_report.json` | Reviewer Deliverable File | `20ec58725319a47db0719c938a1ee787574f3872508e05bc64c3b1662e987c86` | 🟢 VERIFIED |
 | `RECOVERY_QUALIFICATION_REPORT.md` | Reviewer Deliverable File | `26359b1b602961475163eef4f475de0a00c5b4a270cbbbed2a2556911658702c` | 🟢 VERIFIED |
 | `representative_production_benchmark.json` | Reviewer Deliverable File | `a96965bee20f55ff5f6f20abb0ac657d6356e4562d26841b524b776fa097210c` | 🟢 VERIFIED |
-| `srs_traceability.json` | Reviewer Deliverable File | `e0129aad30c2e1bfab765c18d9f5c78e95eab60e03a347ff01cdcbf5bf640535` | 🟢 VERIFIED |
-| `srs_traceability.json.sha256` | Reviewer Deliverable File | `f59d81be56ce4f0192c595287da54d7954e21668bc82be9bdd3aa937223491cf` | 🟢 VERIFIED |
+| `srs_traceability.json` | Reviewer Deliverable File | `d8b8c0fa108686a048146338a05a9d8bf3d9795b6f5d704dab031c6d9d6f862c` | 🟢 VERIFIED |
+| `srs_traceability.json.sha256` | Reviewer Deliverable File | `2060dfcb0dde81d9de37a5f4099889b6bf7adf6f5883c69503f9b4de645a37df` | 🟢 VERIFIED |
 | `task20_results.json` | Reviewer Deliverable File | `a670a3e25af8ca8b3a90f30f3fbf74847ba27221eef18bebd13eb9eb6ee348b8` | 🟢 VERIFIED |
 
 ---
@@ -65,8 +65,8 @@ DEMONSTRATED PRODUCTION READINESS:     🟡 ~70-75% (QUALIFIED HARDENED CANDIDAT
 ## 3. Cryptographic Tamper-Evidence & Zero-Trust Signatures
 
 ```
-Traceability JSON Hash:   e0129aad30c2e1bfab765c18d9f5c78e95eab60e03a347ff01cdcbf5bf640535
-Scorecard MD Hash:        d558fbee2af4b696252bcaca908235fa6c43564bb2382109692a9e65b7690095
+Traceability JSON Hash:   d8b8c0fa108686a048146338a05a9d8bf3d9795b6f5d704dab031c6d9d6f862c
+Scorecard MD Hash:        cf490ebf4fac01cee3292fc4c8d8bf8039dca5d5c0f5326be6011c217f9d8cc5
 Zero-Trust Status:        🟢 PASSED
 ```
 
@@ -76,7 +76,7 @@ Zero-Trust Status:        🟢 PASSED
 
 | Req ID | Target Symbol | Dedicated Test | Pos Status | Neg Status | SRS Compliance | Prod Readiness | Behavior & Evidence Snippet |
 |:---:|:---|:---|:---:|:---:|:---:|:---:|:---|
-| **FO-1** | `create_investigation` | `test_create_investigation` | 🟢 | 🟢 | 🟢 | 🟢 | `async def create_investigation(` |
+| **FO-1** | `create_investigation` | `test_create_investigation` | 🟢 | 🟢 | 🟢 | 🟢 | `def create_investigation(` |
 | **FO-2** | `planner_node` | `test_acceptance_test_f_full_investigation_pipeline_e2e` | 🟢 | 🟢 | 🟢 | 🟢 | `def planner_node(state: AgentState):` |
 | **FO-3** | `retrieve_transaction_node` | `test_all_five_evidence_sources_saved_to_database` | 🟢 | 🟢 | 🟢 | 🟢 | `def retrieve_transaction_node(state: AgentState):` |
 | **FO-4** | `similarity_search` | `test_vector_store_similarity_search` | 🟢 | 🟢 | 🟢 | 🟢 | `def similarity_search(self, query: str, top_k: int = 2, tenant_id: str = None) -> List[Dict[str, Any]]:` |
@@ -84,7 +84,7 @@ Zero-Trust Status:        🟢 PASSED
 | **FO-6** | `validate_claims` | `test_validate_claims_valid` | 🟢 | 🟢 | 🟢 | 🟢 | `def validate_claims(draft_explanation: str, evidence_bundle: Dict[str, Any]) -> Tuple[bool, List[str]]:` |
 | **FO-7** | `should_retry_or_human_review` | `test_workflow_decision_max_retries_escalates_to_human_review` | 🟢 | 🟢 | 🟢 | 🟢 | `def should_retry_or_human_review(state: AgentState):` |
 | **FO-8** | `human_review_node` | `test_human_review_approve_workflow` | 🟢 | 🟢 | 🟢 | 🟢 | `def human_review_node(state: AgentState):` |
-| **FO-9** | `export_investigation_report` | `test_export_investigation_pdf_format` | 🟢 | 🟢 | 🟢 | 🟢 | `async def export_investigation_report(` |
+| **FO-9** | `export_investigation_report` | `test_export_investigation_pdf_format` | 🟢 | 🟢 | 🟢 | 🟢 | `def export_investigation_report(` |
 | **FO-10** | `AuditLog` | `test_audit_logs_creation_and_ordering` | 🟢 | 🟢 | 🟢 | 🟢 | `audit = models.AuditLog(` |
 | **NFR-1** | `metrics_collector` | `test_concurrency_load_benchmark_suite` | 🟢 | 🟢 | 🟢 | 🟢 | `from metrics import metrics_collector` |
 | **NFR-2** | `FastAPI` | `test_health_check` | 🟢 | 🟢 | 🟢 | 🟢 | `from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, status, Query, Response, Header, UploadFile, File, Form, Request, Body` |

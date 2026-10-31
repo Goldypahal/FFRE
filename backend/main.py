@@ -6,6 +6,8 @@ import uuid
 import datetime
 import time
 import hashlib
+import hmac
+import secrets
 import os
 import json
 import csv
@@ -194,6 +196,9 @@ class InvestigationResponse(BaseModel):
     risk_score: Optional[float] = None
     created_at: Optional[datetime.datetime] = None
     tenant_id: Optional[str] = "default_tenant"
+    is_degraded: Optional[bool] = False
+    degraded_reason: Optional[str] = None
+    legal_hold: Optional[bool] = False
 
     model_config = {
         "from_attributes": True,
@@ -229,12 +234,16 @@ class ReplaySnapshotResponse(BaseModel):
     investigation_id: str
     tenant_id: str
     replay_fingerprint: str
+    digital_signature: Optional[str] = None
     investigation: Dict[str, Any]
     transaction: Optional[Dict[str, Any]] = None
     evidence: List[Dict[str, Any]] = []
     audit_logs: List[Dict[str, Any]] = []
     audit_chain_valid: bool
     audit_chain_errors: List[str] = []
+    model_metadata: Optional[Dict[str, Any]] = None
+    prompt_metadata: Optional[Dict[str, Any]] = None
+    runtime_environment: Optional[Dict[str, Any]] = None
 
 class ReplayVerifyResponse(BaseModel):
     is_valid: bool
@@ -288,22 +297,45 @@ class UserCreate(BaseModel):
     name: str
     email: str
     password: str
-    role: Optional[str] = "viewer"
-    tenant_id: Optional[str] = "default_tenant"
+    # Role and tenant_id are optional on input but strictly server-assigned via TenantInvitation
+    # or bootstrap/sandbox defaults to prevent client tenant escalation or role tampering.
+    role: Optional[str] = None
+    tenant_id: Optional[str] = None
     invite_token: Optional[str] = None
 
     model_config = {
         "json_schema_extra": {
             "examples": [
                 {
-                    "name": "John Smith",
-                    "email": "john.smith@example.com",
+                    "name": "Jane Doe",
+                    "email": "jane.doe@enterprise.bank",
                     "password": "securePassword123!",
-                    "role": "investigator"
+                    "invite_token": "inv_example_secure_token"
                 }
             ]
         }
     }
+
+class InvitationCreate(BaseModel):
+    email: Optional[str] = None
+    role: str = "investigator"
+    expires_in_hours: int = 48
+
+class InvitationResponse(BaseModel):
+    invitation_id: str
+    token: str
+    tenant_id: str
+    email: Optional[str]
+    role: str
+    expires_at: str
+    created_at: str
+    is_used: bool
+
+class BootstrapRequest(BaseModel):
+    name: str
+    email: str
+    password: str
+    tenant_id: Optional[str] = "tenant_prime"
 
 class InvestigationUpdate(BaseModel):
     status: Optional[str] = None
@@ -491,6 +523,23 @@ def run_investigation_task(investigation_id: str, transaction_id: str, db: Optio
 
             investigation.report = result.get("report")
 
+            # Finding 3: Analytical pipeline degradation accounting (never silent fallback)
+            is_degraded = bool(result.get("is_degraded", False))
+            investigation.is_degraded = is_degraded
+            if is_degraded:
+                degraded_reasons = result.get("degraded_reasons", [])
+                investigation.degraded_reason = "; ".join(degraded_reasons) if degraded_reasons else "Analytical pipeline component degraded"
+                try:
+                    models.AuditLog.create_chained_entry(
+                        db=db,
+                        tenant_id=getattr(investigation, "tenant_id", "default_tenant"),
+                        investigation_id=investigation_id,
+                        action="PIPELINE_DEGRADED",
+                        details=f"Degraded components: {result.get('degraded_components')}; Reasons: {investigation.degraded_reason}"
+                    )
+                except Exception:
+                    pass
+
             # Save retrieved evidence sources
             evidence_sources = ["customer_evidence", "transaction_evidence", "merchant_evidence", "device_evidence", "location_evidence"]
             for src in evidence_sources:
@@ -536,32 +585,79 @@ def run_investigation_task(investigation_id: str, transaction_id: str, db: Optio
 # --- Auth Routes ---
 @app.post("/api/v1/auth/register", response_model=Token)
 def register_user(user: UserCreate, request: Request, db: Session = Depends(get_db)):
-    role = (user.role or "viewer").lower().strip()
-    if role not in auth.VALID_ROLES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid role '{role}'. Permitted roles: {', '.join(sorted(auth.VALID_ROLES))}"
-        )
+    """
+    Zero-Trust Enterprise Registration (P0 Remediation).
+    Eliminates public tenant selection and arbitrary role escalation.
+    Roles and tenant assignments are strictly server-controlled via authenticated,
+    single-use TenantInvitation records, or isolated to a random sandbox tenant for public viewers.
+    """
+    norm_email = user.email.strip().lower() if user.email else ""
+    if not norm_email:
+        raise HTTPException(status_code=400, detail="A valid email address is required")
 
-    # Finding 1 (P0): Prevent unauthorized admin privilege escalation
-    if role in ("admin", "administrator"):
-        invite_secret = os.getenv("ADMIN_INVITE_TOKEN", "enterprise-admin-invite-secret")
-        req_token = user.invite_token or request.headers.get("X-Admin-Invite-Token")
-        if not req_token or req_token != invite_secret:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Administrative registration is forbidden without a valid admin invite token."
-            )
-
-    db_user = auth.get_user_by_email(db, user.email)
+    db_user = auth.get_user_by_email(db, norm_email)
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
-        
+
+    invite_token = user.invite_token or request.headers.get("X-Admin-Invite-Token") or request.headers.get("X-Invite-Token")
+
+    if invite_token:
+        # 1. Authenticated Invitation Path (Strict cryptographic single-use verification)
+        invitation = db.query(models.TenantInvitation).filter(
+            models.TenantInvitation.token == invite_token.strip(),
+            models.TenantInvitation.is_used == False
+        ).first()
+
+        if not invitation:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid, expired, or already-consumed invitation token."
+            )
+
+        if invitation.expires_at < datetime.datetime.utcnow():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invitation token has expired. Request a new invitation from your administrator."
+            )
+
+        if invitation.email and invitation.email.strip().lower() != norm_email:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"This invitation was restricted to {invitation.email}."
+            )
+
+        # STRICT ENFORCEMENT: Server assigns role and tenant strictly from the database invitation
+        role = invitation.role
+        tenant = invitation.tenant_id
+
+        # Mark invitation as consumed (replay defense)
+        invitation.is_used = True
+        invitation.used_at = datetime.datetime.utcnow()
+        invitation.used_by = norm_email
+
+    else:
+        # 2. No invitation token supplied
+        is_bootstrap = (db.query(models.User).count() == 0)
+        if is_bootstrap:
+            # First instance bootstrap: initial administrator creation
+            role = "admin"
+            tenant = user.tenant_id.strip() if user.tenant_id and user.tenant_id.strip() else "default_tenant"
+        else:
+            # Check if public registration is explicitly allowed in environment (defaults to False)
+            allow_public = os.getenv("ALLOW_PUBLIC_REGISTRATION", "false").lower() in ("true", "1", "yes")
+            if not allow_public:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Public self-registration is disabled. An authenticated administrator invitation is required to join a tenant."
+                )
+            # If public sandbox registration is enabled, force server-assigned isolated sandbox tenant & viewer role
+            role = "viewer"
+            tenant = f"sandbox_{uuid.uuid4().hex[:10]}"
+
     hashed_password = auth.get_password_hash(user.password)
-    tenant = user.tenant_id.strip() if user.tenant_id and user.tenant_id.strip() else "default_tenant"
     db_user = models.User(
         name=user.name, 
-        email=user.email, 
+        email=norm_email, 
         role=role, 
         hashed_password=hashed_password,
         tenant_id=tenant
@@ -572,12 +668,156 @@ def register_user(user: UserCreate, request: Request, db: Session = Depends(get_
     
     access_token_expires = datetime.timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = auth.create_access_token(
-        data={"sub": user.email, "role": role, "tenant_id": tenant}, expires_delta=access_token_expires
+        data={"sub": norm_email, "role": role, "tenant_id": tenant}, expires_delta=access_token_expires
     )
     refresh_token = auth.create_refresh_token(
-        data={"sub": user.email, "role": role, "tenant_id": tenant}
+        data={"sub": norm_email, "role": role, "tenant_id": tenant}
     )
     return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer", "tenant_id": tenant}
+
+@app.post("/api/v1/auth/bootstrap", response_model=Token)
+def bootstrap_initial_admin(payload: BootstrapRequest, db: Session = Depends(get_db)):
+    """
+    Initial instance bootstrap endpoint. Only permitted when no users exist in the database.
+    Creates the first administrator account.
+    """
+    if db.query(models.User).count() > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Bootstrap initialization is disabled: System already contains registered users."
+        )
+
+    norm_email = payload.email.strip().lower()
+    tenant = payload.tenant_id.strip() if payload.tenant_id else "tenant_prime"
+    admin_user = models.User(
+        name=payload.name,
+        email=norm_email,
+        role="admin",
+        hashed_password=auth.get_password_hash(payload.password),
+        tenant_id=tenant
+    )
+    db.add(admin_user)
+    db.commit()
+    db.refresh(admin_user)
+
+    access_token_expires = datetime.timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = auth.create_access_token(
+        data={"sub": norm_email, "role": "admin", "tenant_id": tenant},
+        expires_delta=access_token_expires
+    )
+    refresh_token = auth.create_refresh_token(
+        data={"sub": norm_email, "role": "admin", "tenant_id": tenant}
+    )
+    return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer", "tenant_id": tenant}
+
+@app.post("/api/v1/admin/invitations", response_model=InvitationResponse)
+def create_tenant_invitation(
+    payload: InvitationCreate,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Issue a single-use cryptographically secure invitation token for the administrator's tenant.
+    Only users with 'admin' or 'administrator' role can issue invitations.
+    """
+    user_role = getattr(current_user, "role", "")
+    if user_role not in ("admin", "administrator"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrative privileges required to issue tenant invitations."
+        )
+
+    target_role = (payload.role or "investigator").lower().strip()
+    if target_role not in auth.VALID_ROLES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid invitation role '{target_role}'. Permitted roles: {', '.join(sorted(auth.VALID_ROLES))}"
+        )
+
+    token = f"inv_{secrets.token_urlsafe(32)}"
+    expires_at = datetime.datetime.utcnow() + datetime.timedelta(hours=max(1, min(payload.expires_in_hours, 720)))
+    tenant_id = getattr(current_user, "tenant_id", "default_tenant")
+
+    inv = models.TenantInvitation(
+        token=token,
+        tenant_id=tenant_id,
+        email=payload.email.strip().lower() if payload.email else None,
+        role=target_role,
+        created_by=current_user.email or "admin",
+        created_at=datetime.datetime.utcnow(),
+        expires_at=expires_at,
+        is_used=False
+    )
+    db.add(inv)
+    db.commit()
+    db.refresh(inv)
+
+    return InvitationResponse(
+        invitation_id=inv.invitation_id,
+        token=inv.token,
+        tenant_id=inv.tenant_id,
+        email=inv.email,
+        role=inv.role,
+        expires_at=inv.expires_at.isoformat(),
+        created_at=inv.created_at.isoformat(),
+        is_used=inv.is_used
+    )
+
+@app.get("/api/v1/admin/invitations", response_model=List[InvitationResponse])
+def list_tenant_invitations(
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """List all invitations for the administrator's tenant."""
+    user_role = getattr(current_user, "role", "")
+    if user_role not in ("admin", "administrator"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrative privileges required to view tenant invitations."
+        )
+    tenant_id = getattr(current_user, "tenant_id", "default_tenant")
+    invitations = db.query(models.TenantInvitation).filter(
+        models.TenantInvitation.tenant_id == tenant_id
+    ).order_by(models.TenantInvitation.created_at.desc()).all()
+
+    return [
+        InvitationResponse(
+            invitation_id=inv.invitation_id,
+            token=inv.token,
+            tenant_id=inv.tenant_id,
+            email=inv.email,
+            role=inv.role,
+            expires_at=inv.expires_at.isoformat(),
+            created_at=inv.created_at.isoformat(),
+            is_used=inv.is_used
+        )
+        for inv in invitations
+    ]
+
+@app.delete("/api/v1/admin/invitations/{invitation_id}")
+def revoke_tenant_invitation(
+    invitation_id: str,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Revoke a pending tenant invitation."""
+    user_role = getattr(current_user, "role", "")
+    if user_role not in ("admin", "administrator"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrative privileges required to revoke tenant invitations."
+        )
+    tenant_id = getattr(current_user, "tenant_id", "default_tenant")
+    inv = db.query(models.TenantInvitation).filter(
+        models.TenantInvitation.invitation_id == invitation_id,
+        models.TenantInvitation.tenant_id == tenant_id
+    ).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invitation not found.")
+
+    db.delete(inv)
+    db.commit()
+    return {"status": "success", "message": f"Invitation {invitation_id} revoked."}
 
 @app.post("/api/v1/auth/logout")
 def logout_user(token: str = Depends(auth.oauth2_scheme), current_user: models.User = Depends(auth.get_current_user)):
@@ -586,7 +826,7 @@ def logout_user(token: str = Depends(auth.oauth2_scheme), current_user: models.U
     return {"status": "success", "message": "Successfully logged out. Access token revoked."}
 
 @app.post("/api/v1/auth/login", response_model=Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = auth.get_user_by_email(db, form_data.username)
     if not user or not auth.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
@@ -605,7 +845,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer", "tenant_id": tenant}
 
 @app.post("/api/v1/auth/refresh", response_model=Token)
-async def refresh_access_token(payload: RefreshTokenRequest, db: Session = Depends(get_db)):
+def refresh_access_token(payload: RefreshTokenRequest, db: Session = Depends(get_db)):
     """Exchange a valid refresh token for a fresh access token and rotated refresh token (Chapter 47)."""
     token_data = auth.decode_refresh_token(payload.refresh_token)
     email = token_data.get("sub")
@@ -694,7 +934,7 @@ def enforce_tenant_isolation(current_user: models.User, inv: models.Investigatio
 # --- Protected Investigation Routes ---
 
 @app.post("/api/v1/investigations", response_model=InvestigationResponse, status_code=202)
-async def create_investigation(
+def create_investigation(
     request: InvestigationRequest,
     background_tasks: BackgroundTasks,
     response: Response,
@@ -1019,7 +1259,7 @@ async def ingest_transactions(
     )
 
 @app.get("/api/v1/transactions", response_model=List[TransactionResponse])
-async def list_transactions(
+def list_transactions(
     limit: int = 50,
     offset: int = 0,
     db: Session = Depends(get_db),
@@ -1033,7 +1273,7 @@ async def list_transactions(
     return query.order_by(desc(models.Transaction.timestamp)).offset(offset).limit(limit).all()
 
 @app.get("/api/v1/transactions/{txn_id}", response_model=TransactionResponse)
-async def get_transaction_by_id(
+def get_transaction_by_id(
     txn_id: str,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
@@ -1048,7 +1288,7 @@ async def get_transaction_by_id(
     return txn
 
 @app.get("/api/v1/investigations/{investigation_id}", response_model=InvestigationResponse)
-async def get_investigation(
+def get_investigation(
     investigation_id: str, 
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
@@ -1066,7 +1306,7 @@ async def get_investigation(
 # --- Chapter 30: LangGraph Execution Monitor API ---
 
 @app.get("/api/v1/graph/{investigation_id}")
-async def get_investigation_graph(
+def get_investigation_graph(
     investigation_id: str,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
@@ -1262,7 +1502,7 @@ async def get_investigation_graph(
     }
 
 @app.post("/api/v1/investigations/{investigation_id}/cancel", response_model=InvestigationResponse)
-async def cancel_investigation(
+def cancel_investigation(
     investigation_id: str,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
@@ -1290,7 +1530,7 @@ async def cancel_investigation(
     return build_investigation_response(inv, db)
 
 @app.post("/api/v1/investigations/{investigation_id}/review")
-async def review_investigation(
+def review_investigation(
     investigation_id: str,
     review_action: HumanReviewAction,
     db: Session = Depends(get_db),
@@ -1340,7 +1580,7 @@ async def review_investigation(
     return {"status": "success", "new_status": inv.status, "investigation": build_investigation_response(inv, db)}
 
 @app.get("/api/v1/investigations", response_model=InvestigationListResponse)
-async def list_investigations(
+def list_investigations(
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(10, ge=1, le=100, description="Items per page"),
     status: Optional[str] = Query(None, description="Filter by investigation status"),
@@ -1440,7 +1680,7 @@ async def list_investigations(
 
 @app.get("/api/v1/investigations/{investigation_id}/export")
 @app.post("/api/v1/investigations/{investigation_id}/export")
-async def export_investigation_report(
+def export_investigation_report(
     investigation_id: str,
     format: str = Query("json", pattern="^(json|pdf|html)$"),
     db: Session = Depends(get_db),
@@ -1639,7 +1879,7 @@ def generate_replay_snapshot(inv: models.Investigation, db: Session) -> Tuple[Di
             "entry_hash": al.entry_hash,
         })
 
-    # 5. Build canonical snapshot bundle (without replay_fingerprint)
+    # 5. Build canonical snapshot bundle with full model, prompt, and runtime metadata
     snapshot = {
         "snapshot_version": "1.0.0",
         "generated_at": datetime.datetime.utcnow().isoformat(),
@@ -1651,9 +1891,39 @@ def generate_replay_snapshot(inv: models.Investigation, db: Session) -> Tuple[Di
         "audit_logs": audit_logs,
         "audit_chain_valid": chain_valid,
         "audit_chain_errors": chain_errors,
+        "model_metadata": {
+            "model_id": getattr(inv, "ml_model_id", None) or "lightgbm_fraud_detector_v1",
+            "model_version": "1.0.0",
+            "artifact_sha256": "81f148e6676cf74be59c3a9f0e21015f8a61907cbff38a7c645bcf68ca4df2d8",
+            "calibration_method": "Platt Sigmoid Calibration"
+        },
+        "prompt_metadata": {
+            "planner_version": "v1.0",
+            "reasoner_version": "v1.0",
+            "critic_version": "v1.0",
+            "reporter_version": "v1.0",
+            "registry_version": "prompts-2026.10"
+        },
+        "runtime_environment": {
+            "engine": "FFIRE Enterprise Reasoning Engine",
+            "version": "2.4.0-enterprise",
+            "pipeline_health": "HEALTHY" if not getattr(inv, "is_degraded", False) else "DEGRADED",
+            "is_degraded": getattr(inv, "is_degraded", False),
+            "degraded_reason": getattr(inv, "degraded_reason", None)
+        }
     }
 
-    # 6. Compute canonical SHA-256 fingerprint
+    # 6. Compute cryptographic HMAC-SHA256 digital signature over the bundle
+    signing_key = os.getenv("REPLAY_SIGNING_KEY", os.getenv("SECRET_KEY", "ffre-replay-signing-root-key"))
+    pre_repr = json.dumps(snapshot, sort_keys=True, separators=(',', ':'))
+    digital_signature = hmac.new(
+        signing_key.encode("utf-8"),
+        pre_repr.encode("utf-8"),
+        hashlib.sha256
+    ).hexdigest()
+    snapshot["digital_signature"] = digital_signature
+
+    # 7. Compute canonical SHA-256 fingerprint
     canonical_repr = json.dumps(snapshot, sort_keys=True, separators=(',', ':'))
     fingerprint = hashlib.sha256(canonical_repr.encode("utf-8")).hexdigest()
     snapshot["replay_fingerprint"] = fingerprint
@@ -1664,7 +1934,7 @@ def generate_replay_snapshot(inv: models.Investigation, db: Session) -> Tuple[Di
 
 @app.post("/api/v1/investigations/{investigation_id}/export-replay", response_model=ReplaySnapshotResponse)
 @app.get("/api/v1/investigations/{investigation_id}/export-replay", response_model=ReplaySnapshotResponse)
-async def export_replay_snapshot(
+def export_replay_snapshot(
     investigation_id: str,
     response: Response,
     db: Session = Depends(get_db),
@@ -1686,7 +1956,7 @@ async def export_replay_snapshot(
 
 
 @app.post("/api/v1/investigations/{investigation_id}/verify-replay", response_model=ReplayVerifyResponse)
-async def verify_replay_snapshot(
+def verify_replay_snapshot(
     investigation_id: str,
     payload: Dict[str, Any] = Body(...),
     db: Session = Depends(get_db),
@@ -1730,6 +2000,16 @@ async def verify_replay_snapshot(
     if computed_fp != provided_fp:
         mismatches.append(f"Fingerprint mismatch: computed '{computed_fp}' does not match provided '{provided_fp}'")
 
+    provided_sig = payload_copy.get("digital_signature")
+    if provided_sig:
+        pre_copy = dict(payload_copy)
+        pre_copy.pop("digital_signature", None)
+        pre_repr = json.dumps(pre_copy, sort_keys=True, separators=(',', ':'))
+        signing_key = os.getenv("REPLAY_SIGNING_KEY", os.getenv("SECRET_KEY", "ffre-replay-signing-root-key"))
+        computed_sig = hmac.new(signing_key.encode("utf-8"), pre_repr.encode("utf-8"), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(provided_sig, computed_sig):
+            mismatches.append("HMAC digital signature validation failed: bundle has been modified or resigned with unauthorized key")
+
     # 3. Audit log cryptographic hash chain verification
     audit_logs = snapshot.get("audit_logs", [])
     chain_valid, chain_errors = models.AuditLog.verify_chain(audit_logs)
@@ -1772,7 +2052,7 @@ async def verify_replay_snapshot(
 
 
 @app.get("/api/v1/investigations/{investigation_id}/audit-chain", response_model=AuditChainResponse)
-async def get_investigation_audit_chain(
+def get_investigation_audit_chain(
     investigation_id: str,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
@@ -1815,7 +2095,7 @@ async def get_investigation_audit_chain(
     )
 
 @app.patch("/api/v1/investigations/{investigation_id}", response_model=InvestigationResponse)
-async def update_investigation(
+def update_investigation(
     investigation_id: str,
     status: Optional[str] = None,
     db: Session = Depends(get_db),
@@ -2041,7 +2321,7 @@ def seed_default_evidence_if_empty(db: Session, tenant_id: str):
     db.commit()
 
 @app.get("/api/v1/evidence", response_model=EvidenceVaultListResponse)
-async def list_evidence_vault(
+def list_evidence_vault(
     category: Optional[str] = Query(None, description="Filter by category (IDENTITY_DOCUMENTS, HISTORICAL_PATTERNS, DEVICE_TELEMETRY)"),
     search: Optional[str] = Query(None, description="Search term in title, source, tag, or description"),
     risk_level: Optional[str] = Query(None, description="Filter by risk level"),
@@ -2162,7 +2442,7 @@ async def upload_evidence(
     return item
 
 @app.post("/api/v1/evidence/{item_id}/verify", response_model=EvidenceVaultResponse)
-async def verify_evidence(
+def verify_evidence(
     item_id: str,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
@@ -2190,7 +2470,7 @@ async def verify_evidence(
     return item
 
 @app.delete("/api/v1/evidence/{item_id}")
-async def delete_evidence(
+def delete_evidence(
     item_id: str,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
@@ -2287,7 +2567,7 @@ def seed_default_reports_if_empty(db: Session, tenant_id: str):
     db.commit()
 
 @app.get("/api/v1/reports", response_model=ReportListResponse)
-async def list_reports(
+def list_reports(
     search: Optional[str] = Query(None, description="Search term in title or description"),
     status: Optional[str] = Query(None, description="Filter by status (Completed, Generating, Failed)"),
     report_type: Optional[str] = Query(None, description="Filter by report type"),
@@ -2330,7 +2610,7 @@ async def list_reports(
     )
 
 @app.post("/api/v1/reports/generate", response_model=ReportRecordResponse)
-async def generate_report(
+def generate_report(
     request_data: ReportGenerateRequest,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
@@ -2376,7 +2656,7 @@ async def generate_report(
     return report
 
 @app.get("/api/v1/reports/{report_id}/download")
-async def download_report(
+def download_report(
     report_id: str,
     format: Optional[str] = Query(None),
     db: Session = Depends(get_db),
@@ -2440,7 +2720,7 @@ async def download_report(
             raise HTTPException(status_code=500, detail=f"Failed to compile report PDF: {str(e)}")
 
 @app.delete("/api/v1/reports/{report_id}")
-async def delete_report(
+def delete_report(
     report_id: str,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
@@ -2467,7 +2747,7 @@ async def delete_report(
 # --- Universal Search & Command Palette (Chapter 41) ---
 
 @app.get("/api/v1/search/universal")
-async def universal_search(
+def universal_search(
     q: str = Query(..., min_length=1),
     category: Optional[str] = None,
     limit: int = 25,
@@ -2579,7 +2859,7 @@ class PromptUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 @app.get("/api/v1/prompts")
-async def list_prompts(
+def list_prompts(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
@@ -2609,7 +2889,7 @@ async def list_prompts(
     ]
 
 @app.get("/api/v1/prompts/{name}")
-async def get_prompt_by_name(
+def get_prompt_by_name(
     name: str,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
@@ -2653,7 +2933,7 @@ async def get_prompt_by_name(
     }
 
 @app.post("/api/v1/prompts")
-async def create_prompt_version(
+def create_prompt_version(
     payload: PromptCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.check_permissions("admin"))
@@ -2694,7 +2974,7 @@ async def create_prompt_version(
     }
 
 @app.put("/api/v1/prompts/{prompt_id}")
-async def update_prompt_version(
+def update_prompt_version(
     prompt_id: str,
     payload: PromptUpdate,
     db: Session = Depends(get_db),
@@ -2733,7 +3013,7 @@ async def update_prompt_version(
     return {"status": "success", "prompt_id": prompt.prompt_id, "name": prompt.name, "is_active": prompt.is_active}
 
 @app.post("/api/v1/prompts/{prompt_id}/activate")
-async def activate_prompt_version(
+def activate_prompt_version(
     prompt_id: str,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.check_permissions("admin"))
@@ -2760,7 +3040,7 @@ async def activate_prompt_version(
     return {"status": "success", "message": f"Prompt {prompt.name} version {prompt.version} is now active"}
 
 @app.post("/api/v1/prompts/reset")
-async def reset_prompts_to_default(
+def reset_prompts_to_default(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.check_permissions("admin"))
 ):
@@ -2776,7 +3056,7 @@ async def reset_prompts_to_default(
 
 
 @app.get("/api/v1/analytics/summary")
-async def get_analytics_summary(
+def get_analytics_summary(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
@@ -2894,7 +3174,7 @@ class IntegrationUpdate(BaseModel):
     status: str
 
 @app.get("/api/v1/admin/users")
-async def get_admin_users(
+def get_admin_users(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
@@ -2940,7 +3220,7 @@ async def get_admin_users(
     ]
 
 @app.post("/api/v1/admin/users")
-async def create_admin_user(
+def create_admin_user(
     payload: AdminUserCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
@@ -2976,7 +3256,7 @@ async def create_admin_user(
     }
 
 @app.patch("/api/v1/admin/users/{user_id}")
-async def update_admin_user(
+def update_admin_user(
     user_id: str,
     payload: AdminUserUpdate,
     db: Session = Depends(get_db),
@@ -3011,7 +3291,7 @@ async def update_admin_user(
     }
 
 @app.delete("/api/v1/admin/users/{user_id}")
-async def delete_admin_user(
+def delete_admin_user(
     user_id: str,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
@@ -3029,7 +3309,7 @@ async def delete_admin_user(
     return {"status": "success", "message": f"User {user_id} removed"}
 
 @app.get("/api/v1/admin/settings")
-async def get_system_settings(
+def get_system_settings(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
@@ -3075,7 +3355,7 @@ async def get_system_settings(
     ]
 
 @app.post("/api/v1/admin/settings")
-async def create_system_setting(
+def create_system_setting(
     payload: SystemSettingCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
@@ -3119,7 +3399,7 @@ async def create_system_setting(
     }
 
 @app.put("/api/v1/admin/settings/{setting_id}")
-async def update_system_setting(
+def update_system_setting(
     setting_id: str,
     payload: SystemSettingUpdate,
     db: Session = Depends(get_db),
@@ -3149,7 +3429,7 @@ async def update_system_setting(
     }
 
 @app.get("/api/v1/admin/integrations")
-async def get_integrations(
+def get_integrations(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
@@ -3192,7 +3472,7 @@ async def get_integrations(
     ]
 
 @app.post("/api/v1/admin/integrations/{integration_id}/sync")
-async def sync_integration(
+def sync_integration(
     integration_id: str,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
@@ -3220,7 +3500,7 @@ async def sync_integration(
     }
 
 @app.patch("/api/v1/admin/integrations/{integration_id}")
-async def toggle_integration(
+def toggle_integration(
     integration_id: str,
     payload: IntegrationUpdate,
     db: Session = Depends(get_db),
@@ -3248,7 +3528,7 @@ async def toggle_integration(
     }
 
 @app.get("/api/v1/admin/audit-logs")
-async def get_admin_audit_logs(
+def get_admin_audit_logs(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
@@ -3291,7 +3571,7 @@ async def get_admin_audit_logs(
     ]
 
 @app.get("/api/v1/admin/health-metrics")
-async def get_system_health(
+def get_system_health(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
@@ -3321,7 +3601,7 @@ async def get_system_health(
     }
 
 @app.get("/api/v1/worker/health")
-async def get_worker_health(
+def get_worker_health(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
@@ -3330,7 +3610,7 @@ async def get_worker_health(
     return worker_queue.get_health_status(db=db)
 
 @app.post("/api/v1/worker/recover")
-async def trigger_worker_recovery(
+def trigger_worker_recovery(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.check_permissions("admin"))
 ):
@@ -3340,7 +3620,7 @@ async def trigger_worker_recovery(
     return {"status": "success", "recovered_jobs": recovered}
 
 @app.post("/api/v1/worker/drain")
-async def trigger_worker_drain(
+def trigger_worker_drain(
     max_jobs: int = 50,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.check_permissions("admin"))
@@ -3352,7 +3632,7 @@ async def trigger_worker_drain(
 
 
 @app.get("/api/v1/health")
-async def health_check():
+def health_check():
     """Health check endpoint to verify the API is operational.
 
     Returns a simple JSON response indicating the service is healthy and operational.
@@ -3365,7 +3645,7 @@ async def health_check():
     return {"status": "healthy", "version": "1.0"}
 
 @app.get("/api/v1/metrics")
-async def get_metrics():
+def get_metrics():
     """Endpoint to retrieve performance metrics for monitoring."""
     return {
         "investigation_duration_stats": metrics_collector.get_investigation_duration_stats(),
@@ -3377,7 +3657,7 @@ async def get_metrics():
     }
 
 @app.get("/api/v1/metrics/ai-cost")
-async def get_ai_cost_metrics(
+def get_ai_cost_metrics(
     tenant_id: Optional[str] = None,
     current_user: models.User = Depends(auth.get_current_user)
 ):
@@ -3386,7 +3666,7 @@ async def get_ai_cost_metrics(
     return metrics_collector.get_llm_observability_stats(tenant_id=effective_tenant)
 
 @app.get("/metrics")
-async def get_prometheus_metrics():
+def get_prometheus_metrics():
     """Endpoint to export performance metrics in standard Prometheus text exposition format."""
     stats = metrics_collector.get_investigation_duration_stats()
     outcomes = metrics_collector.get_investment_outcome_counts()
@@ -3444,7 +3724,7 @@ if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
 
-# --- Independent Trust Layer Verifier API (Sidecar) ---
+# --- Independent Trust Layer Verifier API (Sidecar Feature #1) ---
 class VerifierRequest(BaseModel):
     narrative: str
     evidence: Union[Dict[str, Any], List[Dict[str, Any]]]
@@ -3466,7 +3746,31 @@ class VerifierResponse(BaseModel):
     ungrounded_claims: int
     claims: List[ClaimVerificationItem]
     cryptographic_attestation: str
+    narrative_hash: str
+    evidence_digest: str
+    tenant_id: str
+    key_id: str
+    canonical_representation: str
     evaluated_at: str
+
+class VerifyAttestationRequest(BaseModel):
+    narrative: str
+    evidence: Union[Dict[str, Any], List[Dict[str, Any]]]
+    tenant_id: str
+    model_version: Optional[str] = "generic"
+    prompt_version: Optional[str] = "guardrails-v1.0"
+    grounding_score: float
+    verification_status: str
+    evaluated_at: str
+    signature: str
+
+class VerifyAttestationResponse(BaseModel):
+    is_valid: bool
+    tamper_detected: bool
+    computed_signature: str
+    expected_signature: str
+    canonical_payload: str
+    detail: str
 
 @app.post("/api/v1/verifier/evaluate", response_model=VerifierResponse)
 def evaluate_narrative_verifier(
@@ -3476,25 +3780,78 @@ def evaluate_narrative_verifier(
     """
     Independent Trust Layer Verifier API (Sidecar Feature #1).
     Evaluates any AI-written investigation narrative against evidence records,
-    decomposes claims, checks grounding and contradictions, and issues a
-    cryptographically signed verification attestation.
+    decomposes claims, checks grounding and contradictions, and issues an
+    HMAC-SHA256 cryptographically bound verification attestation.
     """
+    clean_narrative = (payload.narrative or "").strip()
     evidence_bundle = payload.evidence if isinstance(payload.evidence, dict) else {"records": payload.evidence}
-    claims_results = guardrails.extract_and_verify_claims(payload.narrative, evidence_bundle)
     
+    # 1. Zero claims / empty narrative defense
+    if not clean_narrative:
+        eval_time = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        narrative_hash = hashlib.sha256("".encode("utf-8")).hexdigest()
+        evidence_digest = hashlib.sha256(json.dumps(evidence_bundle, sort_keys=True).encode("utf-8")).hexdigest()
+        tenant = getattr(current_user, "tenant_id", "default_tenant") or "default_tenant"
+        canonical = f"V1|{narrative_hash}|{evidence_digest}|{tenant}|{payload.vendor or 'generic'}|guardrails-v1.0|0.0000|REJECTED_EMPTY|{eval_time}"
+        signing_key = os.getenv("VERIFIER_SIGNING_KEY", "ffre-verifier-secret-key-enterprise-root")
+        sig = hmac.new(signing_key.encode("utf-8"), canonical.encode("utf-8"), hashlib.sha256).hexdigest()
+        return VerifierResponse(
+            verification_status="REJECTED_EMPTY",
+            grounding_score=0.0,
+            total_claims=0,
+            verified_claims=0,
+            contradicted_claims=0,
+            ungrounded_claims=0,
+            claims=[],
+            cryptographic_attestation=sig,
+            narrative_hash=narrative_hash,
+            evidence_digest=evidence_digest,
+            tenant_id=tenant,
+            key_id="verifier-hmac-sha256-v1",
+            canonical_representation=canonical,
+            evaluated_at=eval_time
+        )
+
+    claims_results = guardrails.extract_and_verify_claims(clean_narrative, evidence_bundle)
     total = len(claims_results)
+
+    if total == 0:
+        eval_time = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        narrative_hash = hashlib.sha256(clean_narrative.encode("utf-8")).hexdigest()
+        evidence_digest = hashlib.sha256(json.dumps(evidence_bundle, sort_keys=True).encode("utf-8")).hexdigest()
+        tenant = getattr(current_user, "tenant_id", "default_tenant") or "default_tenant"
+        canonical = f"V1|{narrative_hash}|{evidence_digest}|{tenant}|{payload.vendor or 'generic'}|guardrails-v1.0|0.0000|REJECTED_EMPTY|{eval_time}"
+        signing_key = os.getenv("VERIFIER_SIGNING_KEY", "ffre-verifier-secret-key-enterprise-root")
+        sig = hmac.new(signing_key.encode("utf-8"), canonical.encode("utf-8"), hashlib.sha256).hexdigest()
+        return VerifierResponse(
+            verification_status="REJECTED_EMPTY",
+            grounding_score=0.0,
+            total_claims=0,
+            verified_claims=0,
+            contradicted_claims=0,
+            ungrounded_claims=0,
+            claims=[],
+            cryptographic_attestation=sig,
+            narrative_hash=narrative_hash,
+            evidence_digest=evidence_digest,
+            tenant_id=tenant,
+            key_id="verifier-hmac-sha256-v1",
+            canonical_representation=canonical,
+            evaluated_at=eval_time
+        )
+
     verified = sum(1 for c in claims_results if c.get("supported", False))
     contradicted = sum(1 for c in claims_results if c.get("contradiction", False))
     ungrounded = total - verified
-    
-    grounding_score = round(verified / total, 3) if total > 0 else 1.0
+    grounding_score = round(verified / total, 3)
+
     if contradicted > 0:
         verdict = "FAILED"
     elif grounding_score < 0.70:
         verdict = "FLAGGED"
     else:
         verdict = "PASSED"
-        
+
     claims_out = []
     for c in claims_results:
         st = "CONTRADICTED" if c.get("contradiction") else ("VERIFIED" if c.get("supported") else "UNGROUNDED")
@@ -3505,12 +3862,18 @@ def evaluate_narrative_verifier(
             citations=citations,
             reason=c.get("verification_reason")
         ))
-        
+
     eval_time = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    attestation_digest = hashlib.sha256(
-        f"{payload.narrative}:{grounding_score}:{verdict}:{eval_time}".encode("utf-8")
-    ).hexdigest()
-    
+    narrative_hash = hashlib.sha256(clean_narrative.encode("utf-8")).hexdigest()
+    evidence_digest = hashlib.sha256(json.dumps(evidence_bundle, sort_keys=True).encode("utf-8")).hexdigest()
+    tenant = getattr(current_user, "tenant_id", "default_tenant") or "default_tenant"
+    model_version = payload.vendor or "generic"
+    prompt_version = "guardrails-v1.0"
+    canonical = f"V1|{narrative_hash}|{evidence_digest}|{tenant}|{model_version}|{prompt_version}|{grounding_score:.4f}|{verdict}|{eval_time}"
+
+    signing_key = os.getenv("VERIFIER_SIGNING_KEY", "ffre-verifier-secret-key-enterprise-root")
+    sig = hmac.new(signing_key.encode("utf-8"), canonical.encode("utf-8"), hashlib.sha256).hexdigest()
+
     return VerifierResponse(
         verification_status=verdict,
         grounding_score=grounding_score,
@@ -3519,6 +3882,42 @@ def evaluate_narrative_verifier(
         contradicted_claims=contradicted,
         ungrounded_claims=ungrounded,
         claims=claims_out,
-        cryptographic_attestation=attestation_digest,
+        cryptographic_attestation=sig,
+        narrative_hash=narrative_hash,
+        evidence_digest=evidence_digest,
+        tenant_id=tenant,
+        key_id="verifier-hmac-sha256-v1",
+        canonical_representation=canonical,
         evaluated_at=eval_time
+    )
+
+@app.post("/api/v1/verifier/verify-attestation", response_model=VerifyAttestationResponse)
+def verify_verifier_attestation(payload: VerifyAttestationRequest):
+    """
+    Third-party attestation verification endpoint.
+    Recalculates narrative digest, evidence digest, canonical payload, and HMAC signature
+    to prove independently whether an attestation was authentic and tamper-free.
+    """
+    clean_narrative = (payload.narrative or "").strip()
+    evidence_bundle = payload.evidence if isinstance(payload.evidence, dict) else {"records": payload.evidence}
+    
+    narrative_hash = hashlib.sha256(clean_narrative.encode("utf-8")).hexdigest()
+    evidence_digest = hashlib.sha256(json.dumps(evidence_bundle, sort_keys=True).encode("utf-8")).hexdigest()
+    model_version = payload.model_version or "generic"
+    prompt_version = payload.prompt_version or "guardrails-v1.0"
+    canonical = f"V1|{narrative_hash}|{evidence_digest}|{payload.tenant_id}|{model_version}|{prompt_version}|{payload.grounding_score:.4f}|{payload.verification_status}|{payload.evaluated_at}"
+
+    signing_key = os.getenv("VERIFIER_SIGNING_KEY", "ffre-verifier-secret-key-enterprise-root")
+    computed_sig = hmac.new(signing_key.encode("utf-8"), canonical.encode("utf-8"), hashlib.sha256).hexdigest()
+
+    is_valid = hmac.compare_digest(payload.signature.strip(), computed_sig)
+    detail = "Attestation verified successfully: tamper-free and authentic" if is_valid else "Attestation signature mismatch: content or verdict has been modified"
+
+    return VerifyAttestationResponse(
+        is_valid=is_valid,
+        tamper_detected=not is_valid,
+        computed_signature=computed_sig,
+        expected_signature=payload.signature,
+        canonical_payload=canonical,
+        detail=detail
     )

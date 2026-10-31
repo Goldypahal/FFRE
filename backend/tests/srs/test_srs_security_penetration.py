@@ -115,28 +115,28 @@ def test_security_oversized_payload_and_idempotency_abuse(client):
     res_malformed = client.post("/api/v1/investigations", content="invalid_json_body", headers={"Content-Type": "application/json"})
     assert res_malformed.status_code == 422
 
-def test_security_strict_tenant_isolation_fails_closed(client, db_session):
+def test_security_strict_tenant_isolation_fails_closed(client, db_session, make_invitation):
     """
     Security Test 7: Verify mandatory tenant isolation fails closed.
     User in tenant_alpha is blocked (403 Forbidden) from accessing investigations in tenant_beta.
     """
-    # Create investigator in tenant_alpha
+    # Create investigator in tenant_alpha via verified invitation
+    inv_a = make_invitation(tenant_id="tenant_alpha", role="investigator")
     reg_a = client.post("/api/v1/auth/register", json={
         "name": "Alpha Investigator",
         "email": "investigator.alpha@bank.com",
         "password": "Password123!",
-        "role": "investigator",
-        "tenant_id": "tenant_alpha"
+        "invite_token": inv_a.token
     })
     token_a = reg_a.json()["access_token"]
 
-    # Create investigator in tenant_beta
+    # Create investigator in tenant_beta via verified invitation
+    inv_b = make_invitation(tenant_id="tenant_beta", role="investigator")
     reg_b = client.post("/api/v1/auth/register", json={
         "name": "Beta Investigator",
         "email": "investigator.beta@bank.com",
         "password": "Password123!",
-        "role": "investigator",
-        "tenant_id": "tenant_beta"
+        "invite_token": inv_b.token
     })
     token_b = reg_b.json()["access_token"]
 
@@ -183,96 +183,12 @@ def test_security_strict_tenant_isolation_fails_closed(client, db_session):
     assert "Missing tenant context (fail-closed)" in res_null.json()["detail"]
 
     # Test Administrator can access across tenants
+    inv_admin = make_invitation(tenant_id="master_tenant", role="admin")
     reg_admin = client.post("/api/v1/auth/register", json={
         "name": "Super Admin",
         "email": "super.admin@bank.com",
         "password": "Password123!",
-        "role": "admin",
-        "tenant_id": "master_tenant",
-        "invite_token": "enterprise-admin-invite-secret"
-    })
-    token_admin = reg_admin.json()["access_token"]
-    res_admin = client.get(
-        f"/api/v1/investigations/{inv_alpha.investigation_id}",
-        headers={"Authorization": f"Bearer {token_admin}"}
-    )
-    assert res_admin.status_code == 200
-
-def test_security_strict_tenant_isolation_fails_closed(client, db_session):
-    """
-    Security Test 7: Verify mandatory tenant isolation fails closed.
-    User in tenant_alpha is blocked (403 Forbidden) from accessing investigations in tenant_beta.
-    """
-    # Create investigator in tenant_alpha
-    reg_a = client.post("/api/v1/auth/register", json={
-        "name": "Alpha Investigator",
-        "email": "investigator.alpha@bank.com",
-        "password": "Password123!",
-        "role": "investigator",
-        "tenant_id": "tenant_alpha"
-    })
-    token_a = reg_a.json()["access_token"]
-
-    # Create investigator in tenant_beta
-    reg_b = client.post("/api/v1/auth/register", json={
-        "name": "Beta Investigator",
-        "email": "investigator.beta@bank.com",
-        "password": "Password123!",
-        "role": "investigator",
-        "tenant_id": "tenant_beta"
-    })
-    token_b = reg_b.json()["access_token"]
-
-    # Create investigation belonging to tenant_alpha
-    inv_alpha = models.Investigation(
-        investigation_id="inv_sec_tenant_alpha_001",
-        txn_id="TXN-SEC-ALPHA",
-        status="COMPLETED",
-        tenant_id="tenant_alpha"
-    )
-    db_session.add(inv_alpha)
-    db_session.commit()
-
-    # User A (tenant_alpha) can read their own investigation
-    res_a = client.get(
-        f"/api/v1/investigations/{inv_alpha.investigation_id}",
-        headers={"Authorization": f"Bearer {token_a}"}
-    )
-    assert res_a.status_code == 200
-
-    # User B (tenant_beta) is strictly rejected with 403 Forbidden
-    res_b = client.get(
-        f"/api/v1/investigations/{inv_alpha.investigation_id}",
-        headers={"Authorization": f"Bearer {token_b}"}
-    )
-    assert res_b.status_code == 403
-    assert "Resource belongs to another tenant" in res_b.json()["detail"]
-
-    # Test investigation with NULL tenant_id fails closed for non-admin user
-    inv_null_tenant = models.Investigation(
-        investigation_id="inv_sec_null_tenant_999",
-        txn_id="TXN-SEC-NULL",
-        status="COMPLETED",
-        tenant_id=None
-    )
-    db_session.add(inv_null_tenant)
-    db_session.commit()
-
-    res_null = client.get(
-        f"/api/v1/investigations/{inv_null_tenant.investigation_id}",
-        headers={"Authorization": f"Bearer {token_a}"}
-    )
-    assert res_null.status_code == 403
-    assert "Missing tenant context (fail-closed)" in res_null.json()["detail"]
-
-    # Test Administrator can access across tenants
-    reg_admin = client.post("/api/v1/auth/register", json={
-        "name": "Super Admin",
-        "email": "super.admin@bank.com",
-        "password": "Password123!",
-        "role": "admin",
-        "tenant_id": "master_tenant",
-        "invite_token": "enterprise-admin-invite-secret"
+        "invite_token": inv_admin.token
     })
     token_admin = reg_admin.json()["access_token"]
     res_admin = client.get(

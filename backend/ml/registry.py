@@ -143,15 +143,19 @@ class ModelRegistry:
         if not os.path.exists(artifact_path):
             raise FileNotFoundError(f"Model artifact not found at resolved path: {artifact_path}")
 
-        # Cryptographic integrity check: verify SHA-256 before loading untrusted binary
+        # Cryptographic integrity check: enforce mandatory SHA-256 before loading untrusted binary
         expected_hash = meta.get("sha256")
-        if expected_hash:
-            actual_hash = compute_file_sha256(artifact_path)
-            if actual_hash != expected_hash:
-                raise ValueError(
-                    f"Model integrity violation: SHA-256 mismatch for model '{model_id}'. "
-                    f"Expected: {expected_hash}, Actual: {actual_hash}"
-                )
+        if not expected_hash:
+            raise ValueError(
+                f"Security violation: Model '{model_id}' lacks a SHA-256 provenance digest in manifest. "
+                f"Loading unverified model artifacts is strictly prohibited under zero-trust policy."
+            )
+        actual_hash = compute_file_sha256(artifact_path)
+        if actual_hash != expected_hash:
+            raise ValueError(
+                f"Model integrity violation: SHA-256 mismatch for model '{model_id}'. "
+                f"Expected: {expected_hash}, Actual: {actual_hash}"
+            )
 
         model = joblib.load(artifact_path)
         return model, meta

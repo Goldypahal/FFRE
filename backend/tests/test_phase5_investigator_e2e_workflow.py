@@ -26,7 +26,7 @@ import models
 from auth import SECRET_KEY, ALGORITHM
 
 
-def test_investigator_complete_user_journey_e2e(client, db_session):
+def test_investigator_complete_user_journey_e2e(client, db_session, make_invitation):
     """
     Phase 5 Qualification Test:
     Executes the full investigator lifecycle strictly through the public API interface.
@@ -40,13 +40,13 @@ def test_investigator_complete_user_journey_e2e(client, db_session):
     # --------------------------------------------------------------------------
     # 1. Sign In & Authenticate
     # --------------------------------------------------------------------------
-    # Register analyst
+    # Register analyst via verified invitation
+    inv_alpha = make_invitation(tenant_id=tenant_alpha, role="investigator")
     reg_res = client.post("/api/v1/auth/register", json={
         "email": analyst_email,
         "name": "Lead Fraud Analyst",
         "password": analyst_password,
-        "role": "investigator",
-        "tenant_id": tenant_alpha
+        "invite_token": inv_alpha.token
     })
     assert reg_res.status_code == 200, f"Registration failed: {reg_res.text}"
     token_data = reg_res.json()
@@ -177,15 +177,15 @@ def test_investigator_complete_user_journey_e2e(client, db_session):
     # --------------------------------------------------------------------------
     # 12. Confirm Multi-Tenant Isolation Defense
     # --------------------------------------------------------------------------
-    # Register an analyst belonging to Tenant Beta
+    # Register an analyst belonging to Tenant Beta via invitation
     tenant_beta = f"bank_beta_{uuid.uuid4().hex[:6]}"
     beta_email = f"beta_analyst_{uuid.uuid4().hex[:6]}@beta.bank"
+    inv_beta = make_invitation(tenant_id=tenant_beta, role="investigator")
     client.post("/api/v1/auth/register", json={
         "email": beta_email,
         "name": "Beta Fraud Analyst",
         "password": "PasswordBeta2026!",
-        "role": "investigator",
-        "tenant_id": tenant_beta
+        "invite_token": inv_beta.token
     })
     beta_login = client.post("/api/v1/auth/login", data={"username": beta_email, "password": "PasswordBeta2026!"})
     beta_token = beta_login.json()["access_token"]
