@@ -209,7 +209,7 @@ def test_investigator_complete_user_journey_e2e(client, db_session, make_invitat
     assert cross_review.status_code == 403
 
 
-def test_investigator_error_states_fail_closed(client):
+def test_investigator_error_states_fail_closed(client, make_invitation):
     """
     Validates fail-closed security and robustness across API error conditions:
     - Invalid login credentials (401)
@@ -245,7 +245,8 @@ def test_investigator_error_states_fail_closed(client):
         "name": "Error Analyst",
         "password": "Password123!",
         "role": "investigator",
-        "tenant_id": "tenant_err"
+        "tenant_id": "tenant_err",
+        "invite_token": make_invitation(email=email, tenant_id="tenant_err").token
     })
     login_res = client.post("/api/v1/auth/login", data={"username": email, "password": "Password123!"})
     valid_token = login_res.json()["access_token"]

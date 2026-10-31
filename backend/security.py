@@ -7,6 +7,7 @@ import os
 import base64
 import hmac
 import hashlib
+import functools
 from typing import Optional, List
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
@@ -55,6 +56,16 @@ def validate_production_secret(name: str, value: Optional[str], min_length: int 
             )
     return val_clean
 
+@functools.lru_cache(maxsize=16)
+def _derive_cached_fernet_key(secret_key: str, salt_str: str) -> bytes:
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt_str.encode('utf-8'),
+        iterations=100000,
+    )
+    return base64.urlsafe_b64encode(kdf.derive(secret_key.encode()))
+
 def get_encryption_key():
     """
     Generate encryption key from environment variable for Fernet (AES-128-CBC + HMAC-SHA256).
@@ -62,18 +73,8 @@ def get_encryption_key():
     """
     raw_secret = os.getenv("ENCRYPTION_SECRET_KEY")
     secret_key = validate_production_secret("ENCRYPTION_SECRET_KEY", raw_secret, min_length=32)
-
     salt_str = os.getenv("ENCRYPTION_SALT", "ffre-default-salt-v1")
-    salt = salt_str.encode('utf-8')
-
-    kdf = PBKDF2HMAC(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=salt,
-        iterations=100000,
-    )
-    key = base64.urlsafe_b64encode(kdf.derive(secret_key.encode()))
-    return key
+    return _derive_cached_fernet_key(secret_key, salt_str)
 
 # Initialize Fernet cipher suite
 try:

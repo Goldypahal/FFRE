@@ -556,7 +556,8 @@ class TenantInvitation(Base):
     __tablename__ = "tenant_invitations"
 
     invitation_id = Column(String(64), primary_key=True, default=generate_uuid)
-    token = Column(String(128), unique=True, index=True, nullable=False)
+    token = Column(String(128), unique=True, index=True, nullable=True)
+    token_hash = Column(String(64), unique=True, index=True, nullable=True)
     tenant_id = Column(String(50), nullable=False, index=True)
     email = Column(String(255), nullable=True)
     role = Column(String(50), nullable=False, default="investigator")

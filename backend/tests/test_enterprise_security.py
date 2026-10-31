@@ -11,7 +11,7 @@ def reset_rate_limiter():
     yield
     rate_limiter.reset()
 
-def test_refresh_token_generation_and_rotation(client, db_session):
+def test_refresh_token_generation_and_rotation(client, db_session, make_invitation):
     """Verify refresh token generation during login/register and rotation upon refresh."""
     # Register user
     reg_payload = {
@@ -19,7 +19,8 @@ def test_refresh_token_generation_and_rotation(client, db_session):
         "email": "sec_user@example.com",
         "password": "StrongPassword123!",
         "role": "investigator",
-        "tenant_id": "default_tenant"
+        "tenant_id": "default_tenant",
+        "invite_token": make_invitation(email="sec_user@example.com", tenant_id="default_tenant").token
     }
     reg_res = client.post("/api/v1/auth/register", json=reg_payload)
     assert reg_res.status_code == 200
