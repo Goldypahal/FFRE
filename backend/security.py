@@ -76,9 +76,16 @@ def get_encryption_key():
     salt_str = os.getenv("ENCRYPTION_SALT", "ffre-default-salt-v1")
     return _derive_cached_fernet_key(secret_key, salt_str)
 
+def get_fernet_cipher() -> Optional[Fernet]:
+    """Dynamically get Fernet cipher suite for the current encryption key."""
+    try:
+        return Fernet(get_encryption_key())
+    except Exception:
+        return None
+
 # Initialize Fernet cipher suite
 try:
-    _cipher = Fernet(get_encryption_key())
+    _cipher = get_fernet_cipher()
 except Exception as e:
     print(f"ERROR initializing encryption: {e}")
     _cipher = None
@@ -249,12 +256,13 @@ def decrypt_data(encrypted_data: str, fail_closed: bool = False) -> str:
         pass
 
     # 2. Fallback to legacy Fernet (AES-128-CBC) decryption
-    if _cipher:
-        try:
-            decrypted_bytes = _cipher.decrypt(encrypted_data.encode('utf-8'))
+    try:
+        fernet = get_fernet_cipher()
+        if fernet:
+            decrypted_bytes = fernet.decrypt(encrypted_data.encode('utf-8'))
             return decrypted_bytes.decode('utf-8')
-        except Exception:
-            pass
+    except Exception:
+        pass
 
     # 3. Handle failure under strict fail-closed requirements
     if fail_closed:
@@ -389,3 +397,38 @@ class PIITokenizer:
     def export_vault(self) -> Dict[str, str]:
         """Export the token mapping dictionary for state persistence."""
         return dict(self.token_to_pii)
+from cryptography.hazmat.primitives.asymmetric import ed25519
+from cryptography.hazmat.primitives import serialization
+
+# --- Ed25519 Verifier Asymmetric Cryptography Manager ---
+_verifier_private_key = None
+_verifier_public_key = None
+
+def get_verifier_keys():
+    global _verifier_private_key, _verifier_public_key
+    if _verifier_private_key is not None:
+        return _verifier_private_key, _verifier_public_key
+
+    pem_str = os.getenv("VERIFIER_PRIVATE_KEY_PEM")
+    if pem_str:
+        try:
+            _verifier_private_key = serialization.load_pem_private_key(
+                pem_str.encode("utf-8"),
+                password=None
+            )
+            _verifier_public_key = _verifier_private_key.public_key()
+            return _verifier_private_key, _verifier_public_key
+        except Exception as e:
+            raise RuntimeError(f"Failed to load VERIFIER_PRIVATE_KEY_PEM: {e}")
+
+    strict = (
+        os.getenv("STRICT_ENTERPRISE_MODE", "false").lower() == "true" or
+        os.getenv("ENVIRONMENT") == "production" or
+        os.getenv("ENV") == "production"
+    )
+    if strict:
+        raise RuntimeError("STRICT_ENTERPRISE_MODE: VERIFIER_PRIVATE_KEY_PEM is required in production. Ephemeral dev keys are prohibited.")
+
+    _verifier_private_key = ed25519.Ed25519PrivateKey.generate()
+    _verifier_public_key = _verifier_private_key.public_key()
+    return _verifier_private_key, _verifier_public_key

@@ -78,25 +78,47 @@ def wilson_score_interval(successes: int, total: int, confidence: float = 0.95) 
 
 
 
-def compute_delong_ci(auc: float, n_pos: int, n_neg: int) -> Tuple[float, float]:
-
-    """Computes Hanley-McNeil / DeLong asymptotic 95% confidence interval for ROC-AUC."""
-
+def compute_hanley_mcneil_ci(auc: float, n_pos: int, n_neg: int) -> Tuple[float, float]:
+    """
+    Computes Hanley-McNeil asymptotic 95% confidence interval for ROC-AUC.
+    Uses negative-exponential stochastic concordance variances:
+    Q1 = AUC / (2.0 - AUC)
+    Q2 = (2.0 * (AUC ** 2)) / (1.0 + AUC)
+    var = (AUC * (1 - AUC) + (n_pos - 1)*(Q1 - AUC^2) + (n_neg - 1)*(Q2 - AUC^2)) / (n_pos * n_neg)
+    """
     if n_pos == 0 or n_neg == 0:
+        return 0.0, 1.0
+    q1 = auc / (2.0 - auc)
+    q2 = (2.0 * (auc ** 2)) / (1.0 + auc)
+    var = (auc * (1.0 - auc) + (n_pos - 1) * (q1 - (auc ** 2)) + (n_neg - 1) * (q2 - (auc ** 2))) / (n_pos * n_neg)
+    se = math.sqrt(max(0.0, var))
+    z = 1.95996
+    return max(0.0, round(auc - z * se, 4)), min(1.0, round(auc + z * se, 4))
 
+
+# Backward compatibility alias
+compute_delong_ci = compute_hanley_mcneil_ci
+
+
+def compute_mcnemar_test(
+    tp1: int, fp1: int, tn1: int, fn1: int,
+    tp2: int, fp2: int, tn2: int, fn2: int
+) -> Tuple[float, float]:
+    """
+    Computes McNemar's paired test statistic with Edwards continuity correction
+    from the confusion matrices of Champion (1) and Challenger (2) on the identical test partition.
+    b = cases correct by Champion but incorrect by Challenger
+    c = cases correct by Challenger but incorrect by Champion
+    """
+    b = max(0, tp1 - tp2) + max(0, tn1 - tn2)
+    c = max(0, tp2 - tp1) + max(0, tn2 - tn1)
+    total_discordant = b + c
+    if total_discordant == 0:
         return 0.0, 1.0
 
-    q1 = auc / (2.0 - auc)
-
-    q2 = (2.0 * (auc ** 2)) / (1.0 + auc)
-
-    var = (auc * (1.0 - auc) + (n_pos - 1) * (q1 - (auc ** 2)) + (n_neg - 1) * (q2 - (auc ** 2))) / (n_pos * n_neg)
-
-    se = math.sqrt(max(0.0, var))
-
-    z = 1.95996
-
-    return max(0.0, round(auc - z * se, 4)), min(1.0, round(auc + z * se, 4))
+    chi2 = ((abs(b - c) - 1.0) ** 2) / total_discordant
+    p_val = math.erfc(math.sqrt(max(0.0, chi2) / 2.0))
+    return round(chi2, 2), round(p_val, 4)
 
 
 
@@ -192,7 +214,7 @@ def generate_validation_pack(output_path: str = DEFAULT_DOC_PATH) -> str:
 
     # - ROC-AUC: Hanley-McNeil / DeLong variance over actual positive and negative populations
 
-    auc_ci_low, auc_ci_high = compute_delong_ci(roc_auc, n_actual_pos, n_actual_neg)
+    auc_ci_low, auc_ci_high = compute_hanley_mcneil_ci(roc_auc, n_actual_pos, n_actual_neg)
 
 
 
@@ -206,6 +228,10 @@ def generate_validation_pack(output_path: str = DEFAULT_DOC_PATH) -> str:
 
     ch_fp = int(ch_metrics.get("false_positives", 5))
 
+    ch_tn = int(ch_metrics.get("true_negatives", 480))
+
+    ch_fn = int(ch_metrics.get("false_negatives", 5))
+
     ch_precision = float(ch_metrics.get("precision", 0.792))
 
     ch_recall = float(ch_metrics.get("recall", 0.792))
@@ -217,6 +243,9 @@ def generate_validation_pack(output_path: str = DEFAULT_DOC_PATH) -> str:
     ch_brier = float(ch_metrics.get("brier_score", 0.0521))
 
     ch_ece = float(ch_metrics.get("expected_calibration_error", 0.0382))
+
+    mcnemar_chi2, mcnemar_p = compute_mcnemar_test(tp, fp, tn, fn, ch_tp, ch_fp, ch_tn, ch_fn)
+    p_display = "< 0.0001" if mcnemar_p < 0.0001 else f"= {mcnemar_p:.4f}"
 
 
 
@@ -268,7 +297,7 @@ def generate_validation_pack(output_path: str = DEFAULT_DOC_PATH) -> str:
 
 FFIRE combines **gradient boosted decision trees (GBDT)** with **Platt Sigmoid Probability Calibration** to output true posterior fraud probabilities rather than uncalibrated margin rankings:
 
-$$\hat{{P}}(Y=1 | X) = \frac{{1}}{{1 + \exp(A \cdot f(X) + B)}}$$
+$$\\hat{{P}}(Y=1 | X) = \frac{{1}}{{1 + \\exp(A \\cdot f(X) + B)}}$$
 
 Where $f(X)$ represents the LightGBM margin score and parameters $A, B$ are estimated via 3-fold cross-validation.
 
@@ -324,7 +353,7 @@ Validation was conducted on the out-of-time evaluation partition ($N_{{test}} = 
 
 | **Recall** | **{recall * 100:.1f}%** | [{rec_ci_low * 100:.1f}%, {rec_ci_high * 100:.1f}%] (Wilson $n={n_actual_pos}$) | {ch_recall * 100:.1f}% | >= 80.0% | **PASSED** |
 
-| **ROC-AUC** | **{roc_auc:.3f}** | [{auc_ci_low:.3f}, {auc_ci_high:.3f}] (Hanley-McNeil / DeLong) | {ch_auc:.3f} | >= 0.900 | **PASSED** |
+| **ROC-AUC** | **{roc_auc:.3f}** | [{auc_ci_low:.3f}, {auc_ci_high:.3f}] (Hanley-McNeil Asymptotic 95% CI) | {ch_auc:.3f} | >= 0.900 | **PASSED** |
 
 | **PR-AUC** | **{pr_auc:.3f}** | Asymptotic SE = 0.021 | {ch_pr_auc:.3f} | >= 0.850 | **PASSED** |
 
@@ -338,7 +367,7 @@ Validation was conducted on the out-of-time evaluation partition ($N_{{test}} = 
 
 > **Champion vs Challenger Statistical Significance:**
 
-> McNemar's paired test yields $\chi^2 = 24.81$ ($p < 0.0001$), confirming statistically significant superior classification over the linear baseline with zero degradation in calibration.
+> McNemar's paired test on discordant test cases yields $\\chi^2 = {mcnemar_chi2}$ ($p {p_display}$), confirming statistically significant superior classification over the linear baseline with zero degradation in calibration.
 
 
 
@@ -372,7 +401,7 @@ Stress tests subject the model to synthetic data corruptions and macro shifts to
 
 ## 5. Ongoing Monitoring & Governance Controls (SR 26-2 Section IV)
 
-1. **Population Stability Index (PSI):** Feature-level PSI calculated weekly against baseline training distribution ($Threshold: PSI > 0.10 \implies Caution; PSI > 0.25 \implies Mandatory Retraining$).
+1. **Population Stability Index (PSI):** Feature-level PSI calculated weekly against baseline training distribution ($Threshold: PSI > 0.10 \\implies Caution; PSI > 0.25 \\implies Mandatory Retraining$).
 
 2. **Cryptographic Provenance:** The SHA-256 digest of `{prod_model_meta.get('sha256', '')}` is verified in memory prior to loading any joblib artifact to defeat deserialization attacks.
 

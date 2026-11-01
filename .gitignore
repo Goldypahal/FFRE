@@ -67,3 +67,5 @@ chroma_db/
 stitch_ffire_design_system_specification.zip
 stitch_ffire_design_system_specification/
 architecture_docs/
+
+backend/data/benchmarks/

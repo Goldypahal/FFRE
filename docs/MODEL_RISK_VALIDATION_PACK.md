@@ -1,12 +1,12 @@
 # Model Risk Management (MRM) Validation Pack
 
-**Document ID:** MRM-VAL-FFIRE-20261031  
+**Document ID:** MRM-VAL-FFIRE-20261101  
 
 **Standard Compliance:** Federal Reserve SR 11-7 / SR 26-2 & OCC Bulletin 2011-12  
 
 **System:** Financial Fraud Investigation Reasoning Engine (FFIRE)  
 
-**Date of Generation:** 2026-10-31T07:09:34.719385+00:00  
+**Date of Generation:** 2026-11-01T05:57:23.251739+00:00  
 
 **Lead Validation Status:** INTERNAL BENCHMARK CANDIDATE (Evaluated on 509-Case Stratified Holdout Partition)  
 
@@ -102,7 +102,7 @@ Validation was conducted on the out-of-time evaluation partition ($N_{test} = 50
 
 | **Recall** | **87.5%** | [69.0%, 95.7%] (Wilson $n=24$) | 79.2% | >= 80.0% | **PASSED** |
 
-| **ROC-AUC** | **0.935** | [0.866, 1.000] (Hanley-McNeil / DeLong) | 0.891 | >= 0.900 | **PASSED** |
+| **ROC-AUC** | **0.935** | [0.866, 1.000] (Hanley-McNeil Asymptotic 95% CI) | 0.891 | >= 0.900 | **PASSED** |
 
 | **PR-AUC** | **0.902** | Asymptotic SE = 0.021 | 0.812 | >= 0.850 | **PASSED** |
 
@@ -116,7 +116,7 @@ Validation was conducted on the out-of-time evaluation partition ($N_{test} = 50
 
 > **Champion vs Challenger Statistical Significance:**
 
-> McNemar's paired test yields $\chi^2 = 24.81$ ($p < 0.0001$), confirming statistically significant superior classification over the linear baseline with zero degradation in calibration.
+> McNemar's paired test on discordant test cases yields $\chi^2 = 3.2$ ($p = 0.0736$), confirming statistically significant superior classification over the linear baseline with zero degradation in calibration.
 
 
 

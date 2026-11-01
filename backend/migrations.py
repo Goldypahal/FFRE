@@ -160,6 +160,61 @@ def migration_007_transaction_metadata(conn: Connection, is_sqlite: bool):
     safe_add_column(conn, is_sqlite, "\"transaction\"", "currency", "VARCHAR(10) DEFAULT 'USD'")
 
 
+def migration_008_tenant_invitations_token_hash(conn: Connection, is_sqlite: bool):
+    if not table_exists(conn, is_sqlite, "tenant_invitations"):
+        if is_sqlite:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS tenant_invitations (
+                    invitation_id VARCHAR(64) PRIMARY KEY,
+                    token VARCHAR(128),
+                    token_hash VARCHAR(64) NOT NULL UNIQUE,
+                    tenant_id VARCHAR(50) NOT NULL,
+                    email VARCHAR(255),
+                    role VARCHAR(50) NOT NULL DEFAULT 'investigator',
+                    created_by VARCHAR(100) NOT NULL,
+                    created_at DATETIME NOT NULL,
+                    expires_at DATETIME NOT NULL,
+                    is_used BOOLEAN NOT NULL DEFAULT 0,
+                    used_at DATETIME,
+                    used_by VARCHAR(255)
+                );
+            """))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_tenant_invitations_tenant_id ON tenant_invitations (tenant_id);"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_tenant_invitations_is_used ON tenant_invitations (is_used);"))
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_tenant_invitations_token_hash ON tenant_invitations (token_hash);"))
+        else:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS tenant_invitations (
+                    invitation_id VARCHAR(64) PRIMARY KEY,
+                    token VARCHAR(128),
+                    token_hash VARCHAR(64) NOT NULL UNIQUE,
+                    tenant_id VARCHAR(50) NOT NULL,
+                    email VARCHAR(255),
+                    role VARCHAR(50) NOT NULL DEFAULT 'investigator',
+                    created_by VARCHAR(100) NOT NULL,
+                    created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+                    expires_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+                    is_used BOOLEAN NOT NULL DEFAULT FALSE,
+                    used_at TIMESTAMP WITHOUT TIME ZONE,
+                    used_by VARCHAR(255)
+                );
+            """))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_tenant_invitations_tenant_id ON tenant_invitations (tenant_id);"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_tenant_invitations_is_used ON tenant_invitations (is_used);"))
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_tenant_invitations_token_hash ON tenant_invitations (token_hash);"))
+    else:
+        safe_add_column(conn, is_sqlite, "tenant_invitations", "token_hash", "VARCHAR(64)")
+        try:
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_tenant_invitations_token_hash ON tenant_invitations (token_hash);"))
+        except Exception:
+            pass
+
+
+def migration_009_user_mfa_and_phone(conn: Connection, is_sqlite: bool):
+    safe_add_column(conn, is_sqlite, "users", "phone_number", "VARCHAR(255)")
+    safe_add_column(conn, is_sqlite, "users", "mfa_enabled", "BOOLEAN DEFAULT 0" if is_sqlite else "BOOLEAN DEFAULT FALSE")
+
+
 MIGRATIONS: List[Tuple[int, str, Callable[[Connection, bool], None]]] = [
     (1, "initial_schema_baseline", migration_001_initial_tables),
     (2, "investigation_idempotency_and_fingerprint", migration_002_investigation_idempotency),
@@ -168,6 +223,8 @@ MIGRATIONS: List[Tuple[int, str, Callable[[Connection, bool], None]]] = [
     (5, "audit_log_cryptographic_hash_chains", migration_005_audit_log_hash_chains),
     (6, "user_security_and_device_telemetry", migration_006_user_security_and_device_telemetry),
     (7, "transaction_metadata_and_counterparty", migration_007_transaction_metadata),
+    (8, "tenant_invitations_token_hash", migration_008_tenant_invitations_token_hash),
+    (9, "user_mfa_and_phone", migration_009_user_mfa_and_phone),
 ]
 
 

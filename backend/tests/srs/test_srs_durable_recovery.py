@@ -1,282 +1,564 @@
-import os
-import pytest
-import datetime
-import models
-from worker import worker_queue
-from main import run_investigation_task
-from graph import build_graph
-from checkpointing import DurableSqliteSaver
-
-def test_durable_worker_queue_enqueue_and_processing(db_session):
-    """Test enqueuing job into durable worker queue and executing graph task."""
-    cust = models.Customer(customer_id="c_dur_1", name="Durable Customer", kyc_status="VERIFIED")
-    acct = models.Account(account_id="a_dur_1", customer_id="c_dur_1")
-    merch = models.Merchant(merchant_id="m_dur_1", name="Durable Merchant", risk_score=0.01)
-    txn = models.Transaction(txn_id="T-DURABLE-TEST", account_id="a_dur_1", merchant_id="m_dur_1", amount=100.0, currency="USD", status="PENDING")
-    inv = models.Investigation(investigation_id="inv_durable_1", txn_id="T-DURABLE-TEST", status="QUEUED")
-
-    db_session.add_all([cust, acct, merch, txn, inv])
-    db_session.commit()
-
-    worker_queue.enqueue("inv_durable_1", "T-DURABLE-TEST", db=db_session)
-
-    # Process job synchronously
-    processed = worker_queue.process_next_job(db=db_session)
-    assert processed is True
-
-    # Verify audit log recorded enqueuing
-    logs = db_session.query(models.AuditLog).filter(models.AuditLog.investigation_id == "inv_durable_1").all()
-    actions = [l.action for l in logs]
-    assert "WORKER_STATE_TRANSITION" in actions
-
-def test_sqlite_saver_persistent_checkpoint_creation():
-    """Test that SqliteSaver checkpointer is active and compiles graph."""
-    graph_app = build_graph()
-    assert graph_app is not None
-    config = {"configurable": {"thread_id": "test_thread_checkpoint"}}
-    state = graph_app.get_state(config)
-    assert state is not None
-
-def test_durable_checkpoint_persistence_across_instances(tmp_path):
-    """Task 16 Test: Verify DurableSqliteSaver persists and restores checkpoints across process restarts."""
-    db_file = str(tmp_path / "test_checkpoints.db")
-    config = {
-        "configurable": {
-            "thread_id": "inv_persist_99",
-            "checkpoint_ns": "",
-            "checkpoint_id": "1"
-        }
-    }
-
-    checkpoint = {
-        "v": 1,
-        "id": "1",
-        "ts": "2026-08-25T17:00:00Z",
-        "channel_values": {"risk_score": 0.88},
-        "channel_versions": {},
-        "versions_seen": {},
-        "pending_sends": []
-    }
-    metadata = {
-        "source": "loop",
-        "writes": {},
-        "step": 1,
-        "parents": {}
-    }
-
-    # Instance A saves checkpoint to SQLite disk
-    saver_a = DurableSqliteSaver(db_path=db_file)
-    saver_a.put(config, checkpoint, metadata, {})
-
-    # Instance B simulates process restart and reloads checkpoint from SQLite disk
-    saver_b = DurableSqliteSaver(db_path=db_file)
-    tuple_res = saver_b.get_tuple(config)
-    print("RESTORED TUPLE:", tuple_res)
-    assert tuple_res is not None
-    assert tuple_res.checkpoint is not None
-
-def test_worker_state_machine_valid_and_invalid_transitions(db_session):
-    """Task 18 Test: Worker state machine enforces valid state transitions and writes audit logs."""
-    inv = models.Investigation(investigation_id="inv_sm_1", txn_id="T-SM-1", status="QUEUED")
-    db_session.add(inv)
-    db_session.commit()
-
-    # Valid transition QUEUED -> RUNNING
-    success = worker_queue.transition_job_state("inv_sm_1", "RUNNING", db=db_session)
-    assert success is True
-    assert inv.status == "RUNNING"
-
-    # Invalid transition RUNNING -> INVALID_STATE raises ValueError
-    with pytest.raises(ValueError, match="Invalid state"):
-        worker_queue.transition_job_state("inv_sm_1", "INVALID_STATE", db=db_session)
-
-    # Invalid transition COMPLETED -> RUNNING raises ValueError
-    inv.status = "COMPLETED"
-    db_session.commit()
-    with pytest.raises(ValueError, match="Invalid state transition"):
-        worker_queue.transition_job_state("inv_sm_1", "RUNNING", db=db_session)
-
-def test_worker_crash_recovery_recovers_stale_running_jobs(db_session):
-    """Task 17 Test: Worker crash recovery identifies stale RUNNING jobs and resets status to RETRYING."""
-    old_time = datetime.datetime.now(datetime.UTC) - datetime.timedelta(seconds=600)
-    inv_stale = models.Investigation(investigation_id="inv_stale_1", txn_id="T-STALE-1", status="RUNNING", updated_at=old_time)
-    db_session.add(inv_stale)
-    db_session.commit()
-
-    recovered_count = worker_queue.recover_stale_or_abandoned_jobs(db=db_session, max_age_seconds=300)
-    assert recovered_count == 1
-    assert inv_stale.status == "RETRYING"
-
-def test_worker_dead_letter_queue_after_max_retries(db_session, monkeypatch):
-    """Task 19 Test: Worker sends job to dead-letter queue when exceeding max retries."""
-    monkeypatch.setattr(worker_queue, "_redis_client", None)
-    def mock_failing_task(inv_id, txn_id, db=None):
-        raise RuntimeError("Worker task execution fatal crash")
-
-    monkeypatch.setattr("worker.run_investigation_task", mock_failing_task)
-
-    inv_failed = models.Investigation(investigation_id="inv_dlq_1", txn_id="NON_EXISTENT_TXN", status="QUEUED")
-    db_session.add(inv_failed)
-    db_session.commit()
-
-    job = {
-        "investigation_id": "inv_dlq_1",
-        "transaction_id": "NON_EXISTENT_TXN",
-        "retry_count": 2
-    }
-    worker_queue._queue.put(job)
-
-    # Processing failing job with retry_count=2 triggers max retries (3) transition to FAILED
-    processed = worker_queue.process_next_job(db=db_session)
-    assert processed is True
-    assert inv_failed.status == "FAILED"
-
-    logs = db_session.query(models.AuditLog).filter(models.AuditLog.investigation_id == "inv_dlq_1").all()
-    actions = [l.action for l in logs]
-    assert "DEAD_LETTER_QUEUE" in actions
-
-def test_task23_redis_worker_queue_broker_support():
-    """Task 23 Test: Verify DurableWorkerQueue backend resolution, ACK, and Redis broker fallback mechanism."""
-    from worker import DurableWorkerQueue
-    queue_default = DurableWorkerQueue()
-    assert queue_default.get_broker_backend() in ["redis", "in_memory"]
-
-    # When given an invalid/unreachable Redis URL, verify graceful fallback to in_memory backend
-    queue_invalid = DurableWorkerQueue(redis_url="redis://non_existent_host:6379/0")
-    assert queue_invalid.get_broker_backend() == "in_memory"
-
-    # Test ACK helper does not crash when _raw_str is missing or present
-    sample_job = {"investigation_id": "test_inv", "transaction_id": "test_txn"}
-    queue_invalid.ack_job(sample_job)
-
-def test_task28_strict_enterprise_mode_redis_failure(monkeypatch):
-    """Task 28 Test: Verify STRICT_ENTERPRISE_MODE raises RuntimeError when Redis is unreachable."""
-    from worker import DurableWorkerQueue
-    monkeypatch.setenv("STRICT_ENTERPRISE_MODE", "true")
-    with pytest.raises(RuntimeError) as exc_info:
-        DurableWorkerQueue(redis_url="redis://non_existent_host:6379/0")
-    assert "STRICT_ENTERPRISE_MODE" in str(exc_info.value)
-
-def test_task24_postgresql_checkpointer_factory(monkeypatch):
-    """Task 24 Test: Verify get_durable_checkpointer selects DurablePostgresSaver and provides get_tuple DB sync when PostgreSQL URL is configured."""
-    from checkpointing import get_durable_checkpointer, DurablePostgresSaver, DurableSqliteSaver
-
-    # SQLite default fallback
-    saver_sqlite = get_durable_checkpointer(db_path="test_checkpoints.db")
-    assert isinstance(saver_sqlite, DurableSqliteSaver)
-
-    # PostgreSQL resolution
-    monkeypatch.setenv("CHECKPOINT_DB_URL", "postgresql://user:pass@localhost:5432/ffre_db")
-    saver_pg = get_durable_checkpointer()
-    assert isinstance(saver_pg, DurablePostgresSaver)
-    assert saver_pg.db_url == "postgresql://user:pass@localhost:5432/ffre_db"
-
-    # Test get_tuple fallback path when DB is unreachable
-    config = {"configurable": {"thread_id": "thread_pg_test"}}
-    res = saver_pg.get_tuple(config)
-    assert res is None
-
-# --- Dedicated Granular Verification Tests for OP-1 to OP-10 ---
-
-def test_op1_sqlite_checkpoint_persistence(tmp_path):
-    """OP-1: Verify durable checkpoint save to SQLite database."""
-    from checkpointing import DurableSqliteSaver
-    db_file = str(tmp_path / "op1_test.db")
-    saver = DurableSqliteSaver(db_path=db_file)
-    config = {"configurable": {"thread_id": "t_op1", "checkpoint_ns": "", "checkpoint_id": "1"}}
-    checkpoint = {"v": 1, "id": "1", "ts": "2026-08-25T17:00:00Z", "channel_values": {"step": "planner"}, "channel_versions": {}, "versions_seen": {}, "pending_sends": []}
-    metadata = {"source": "loop", "writes": {}, "step": 1, "parents": {}}
-    saver.put(config, checkpoint, metadata, {})
-    res = saver.get_tuple(config)
-    assert res is not None
-    assert res.checkpoint is not None
-
-def test_op2_checkpoint_recovery_after_restart(tmp_path):
-    """OP-2: Verify checkpoint recovery after simulated process restart."""
-    from checkpointing import DurableSqliteSaver
-    db_file = str(tmp_path / "op2_test.db")
-    saver_a = DurableSqliteSaver(db_path=db_file)
-    config = {"configurable": {"thread_id": "t_op2", "checkpoint_ns": "", "checkpoint_id": "1"}}
-    checkpoint = {"v": 1, "id": "1", "ts": "2026-08-25T17:00:00Z", "channel_values": {"risk_score": 0.77}, "channel_versions": {}, "versions_seen": {}, "pending_sends": []}
-    metadata = {"source": "loop", "writes": {}, "step": 1, "parents": {}}
-    saver_a.put(config, checkpoint, metadata, {})
-    # Restart process: instantiate fresh saver from disk
-    saver_b = DurableSqliteSaver(db_path=db_file)
-    res = saver_b.get_tuple(config)
-    assert res is not None
-    assert res.checkpoint is not None
-
-def test_op3_postgres_checkpointer_factory(monkeypatch):
-    """OP-3: Verify DurablePostgresSaver factory resolution when PostgreSQL is configured."""
-    from checkpointing import get_durable_checkpointer, DurablePostgresSaver
-    monkeypatch.setenv("CHECKPOINT_DB_URL", "postgresql://user:pass@localhost:5432/ffre")
-    saver = get_durable_checkpointer()
-    assert isinstance(saver, DurablePostgresSaver)
-
-def test_op4_cross_instance_state_visibility(monkeypatch):
-    """OP-4: Verify get_tuple queries shared database for cross-instance state synchronization."""
-    from checkpointing import DurablePostgresSaver
-    saver = DurablePostgresSaver(db_url="postgresql://user:pass@nonexistent:5432/db")
-    config = {"configurable": {"thread_id": "t_op4"}}
-    # Graceful fallback on unreachable remote DB
-    res = saver.get_tuple(config)
-    assert res is None
-
-def test_op5_database_reconnection_resiliency(tmp_path):
-    """OP-5: Verify checkpointer handles schema re-initialization and reconnection cleanly."""
-    from checkpointing import DurableSqliteSaver
-    db_file = str(tmp_path / "op5_test.db")
-    saver = DurableSqliteSaver(db_path=db_file)
-    saver._init_db() # Second init idempotent call
-    assert os.path.exists(db_file)
-
-def test_op6_worker_crash_recovery_stale_jobs(db_session):
-    """OP-6: Verify worker identifies and recovers stale/orphaned RUNNING jobs."""
-    from worker import worker_queue
-    old_time = datetime.datetime.now(datetime.UTC) - datetime.timedelta(seconds=900)
-    inv = models.Investigation(investigation_id="inv_op6", txn_id="T_OP6", status="RUNNING", updated_at=old_time)
-    db_session.add(inv)
-    db_session.commit()
-
-    recovered = worker_queue.recover_stale_or_abandoned_jobs(db=db_session, max_age_seconds=300)
-    assert recovered >= 1
-    assert inv.status == "RETRYING"
-
-def test_op7_retry_state_persistence(db_session):
-    """OP-7: Verify worker enforces valid state transitions and writes transition audit trail."""
-    from worker import worker_queue
-    inv = models.Investigation(investigation_id="inv_op7", txn_id="T_OP7", status="QUEUED")
-    db_session.add(inv)
-    db_session.commit()
-
-    worker_queue.transition_job_state("inv_op7", "RUNNING", db=db_session)
-    assert inv.status == "RUNNING"
-
-def test_op8_redis_broker_recovery():
-    """OP-8: Verify DurableWorkerQueue detects broker availability and falls back gracefully."""
-    from worker import DurableWorkerQueue
-    q = DurableWorkerQueue(redis_url="redis://non_existent_host:6379/0")
-    assert q.get_broker_backend() == "in_memory"
-
-def test_op9_dead_letter_queue_behavior(db_session, monkeypatch):
-    """OP-9: Verify job routing to DEAD_LETTER_QUEUE upon exceeding retry budget."""
-    from worker import worker_queue
-    monkeypatch.setattr(worker_queue, "_redis_client", None)
-    def mock_fail(inv_id, txn_id, db=None):
-        raise RuntimeError("Fatal worker error")
-
-    monkeypatch.setattr("worker.run_investigation_task", mock_fail)
-    inv = models.Investigation(investigation_id="inv_op9", txn_id="T_OP9", status="QUEUED")
-    db_session.add(inv)
-    db_session.commit()
-
-    worker_queue._queue.put({"investigation_id": "inv_op9", "transaction_id": "T_OP9", "retry_count": 2})
-    worker_queue.process_next_job(db=db_session)
-    assert inv.status == "FAILED"
-
-def test_op10_recovery_idempotency(db_session):
-    """OP-10: Verify multiple executions of job recovery are strictly idempotent."""
-    from worker import worker_queue
-    count1 = worker_queue.recover_stale_or_abandoned_jobs(db=db_session, max_age_seconds=300)
-    count2 = worker_queue.recover_stale_or_abandoned_jobs(db=db_session, max_age_seconds=300)
-    assert count2 == 0
+import os
+
+import pytest
+
+import datetime
+
+import models
+
+from worker import worker_queue
+
+from main import run_investigation_task
+
+from graph import build_graph
+
+from checkpointing import DurableSqliteSaver
+
+
+
+def test_durable_worker_queue_enqueue_and_processing(db_session):
+
+    """Test enqueuing job into durable worker queue and executing graph task."""
+
+    cust = models.Customer(customer_id="c_dur_1", name="Durable Customer", kyc_status="VERIFIED")
+
+    acct = models.Account(account_id="a_dur_1", customer_id="c_dur_1")
+
+    merch = models.Merchant(merchant_id="m_dur_1", name="Durable Merchant", risk_score=0.01)
+
+    txn = models.Transaction(txn_id="T-DURABLE-TEST", account_id="a_dur_1", merchant_id="m_dur_1", amount=100.0, currency="USD", status="PENDING")
+
+    inv = models.Investigation(investigation_id="inv_durable_1", txn_id="T-DURABLE-TEST", status="QUEUED")
+
+
+
+    db_session.add_all([cust, acct, merch, txn, inv])
+
+    db_session.commit()
+
+
+
+    worker_queue.enqueue("inv_durable_1", "T-DURABLE-TEST", db=db_session)
+
+
+
+    # Process job synchronously
+
+    processed = worker_queue.process_next_job(db=db_session)
+
+    assert processed is True
+
+
+
+    # Verify audit log recorded enqueuing
+
+    logs = db_session.query(models.AuditLog).filter(models.AuditLog.investigation_id == "inv_durable_1").all()
+
+    actions = [l.action for l in logs]
+
+    assert "WORKER_STATE_TRANSITION" in actions
+
+
+
+def test_sqlite_saver_persistent_checkpoint_creation():
+
+    """Test that SqliteSaver checkpointer is active and compiles graph."""
+
+    graph_app = build_graph()
+
+    assert graph_app is not None
+
+    config = {"configurable": {"thread_id": "test_thread_checkpoint"}}
+
+    state = graph_app.get_state(config)
+
+    assert state is not None
+
+
+
+def test_durable_checkpoint_persistence_across_instances(tmp_path):
+
+    """Task 16 Test: Verify DurableSqliteSaver persists and restores checkpoints across process restarts."""
+
+    db_file = str(tmp_path / "test_checkpoints.db")
+
+    config = {
+
+        "configurable": {
+
+            "thread_id": "inv_persist_99",
+
+            "checkpoint_ns": "",
+
+            "checkpoint_id": "1"
+
+        }
+
+    }
+
+
+
+    checkpoint = {
+
+        "v": 1,
+
+        "id": "1",
+
+        "ts": "2026-08-25T17:00:00Z",
+
+        "channel_values": {"risk_score": 0.88},
+
+        "channel_versions": {},
+
+        "versions_seen": {},
+
+        "pending_sends": []
+
+    }
+
+    metadata = {
+
+        "source": "loop",
+
+        "writes": {},
+
+        "step": 1,
+
+        "parents": {}
+
+    }
+
+
+
+    # Instance A saves checkpoint to SQLite disk
+
+    saver_a = DurableSqliteSaver(db_path=db_file)
+
+    saver_a.put(config, checkpoint, metadata, {})
+
+
+
+    # Instance B simulates process restart and reloads checkpoint from SQLite disk
+
+    saver_b = DurableSqliteSaver(db_path=db_file)
+
+    tuple_res = saver_b.get_tuple(config)
+
+    print("RESTORED TUPLE:", tuple_res)
+
+    assert tuple_res is not None
+
+    assert tuple_res.checkpoint is not None
+
+
+
+def test_worker_state_machine_valid_and_invalid_transitions(db_session):
+
+    """Task 18 Test: Worker state machine enforces valid state transitions and writes audit logs."""
+
+    inv = models.Investigation(investigation_id="inv_sm_1", txn_id="T-SM-1", status="QUEUED")
+
+    db_session.add(inv)
+
+    db_session.commit()
+
+
+
+    # Valid transition QUEUED -> RUNNING
+
+    success = worker_queue.transition_job_state("inv_sm_1", "RUNNING", db=db_session)
+
+    assert success is True
+
+    assert inv.status == "RUNNING"
+
+
+
+    # Invalid transition RUNNING -> INVALID_STATE raises ValueError
+
+    with pytest.raises(ValueError, match="Invalid state"):
+
+        worker_queue.transition_job_state("inv_sm_1", "INVALID_STATE", db=db_session)
+
+
+
+    # Invalid transition COMPLETED -> RUNNING raises ValueError
+
+    inv.status = "COMPLETED"
+
+    db_session.commit()
+
+    with pytest.raises(ValueError, match="Invalid state transition"):
+
+        worker_queue.transition_job_state("inv_sm_1", "RUNNING", db=db_session)
+
+
+
+def test_worker_crash_recovery_recovers_stale_running_jobs(db_session):
+
+    """Task 17 Test: Worker crash recovery identifies stale RUNNING jobs and resets status to RETRYING."""
+
+    old_time = datetime.datetime.now(datetime.UTC) - datetime.timedelta(seconds=600)
+
+    inv_stale = models.Investigation(investigation_id="inv_stale_1", txn_id="T-STALE-1", status="RUNNING", updated_at=old_time)
+
+    db_session.add(inv_stale)
+
+    db_session.commit()
+
+
+
+    recovered_count = worker_queue.recover_stale_or_abandoned_jobs(db=db_session, max_age_seconds=300)
+
+    assert recovered_count == 1
+
+    assert inv_stale.status == "RETRYING"
+
+
+
+def test_worker_dead_letter_queue_after_max_retries(db_session, monkeypatch):
+
+    """Task 19 Test: Worker sends job to dead-letter queue when exceeding max retries."""
+
+    monkeypatch.setattr(worker_queue, "_redis_client", None)
+
+    def mock_failing_task(inv_id, txn_id, db=None):
+
+        raise RuntimeError("Worker task execution fatal crash")
+
+
+
+    monkeypatch.setattr("worker.run_investigation_task", mock_failing_task)
+
+
+
+    inv_failed = models.Investigation(investigation_id="inv_dlq_1", txn_id="NON_EXISTENT_TXN", status="QUEUED")
+
+    db_session.add(inv_failed)
+
+    db_session.commit()
+
+
+
+    job = {
+
+        "investigation_id": "inv_dlq_1",
+
+        "transaction_id": "NON_EXISTENT_TXN",
+
+        "retry_count": 2
+
+    }
+
+    worker_queue._queue.put(job)
+
+
+
+    # Processing failing job with retry_count=2 triggers max retries (3) transition to FAILED
+
+    processed = worker_queue.process_next_job(db=db_session)
+
+    assert processed is True
+
+    assert inv_failed.status == "FAILED"
+
+
+
+    logs = db_session.query(models.AuditLog).filter(models.AuditLog.investigation_id == "inv_dlq_1").all()
+
+    actions = [l.action for l in logs]
+
+    assert "DEAD_LETTER_QUEUE" in actions
+
+
+
+def test_task23_redis_worker_queue_broker_support():
+
+    """Task 23 Test: Verify DurableWorkerQueue backend resolution, ACK, and Redis broker fallback mechanism."""
+
+    from worker import DurableWorkerQueue
+
+    queue_default = DurableWorkerQueue()
+
+    assert queue_default.get_broker_backend() in ["redis", "in_memory"]
+
+
+
+    # When given an invalid/unreachable Redis URL, verify graceful fallback to in_memory backend
+
+    queue_invalid = DurableWorkerQueue(redis_url="redis://non_existent_host:6379/0")
+
+    assert queue_invalid.get_broker_backend() == "in_memory"
+
+
+
+    # Test ACK helper does not crash when _raw_str is missing or present
+
+    sample_job = {"investigation_id": "test_inv", "transaction_id": "test_txn"}
+
+    queue_invalid.ack_job(sample_job)
+
+
+
+def test_task28_strict_enterprise_mode_redis_failure(monkeypatch):
+
+    """Task 28 Test: Verify STRICT_ENTERPRISE_MODE raises RuntimeError when Redis is unreachable."""
+
+    from worker import DurableWorkerQueue
+
+    monkeypatch.setenv("STRICT_ENTERPRISE_MODE", "true")
+
+    with pytest.raises(RuntimeError) as exc_info:
+
+        DurableWorkerQueue(redis_url="redis://non_existent_host:6379/0")
+
+    assert "STRICT_ENTERPRISE_MODE" in str(exc_info.value)
+
+
+
+def test_task24_postgresql_checkpointer_factory(monkeypatch):
+
+    """Task 24 Test: Verify get_durable_checkpointer selects DurablePostgresSaver and provides get_tuple DB sync when PostgreSQL URL is configured."""
+
+    from checkpointing import get_durable_checkpointer, DurablePostgresSaver, DurableSqliteSaver
+
+
+
+    # SQLite default fallback (isolated from CI PostgreSQL DATABASE_URL)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("CHECKPOINT_DB_URL", raising=False)
+    saver_sqlite = get_durable_checkpointer(db_path="test_checkpoints.db")
+    assert isinstance(saver_sqlite, DurableSqliteSaver)
+
+
+
+    # PostgreSQL resolution
+
+    monkeypatch.setenv("CHECKPOINT_DB_URL", "postgresql://user:pass@localhost:5432/ffre_db")
+
+    saver_pg = get_durable_checkpointer()
+
+    assert isinstance(saver_pg, DurablePostgresSaver)
+
+    assert saver_pg.db_url == "postgresql://user:pass@localhost:5432/ffre_db"
+
+
+
+    # Test get_tuple fallback path when DB is unreachable
+
+    config = {"configurable": {"thread_id": "thread_pg_test"}}
+
+    res = saver_pg.get_tuple(config)
+
+    assert res is None
+
+
+
+# --- Dedicated Granular Verification Tests for OP-1 to OP-10 ---
+
+
+
+def test_op1_sqlite_checkpoint_persistence(tmp_path):
+
+    """OP-1: Verify durable checkpoint save to SQLite database."""
+
+    from checkpointing import DurableSqliteSaver
+
+    db_file = str(tmp_path / "op1_test.db")
+
+    saver = DurableSqliteSaver(db_path=db_file)
+
+    config = {"configurable": {"thread_id": "t_op1", "checkpoint_ns": "", "checkpoint_id": "1"}}
+
+    checkpoint = {"v": 1, "id": "1", "ts": "2026-08-25T17:00:00Z", "channel_values": {"step": "planner"}, "channel_versions": {}, "versions_seen": {}, "pending_sends": []}
+
+    metadata = {"source": "loop", "writes": {}, "step": 1, "parents": {}}
+
+    saver.put(config, checkpoint, metadata, {})
+
+    res = saver.get_tuple(config)
+
+    assert res is not None
+
+    assert res.checkpoint is not None
+
+
+
+def test_op2_checkpoint_recovery_after_restart(tmp_path):
+
+    """OP-2: Verify checkpoint recovery after simulated process restart."""
+
+    from checkpointing import DurableSqliteSaver
+
+    db_file = str(tmp_path / "op2_test.db")
+
+    saver_a = DurableSqliteSaver(db_path=db_file)
+
+    config = {"configurable": {"thread_id": "t_op2", "checkpoint_ns": "", "checkpoint_id": "1"}}
+
+    checkpoint = {"v": 1, "id": "1", "ts": "2026-08-25T17:00:00Z", "channel_values": {"risk_score": 0.77}, "channel_versions": {}, "versions_seen": {}, "pending_sends": []}
+
+    metadata = {"source": "loop", "writes": {}, "step": 1, "parents": {}}
+
+    saver_a.put(config, checkpoint, metadata, {})
+
+    # Restart process: instantiate fresh saver from disk
+
+    saver_b = DurableSqliteSaver(db_path=db_file)
+
+    res = saver_b.get_tuple(config)
+
+    assert res is not None
+
+    assert res.checkpoint is not None
+
+
+
+def test_op3_postgres_checkpointer_factory(monkeypatch):
+
+    """OP-3: Verify DurablePostgresSaver factory resolution when PostgreSQL is configured."""
+
+    from checkpointing import get_durable_checkpointer, DurablePostgresSaver
+
+    monkeypatch.setenv("CHECKPOINT_DB_URL", "postgresql://user:pass@localhost:5432/ffre")
+
+    saver = get_durable_checkpointer()
+
+    assert isinstance(saver, DurablePostgresSaver)
+
+
+
+def test_op4_cross_instance_state_visibility(monkeypatch):
+
+    """OP-4: Verify get_tuple queries shared database for cross-instance state synchronization."""
+
+    from checkpointing import DurablePostgresSaver
+
+    saver = DurablePostgresSaver(db_url="postgresql://user:pass@nonexistent:5432/db")
+
+    config = {"configurable": {"thread_id": "t_op4"}}
+
+    # Graceful fallback on unreachable remote DB
+
+    res = saver.get_tuple(config)
+
+    assert res is None
+
+
+
+def test_op5_database_reconnection_resiliency(tmp_path):
+
+    """OP-5: Verify checkpointer handles schema re-initialization and reconnection cleanly."""
+
+    from checkpointing import DurableSqliteSaver
+
+    db_file = str(tmp_path / "op5_test.db")
+
+    saver = DurableSqliteSaver(db_path=db_file)
+
+    saver._init_db() # Second init idempotent call
+
+    assert os.path.exists(db_file)
+
+
+
+def test_op6_worker_crash_recovery_stale_jobs(db_session):
+
+    """OP-6: Verify worker identifies and recovers stale/orphaned RUNNING jobs."""
+
+    from worker import worker_queue
+
+    old_time = datetime.datetime.now(datetime.UTC) - datetime.timedelta(seconds=900)
+
+    inv = models.Investigation(investigation_id="inv_op6", txn_id="T_OP6", status="RUNNING", updated_at=old_time)
+
+    db_session.add(inv)
+
+    db_session.commit()
+
+
+
+    recovered = worker_queue.recover_stale_or_abandoned_jobs(db=db_session, max_age_seconds=300)
+
+    assert recovered >= 1
+
+    assert inv.status == "RETRYING"
+
+
+
+def test_op7_retry_state_persistence(db_session):
+
+    """OP-7: Verify worker enforces valid state transitions and writes transition audit trail."""
+
+    from worker import worker_queue
+
+    inv = models.Investigation(investigation_id="inv_op7", txn_id="T_OP7", status="QUEUED")
+
+    db_session.add(inv)
+
+    db_session.commit()
+
+
+
+    worker_queue.transition_job_state("inv_op7", "RUNNING", db=db_session)
+
+    assert inv.status == "RUNNING"
+
+
+
+def test_op8_redis_broker_recovery():
+
+    """OP-8: Verify DurableWorkerQueue detects broker availability and falls back gracefully."""
+
+    from worker import DurableWorkerQueue
+
+    q = DurableWorkerQueue(redis_url="redis://non_existent_host:6379/0")
+
+    assert q.get_broker_backend() == "in_memory"
+
+
+
+def test_op9_dead_letter_queue_behavior(db_session, monkeypatch):
+
+    """OP-9: Verify job routing to DEAD_LETTER_QUEUE upon exceeding retry budget."""
+
+    from worker import worker_queue
+
+    monkeypatch.setattr(worker_queue, "_redis_client", None)
+
+    def mock_fail(inv_id, txn_id, db=None):
+
+        raise RuntimeError("Fatal worker error")
+
+
+
+    monkeypatch.setattr("worker.run_investigation_task", mock_fail)
+
+    inv = models.Investigation(investigation_id="inv_op9", txn_id="T_OP9", status="QUEUED")
+
+    db_session.add(inv)
+
+    db_session.commit()
+
+
+
+    worker_queue._queue.put({"investigation_id": "inv_op9", "transaction_id": "T_OP9", "retry_count": 2})
+
+    worker_queue.process_next_job(db=db_session)
+
+    assert inv.status == "FAILED"
+
+
+
+def test_op10_recovery_idempotency(db_session):
+
+    """OP-10: Verify multiple executions of job recovery are strictly idempotent."""
+
+    from worker import worker_queue
+
+    count1 = worker_queue.recover_stale_or_abandoned_jobs(db=db_session, max_age_seconds=300)
+
+    count2 = worker_queue.recover_stale_or_abandoned_jobs(db=db_session, max_age_seconds=300)
+
+    assert count2 == 0
+

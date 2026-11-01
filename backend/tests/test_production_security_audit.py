@@ -222,5 +222,5 @@ def test_versioned_migrations_idempotency_and_advisory_locking():
     with engine.connect() as conn:
         applied = migrations.get_applied_versions(conn)
         assert len(applied) >= 7, f"Expected at least 7 migrations applied, got {len(applied)}"
-        assert sorted(applied) == list(range(1, 8))
+        assert sorted(applied) == list(range(1, len(migrations.MIGRATIONS) + 1))
 

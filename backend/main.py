@@ -49,69 +49,7 @@ from cryptography.exceptions import InvalidSignature
 
 
 
-# --- Ed25519 Verifier Asymmetric Cryptography Manager ---
-
-_verifier_private_key = None
-
-_verifier_public_key = None
-
-
-
-def get_verifier_keys():
-
-    global _verifier_private_key, _verifier_public_key
-
-    if _verifier_private_key is not None:
-
-        return _verifier_private_key, _verifier_public_key
-
-
-
-    pem_str = os.getenv("VERIFIER_PRIVATE_KEY_PEM")
-
-    if pem_str:
-
-        try:
-
-            _verifier_private_key = serialization.load_pem_private_key(
-
-                pem_str.encode("utf-8"),
-
-                password=None
-
-            )
-
-            _verifier_public_key = _verifier_private_key.public_key()
-
-            return _verifier_private_key, _verifier_public_key
-
-        except Exception as e:
-
-            raise RuntimeError(f"Failed to load VERIFIER_PRIVATE_KEY_PEM: {e}")
-
-
-
-    strict = (
-
-        os.getenv("STRICT_ENTERPRISE_MODE", "false").lower() == "true" or
-
-        os.getenv("ENVIRONMENT") == "production" or
-
-        os.getenv("ENV") == "production"
-
-    )
-
-    if strict:
-
-        raise RuntimeError("STRICT_ENTERPRISE_MODE: VERIFIER_PRIVATE_KEY_PEM is required in production. Ephemeral dev keys are prohibited.")
-
-
-
-    _verifier_private_key = ed25519.Ed25519PrivateKey.generate()
-
-    _verifier_public_key = _verifier_private_key.public_key()
-
-    return _verifier_private_key, _verifier_public_key
+from security import get_verifier_keys
 
 
 
@@ -551,6 +489,10 @@ class ReplaySnapshotResponse(BaseModel):
 
     digital_signature: Optional[str] = None
 
+    signature_algorithm: Optional[str] = None
+
+    signing_key_id: Optional[str] = None
+
     investigation: Dict[str, Any]
 
     transaction: Optional[Dict[str, Any]] = None
@@ -625,13 +567,44 @@ class AuditChainResponse(BaseModel):
 
 class Token(BaseModel):
 
-    access_token: str
+    access_token: Optional[str] = None
 
-    token_type: str
+    token_type: Optional[str] = "bearer"
 
     refresh_token: Optional[str] = None
 
     tenant_id: Optional[str] = "default_tenant"
+
+    mfa_required: Optional[bool] = False
+
+    mfa_ticket: Optional[str] = None
+
+    masked_phone: Optional[str] = None
+
+    message: Optional[str] = None
+
+
+class MFALoginVerifyRequest(BaseModel):
+    mfa_ticket: str
+    code: str
+
+
+class MFASetupRequest(BaseModel):
+    phone_number: str
+
+
+class MFACodeVerifyRequest(BaseModel):
+    code: str
+
+
+class MFAStatusResponse(BaseModel):
+    mfa_enabled: bool
+    masked_phone: Optional[str] = None
+
+
+class TestAlertSMSRequest(BaseModel):
+    recipient_phone: Optional[str] = None
+    message: Optional[str] = None
 
 
 
@@ -727,7 +700,9 @@ class InvitationResponse(BaseModel):
 
     invitation_id: str
 
-    token: str
+    token: Optional[str] = None
+
+    token_hash: Optional[str] = None
 
     tenant_id: str
 
@@ -1117,6 +1092,21 @@ def run_investigation_task(investigation_id: str, transaction_id: str, db: Optio
 
                 investigation.status = "COMPLETED"
 
+            # Critical Incident Escalation SMS Alert (Twilio Integration)
+            if investigation.status == "ESCALATED" or (result.get("risk_score") is not None and float(result.get("risk_score") or 0.0) >= 0.70):
+                try:
+                    from twilio_service import twilio_service
+                    reasons = result.get("degraded_reasons") or ["Risk threshold exceeded or high-severity typology alert"]
+                    twilio_service.send_critical_escalation_alert(
+                        investigation_id=investigation_id,
+                        risk_score=float(result.get("risk_score") or 0.0),
+                        triggers=reasons,
+                        tenant_id=getattr(investigation, "tenant_id", "default_tenant"),
+                        db=db
+                    )
+                except Exception as _alert_exc:
+                    logging.getLogger("ffire.alerts").warning(f"Twilio alert dispatch error: {_alert_exc}")
+
 
 
             if result.get("risk_score") is not None:
@@ -1297,13 +1287,7 @@ def register_user(user: UserCreate, request: Request, db: Session = Depends(get_
 
         invitation = db.query(models.TenantInvitation).filter(
 
-            or_(
-
-                models.TenantInvitation.token_hash == token_hash,
-
-                models.TenantInvitation.token == token_clean
-
-            )
+            models.TenantInvitation.token_hash == token_hash
 
         ).first()
 
@@ -1450,6 +1434,134 @@ def register_user(user: UserCreate, request: Request, db: Session = Depends(get_
     )
 
     return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer", "tenant_id": tenant}
+
+@app.post("/api/v1/auth/mfa/verify", response_model=Token)
+def verify_mfa_login(payload: MFALoginVerifyRequest, db: Session = Depends(get_db)):
+    """Complete 2FA login verification using Twilio SMS OTP code."""
+    from twilio_service import twilio_service
+    user_id = twilio_service.verify_mfa_ticket(payload.mfa_ticket)
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired MFA session ticket. Please log in again."
+        )
+
+    is_valid = twilio_service.verify_mfa_code(user_id, payload.code)
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid verification code. Please check your SMS and try again."
+        )
+
+    user = db.query(models.User).filter(models.User.user_id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User account not found.")
+
+    tenant = getattr(user, "tenant_id", "default_tenant")
+    access_token_expires = datetime.timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = auth.create_access_token(
+        data={"sub": user.email, "role": user.role, "tenant_id": tenant}, expires_delta=access_token_expires
+    )
+    refresh_token = auth.create_refresh_token(
+        data={"sub": user.email, "role": user.role, "tenant_id": tenant}
+    )
+    return Token(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer",
+        tenant_id=tenant,
+        mfa_required=False
+    )
+
+
+@app.get("/api/v1/auth/mfa/status", response_model=MFAStatusResponse)
+def get_user_mfa_status(current_user: models.User = Depends(auth.get_current_user)):
+    """Check MFA configuration status for the authenticated user."""
+    phone = current_user.phone_number
+    masked = None
+    if phone and len(phone) > 4:
+        masked = phone[:2] + "•" * (len(phone) - 6) + phone[-4:]
+    return MFAStatusResponse(
+        mfa_enabled=getattr(current_user, "mfa_enabled", False),
+        masked_phone=masked
+    )
+
+
+@app.post("/api/v1/auth/mfa/setup")
+def setup_user_mfa(
+    payload: MFASetupRequest,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Initiates SMS MFA registration by sending an initial verification code."""
+    from twilio_service import twilio_service
+    clean_phone = payload.phone_number.strip()
+    
+    user_record = db.query(models.User).filter(models.User.user_id == current_user.user_id).first()
+    if user_record:
+        user_record.phone_number = clean_phone
+    else:
+        current_user.phone_number = clean_phone
+        db.add(current_user)
+        user_record = current_user
+    db.commit()
+
+    masked_phone, _ = twilio_service.generate_and_send_mfa_code(user_record.user_id, clean_phone)
+    return {
+        "status": "pending_verification",
+        "masked_phone": masked_phone,
+        "message": f"Verification code sent via SMS to {masked_phone}."
+    }
+
+
+@app.post("/api/v1/auth/mfa/enable")
+def enable_user_mfa(
+    payload: MFACodeVerifyRequest,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Verifies SMS code and activates mandatory MFA for this account."""
+    from twilio_service import twilio_service
+    user_record = db.query(models.User).filter(models.User.user_id == current_user.user_id).first() or current_user
+    if not user_record.phone_number:
+        raise HTTPException(status_code=400, detail="Phone number must be registered before enabling MFA.")
+
+    is_valid = twilio_service.verify_mfa_code(user_record.user_id, payload.code)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail="Invalid verification code.")
+
+    user_record.mfa_enabled = True
+    db.commit()
+    return {"status": "enabled", "message": "SMS Multi-Factor Authentication enabled successfully."}
+
+
+@app.post("/api/v1/auth/mfa/disable")
+def disable_user_mfa(
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Deactivates MFA for the authenticated user."""
+    user_record = db.query(models.User).filter(models.User.user_id == current_user.user_id).first() or current_user
+    user_record.mfa_enabled = False
+    db.commit()
+    return {"status": "disabled", "message": "SMS Multi-Factor Authentication disabled."}
+
+
+@app.post("/api/v1/admin/alerts/test-sms")
+def test_twilio_sms_alert(
+    payload: TestAlertSMSRequest,
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Test administrative dispatch of Twilio SMS notifications."""
+    if getattr(current_user, "role", "") not in ("admin", "administrator"):
+        raise HTTPException(status_code=403, detail="Administrative privileges required.")
+
+    from twilio_service import twilio_service
+    target = payload.recipient_phone or twilio_service.alert_phone or "+15005550006"
+    msg = payload.message or "[FFIRE TEST ALERT] Verification of Twilio SMS alerting connectivity."
+    res = twilio_service.send_sms(target, msg)
+    return {"status": "success", "result": res}
+
 
 
 
@@ -1635,7 +1747,7 @@ def create_tenant_invitation(
 
     inv = models.TenantInvitation(
 
-        token=token,
+        token=None,
 
         token_hash=token_hash,
 
@@ -1667,7 +1779,9 @@ def create_tenant_invitation(
 
         invitation_id=inv.invitation_id,
 
-        token=inv.token,
+        token=token,
+
+        token_hash=token_hash,
 
         tenant_id=inv.tenant_id,
 
@@ -1725,7 +1839,9 @@ def list_tenant_invitations(
 
             invitation_id=inv.invitation_id,
 
-            token=inv.token,
+            token=None,
+
+            token_hash=inv.token_hash,
 
             tenant_id=inv.tenant_id,
 
@@ -1828,6 +1944,20 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
         )
 
     tenant = getattr(user, "tenant_id", "default_tenant")
+
+    # SMS Multi-Factor Authentication check
+    if getattr(user, "mfa_enabled", False) and getattr(user, "phone_number", None):
+        try:
+            from twilio_service import twilio_service
+            masked_phone, mfa_ticket = twilio_service.generate_and_send_mfa_code(user.user_id, user.phone_number)
+            return Token(
+                mfa_required=True,
+                mfa_ticket=mfa_ticket,
+                masked_phone=masked_phone,
+                message=f"Two-factor authentication code sent via SMS to {masked_phone}."
+            )
+        except Exception as exc:
+            logging.getLogger("ffire.auth").warning(f"Failed to initiate SMS MFA: {exc}")
 
     access_token_expires = datetime.timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
 
@@ -3945,11 +4075,11 @@ def generate_replay_snapshot(inv: models.Investigation, db: Session) -> Tuple[Di
 
             "model_version": "1.0.0",
 
-            "artifact_sha256": (lambda mid: (lambda m: m.get("models", {}).get(mid, {}).get("sha256", "e2c7da3fec070c8ddfe45fa62521e8dc33343da647ec55c52302a740b9785d39"))(
+            "artifact_sha256": (lambda: (lambda p: hashlib.sha256(open(p, "rb").read()).hexdigest() if os.path.exists(p) else "e2c7da3fec070c8ddfe45fa62521e8dc33343da647ec55c52302a740b9785d39")(
 
-                (lambda: (lambda r: r._load_manifest())(__import__("ml.registry", fromlist=["ModelRegistry"]).ModelRegistry()) if hasattr(inv, "investigation_id") else {})()
+                os.path.join(os.path.dirname(os.path.abspath(__file__)), "ml", "model_store", "lightgbm_fraud_detector_v1.joblib")
 
-            ))(getattr(inv, "ml_model_id", None) or "lightgbm_fraud_detector_v1"),
+            ))(),
 
             "calibration_method": "Platt Sigmoid Calibration"
 
@@ -3987,21 +4117,17 @@ def generate_replay_snapshot(inv: models.Investigation, db: Session) -> Tuple[Di
 
 
 
-    # 6. Compute cryptographic HMAC-SHA256 digital signature over the bundle
+    # 6. Compute cryptographic asymmetric Ed25519 digital signature over the bundle
 
-    signing_key = os.getenv("REPLAY_SIGNING_KEY", os.getenv("SECRET_KEY", "ffre-replay-signing-root-key"))
+    priv_key, _ = get_verifier_keys()
+
+    snapshot["signature_algorithm"] = "Ed25519"
+
+    snapshot["signing_key_id"] = "verifier-ed25519-v1"
 
     pre_repr = json.dumps(snapshot, sort_keys=True, separators=(',', ':'))
 
-    digital_signature = hmac.new(
-
-        signing_key.encode("utf-8"),
-
-        pre_repr.encode("utf-8"),
-
-        hashlib.sha256
-
-    ).hexdigest()
+    digital_signature = priv_key.sign(pre_repr.encode("utf-8")).hex()
 
     snapshot["digital_signature"] = digital_signature
 
@@ -4163,7 +4289,11 @@ def verify_replay_snapshot(
 
     provided_sig = payload_copy.get("digital_signature")
 
-    if provided_sig:
+    if not provided_sig:
+
+        mismatches.append("Missing mandatory 'digital_signature' on sealed replay bundle.")
+
+    else:
 
         pre_copy = dict(payload_copy)
 
@@ -4171,13 +4301,29 @@ def verify_replay_snapshot(
 
         pre_repr = json.dumps(pre_copy, sort_keys=True, separators=(',', ':'))
 
-        signing_key = os.getenv("REPLAY_SIGNING_KEY", os.getenv("SECRET_KEY", "ffre-replay-signing-root-key"))
+        sig_algo = snapshot.get("signature_algorithm")
 
-        computed_sig = hmac.new(signing_key.encode("utf-8"), pre_repr.encode("utf-8"), hashlib.sha256).hexdigest()
+        if sig_algo == "Ed25519" or len(provided_sig) == 128:
 
-        if not hmac.compare_digest(provided_sig, computed_sig):
+            try:
 
-            mismatches.append("HMAC digital signature validation failed: bundle has been modified or resigned with unauthorized key")
+                _, verifier_pub = get_verifier_keys()
+
+                verifier_pub.verify(bytes.fromhex(provided_sig), pre_repr.encode("utf-8"))
+
+            except Exception as e:
+
+                mismatches.append(f"Ed25519 digital signature validation failed: {e}")
+
+        else:
+
+            signing_key = os.getenv("REPLAY_SIGNING_KEY", os.getenv("SECRET_KEY", "ffre-replay-signing-root-key"))
+
+            computed_sig = hmac.new(signing_key.encode("utf-8"), pre_repr.encode("utf-8"), hashlib.sha256).hexdigest()
+
+            if not hmac.compare_digest(provided_sig, computed_sig):
+
+                mismatches.append("Digital signature validation failed: bundle has been modified or resigned with unauthorized key")
 
 
 
@@ -4350,51 +4496,35 @@ def get_investigation_audit_chain(
 
 
 @app.patch("/api/v1/investigations/{investigation_id}", response_model=InvestigationResponse)
-
-def update_investigation(
-
+async def update_investigation(
     investigation_id: str,
-
+    request: Request,
     status: Optional[str] = None,
-
     db: Session = Depends(get_db),
-
     current_user: models.User = Depends(auth.check_permissions("investigator"))
-
 ):
-
     """
-
     Update an investigation.
-
-
-
-    Currently supports updating the status field.
-
-    In a full implementation, this could support updating other fields as well.
-
-
-
+    Currently supports updating the status field via query params or JSON body.
     Requires investigator role or higher.
-
     """
+    if status is None:
+        try:
+            body = await request.json()
+            if isinstance(body, dict):
+                status = body.get("status")
+        except Exception:
+            pass
 
     inv = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
-
     if not inv:
-
         raise HTTPException(status_code=404, detail="Investigation not found")
 
     enforce_tenant_isolation(current_user, inv)
 
-
-
     # Update fields if provided
-
     if status is not None:
-
         # Validate status transition (optional - could be more comprehensive)
-
         valid_statuses = ["RUNNING", "COMPLETED", "ESCALATED", "FAILED", "CLOSED_APPROVE", "CLOSED_REJECT"]
 
         if status not in valid_statuses:
@@ -4410,6 +4540,20 @@ def update_investigation(
         inv.status = status
 
 
+
+        # Trigger Twilio SMS alert on escalation
+        if status == "ESCALATED":
+            try:
+                from twilio_service import twilio_service
+                twilio_service.send_critical_escalation_alert(
+                    investigation_id=inv.investigation_id,
+                    risk_score=float(inv.risk_score or 0.0),
+                    triggers=[f"Manual investigator escalation by {current_user.name}"],
+                    tenant_id=getattr(inv, "tenant_id", "default_tenant"),
+                    db=db
+                )
+            except Exception as _alert_exc:
+                logging.getLogger("ffire.alerts").warning(f"Twilio alert dispatch error: {_alert_exc}")
 
         # Add audit log entry for the status change
 
@@ -7595,11 +7739,11 @@ def get_prometheus_metrics():
 
         "# TYPE ffre_investigation_duration_seconds gauge",
 
-        f"ffre_investigation_duration_seconds{{quantile=\"0.50\"}} {stats.get('median', 0.0)}",
+        f"ffre_investigation_duration_seconds{{quantile=\"0.50\"}} {round(float(stats.get('median', 0.0)), 6)}",
 
-        f"ffre_investigation_duration_seconds{{quantile=\"0.95\"}} {stats.get('p95', 0.0)}",
+        f"ffre_investigation_duration_seconds{{quantile=\"0.95\"}} {round(float(stats.get('p95', 0.0)), 6)}",
 
-        f"ffre_investigation_duration_seconds{{quantile=\"0.99\"}} {stats.get('p99', 0.0)}",
+        f"ffre_investigation_duration_seconds{{quantile=\"0.99\"}} {round(float(stats.get('p99', 0.0)), 6)}",
 
         "# HELP ffre_investigations_total Total count of investigations by status",
 
@@ -7627,7 +7771,7 @@ def get_prometheus_metrics():
 
         "# TYPE ffre_llm_cost_usd_total counter",
 
-        f"ffre_llm_cost_usd_total {llm_stats.get('total_cost_usd', 0.0)}",
+        f"ffre_llm_cost_usd_total {round(float(llm_stats.get('total_cost_usd', 0.0)), 6)}",
 
         "# HELP ffre_llm_calls_total Total count of LLM invocations",
 
@@ -7639,11 +7783,11 @@ def get_prometheus_metrics():
 
         "# TYPE ffre_llm_call_duration_seconds gauge",
 
-        f"ffre_llm_call_duration_seconds{{quantile=\"0.50\"}} {lat_stats.get('median', 0.0) / 1000.0}",
+        f"ffre_llm_call_duration_seconds{{quantile=\"0.50\"}} {round(float(lat_stats.get('median', 0.0)) / 1000.0, 6)}",
 
-        f"ffre_llm_call_duration_seconds{{quantile=\"0.95\"}} {lat_stats.get('p95', 0.0) / 1000.0}",
+        f"ffre_llm_call_duration_seconds{{quantile=\"0.95\"}} {round(float(lat_stats.get('p95', 0.0)) / 1000.0, 6)}",
 
-        f"ffre_llm_call_duration_seconds{{quantile=\"0.99\"}} {lat_stats.get('p99', 0.0) / 1000.0}"
+        f"ffre_llm_call_duration_seconds{{quantile=\"0.99\"}} {round(float(lat_stats.get('p99', 0.0)) / 1000.0, 6)}"
 
     ]
 
@@ -8133,19 +8277,77 @@ def verify_verifier_attestation(payload: VerifyAttestationRequest):
 
     try:
 
+        _, active_pub = get_verifier_keys()
+
+        active_hex = active_pub.public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw).hex().lower()
+
+        trusted_keys = {active_hex}
+
+        extra_keys = os.getenv("TRUSTED_VERIFIER_PUBLIC_KEYS", "")
+
+        if extra_keys:
+
+            for k in extra_keys.split(","):
+
+                if k.strip():
+
+                    trusted_keys.add(k.strip().lower())
+
+
+
         if payload.public_key_hex:
 
-            pub_bytes = bytes.fromhex(payload.public_key_hex.strip())
+            cand_hex = payload.public_key_hex.strip().lower()
 
-            verifier_pub = ed25519.Ed25519PublicKey.from_public_bytes(pub_bytes)
+            if cand_hex not in trusted_keys:
+
+                return VerifyAttestationResponse(
+
+                    is_valid=False,
+
+                    tamper_detected=True,
+
+                    computed_signature="UNTRUSTED_KEY",
+
+                    expected_signature=payload.signature,
+
+                    canonical_payload=canonical,
+
+                    detail="Attestation rejected: provided public key is not trusted by FFRE verifier keyring."
+
+                )
+
+            verifier_pub = ed25519.Ed25519PublicKey.from_public_bytes(bytes.fromhex(cand_hex))
 
         elif payload.public_key_pem:
 
-            verifier_pub = serialization.load_pem_public_key(payload.public_key_pem.encode("utf-8"))
+            loaded_key = serialization.load_pem_public_key(payload.public_key_pem.encode("utf-8"))
+
+            loaded_hex = loaded_key.public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw).hex().lower()
+
+            if loaded_hex not in trusted_keys:
+
+                return VerifyAttestationResponse(
+
+                    is_valid=False,
+
+                    tamper_detected=True,
+
+                    computed_signature="UNTRUSTED_KEY",
+
+                    expected_signature=payload.signature,
+
+                    canonical_payload=canonical,
+
+                    detail="Attestation rejected: provided PEM public key is not trusted by FFRE verifier keyring."
+
+                )
+
+            verifier_pub = loaded_key
 
         else:
 
-            _, verifier_pub = get_verifier_keys()
+            verifier_pub = active_pub
 
 
 

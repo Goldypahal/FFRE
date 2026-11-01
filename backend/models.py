@@ -23,6 +23,8 @@ class User(Base):
     status = Column(String(20), nullable=False, default="active")
     last_login = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    _phone_number = Column("phone_number", String(255), nullable=True)
+    mfa_enabled = Column(Boolean, default=False, nullable=False)
 
     @hybrid_property
     def name(self):
@@ -44,6 +46,14 @@ class User(Base):
         else:
             self._email = None
             self.email_hash = None
+
+    @hybrid_property
+    def phone_number(self):
+        return security.decrypt_data(self._phone_number) if self._phone_number else None
+
+    @phone_number.setter
+    def phone_number(self, value):
+        self._phone_number = security.encrypt_data(value) if value else None
 
 class Customer(Base):
     __tablename__ = "customer"
@@ -223,6 +233,39 @@ class AuditLog(Base):
         import hashlib
         payload = f"{prev_hash or 'GENESIS'}|{log_id}|{action}|{timestamp_str}|{details or ''}"
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    @classmethod
+    def create_chained_entry(cls, db: Any, tenant_id: str, investigation_id: Optional[str], action: str, details: Optional[str] = "") -> "AuditLog":
+        """Creates and persists an AuditLog entry linked to the latest previous entry for the tenant/investigation."""
+        query = db.query(cls).filter(cls.tenant_id == tenant_id)
+        if investigation_id:
+            query = query.filter(cls.investigation_id == investigation_id)
+        prev_entry = query.order_by(cls.timestamp.desc()).first()
+        prev_hash = prev_entry.entry_hash if prev_entry and prev_entry.entry_hash else (prev_entry.previous_hash if prev_entry else None)
+
+        now = datetime.datetime.utcnow()
+        new_log_id = generate_uuid()
+        entry_hash = cls.calculate_entry_hash(
+            prev_hash=prev_hash,
+            log_id=new_log_id,
+            action=action,
+            timestamp_str=now.isoformat(),
+            details=details,
+        )
+
+        entry = cls(
+            log_id=new_log_id,
+            tenant_id=tenant_id,
+            investigation_id=investigation_id,
+            action=action,
+            details=details,
+            timestamp=now,
+            previous_hash=prev_hash,
+            entry_hash=entry_hash,
+        )
+        db.add(entry)
+        db.commit()
+        return entry
 
     @classmethod
     def order_chain(cls, logs: Sequence[Any]) -> List[Any]:
@@ -556,8 +599,8 @@ class TenantInvitation(Base):
     __tablename__ = "tenant_invitations"
 
     invitation_id = Column(String(64), primary_key=True, default=generate_uuid)
-    token = Column(String(128), unique=True, index=True, nullable=True)
-    token_hash = Column(String(64), unique=True, index=True, nullable=True)
+    token = Column(String(128), unique=False, index=False, nullable=True)  # Deprecated legacy column, never populated at rest
+    token_hash = Column(String(64), unique=True, index=True, nullable=False)
     tenant_id = Column(String(50), nullable=False, index=True)
     email = Column(String(255), nullable=True)
     role = Column(String(50), nullable=False, default="investigator")
