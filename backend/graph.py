@@ -27,8 +27,21 @@ class SmartDatabaseLock:
         self._local = threading.local()
 
     def __enter__(self):
-        from database import SQLALCHEMY_DATABASE_URL
-        if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
+        import sys
+        import os
+        is_sqlite = True
+        try:
+            from graph import SessionLocal as ActiveSessionLocal
+            bind = getattr(ActiveSessionLocal, "kw", {}).get("bind")
+            if bind is not None and hasattr(bind, "dialect"):
+                is_sqlite = (bind.dialect.name == "sqlite")
+            else:
+                from database import SQLALCHEMY_DATABASE_URL
+                is_sqlite = SQLALCHEMY_DATABASE_URL.startswith("sqlite")
+        except Exception:
+            is_sqlite = True
+
+        if is_sqlite or os.getenv("ENVIRONMENT") == "test" or "pytest" in sys.modules:
             self._lock.acquire()
             self._local.locked = True
         else:

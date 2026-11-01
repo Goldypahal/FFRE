@@ -15,12 +15,12 @@ from graph import (
 
 def test_acceptance_test_a_dynamic_planner_execution(db_session):
     """Task 1 & Task 2 Test: Dynamic Planner Selection & Node Execution Trace Assertions."""
-    cust = models.Customer(customer_id="c_e2e_a", name="Dynamic Customer", kyc_status="VERIFIED")
-    acct = models.Account(account_id="a_e2e_a", customer_id="c_e2e_a")
-    merch = models.Merchant(merchant_id="m_e2e_a", name="Dynamic Merchant", risk_score=0.01)
-    txn = models.Transaction(txn_id="T-E2E-A", account_id="a_e2e_a", merchant_id="m_e2e_a", amount=150.0, currency="USD", status="PENDING")
-    dev = models.Device(device_id="d_e2e_a", customer_id="c_e2e_a", os="Android")
-    inv = models.Investigation(investigation_id="inv_e2e_a", txn_id="T-E2E-A", status="QUEUED")
+    cust = models.Customer(customer_id="c_e2e_a", name="Dynamic Customer", kyc_status="VERIFIED", tenant_id="default_tenant")
+    acct = models.Account(account_id="a_e2e_a", customer_id="c_e2e_a", tenant_id="default_tenant")
+    merch = models.Merchant(merchant_id="m_e2e_a", name="Dynamic Merchant", risk_score=0.01, tenant_id="default_tenant")
+    txn = models.Transaction(txn_id="T-E2E-A", account_id="a_e2e_a", merchant_id="m_e2e_a", amount=150.0, currency="USD", status="PENDING", tenant_id="default_tenant")
+    dev = models.Device(device_id="d_e2e_a", customer_id="c_e2e_a", os="Android", tenant_id="default_tenant")
+    inv = models.Investigation(investigation_id="inv_e2e_a", txn_id="T-E2E-A", status="QUEUED", tenant_id="default_tenant")
 
     db_session.add_all([cust, acct, merch, txn, dev, inv])
     db_session.commit()
@@ -28,6 +28,7 @@ def test_acceptance_test_a_dynamic_planner_execution(db_session):
     initial_state = {
         "investigation_id": "inv_e2e_a",
         "transaction_id": "T-E2E-A",
+        "tenant_id": "default_tenant",
         "tasks": ["retrieve_customer", "retrieve_device"],
         "customer_evidence": {},
         "transaction_evidence": {},
