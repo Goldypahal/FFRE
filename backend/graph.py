@@ -545,17 +545,18 @@ def velocity_check_node(state: AgentState):
                         Transaction.account_id == account_id,
                         Transaction.timestamp >= t_7d
                     ).all()
+
+                # Extract decimal values before closing session to prevent detached-instance race conditions
+                s_5m_dec = sum([Decimal(str(t.amount)) for t in txns_5m], Decimal("0.00"))
+                c_5m = len(txns_5m)
+                s_1h_dec = sum([Decimal(str(t.amount)) for t in txns_1h], Decimal("0.00"))
+                c_1h = len(txns_1h)
+                s_24h_dec = sum([Decimal(str(t.amount)) for t in txns_24h], Decimal("0.00"))
+                c_24h = len(txns_24h)
+                s_7d_dec = sum([Decimal(str(t.amount)) for t in txns_7d], Decimal("0.00"))
+                c_7d = len(txns_7d)
             finally:
                 db.close()
-
-        c_5m = len(txns_5m)
-        s_5m_dec = sum([Decimal(str(t.amount)) for t in txns_5m], Decimal("0.00"))
-        c_1h = len(txns_1h)
-        s_1h_dec = sum([Decimal(str(t.amount)) for t in txns_1h], Decimal("0.00"))
-        c_24h = len(txns_24h)
-        s_24h_dec = sum([Decimal(str(t.amount)) for t in txns_24h], Decimal("0.00"))
-        c_7d = len(txns_7d)
-        s_7d_dec = sum([Decimal(str(t.amount)) for t in txns_7d], Decimal("0.00"))
 
         s_5m, s_1h, s_24h, s_7d = float(s_5m_dec), float(s_1h_dec), float(s_24h_dec), float(s_7d_dec)
 

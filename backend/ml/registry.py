@@ -1,3 +1,4 @@
+import threading
 """
 Model Registry & Artifact Persistence for Fraud Models (Phase 2).
 
@@ -21,6 +22,9 @@ def compute_file_sha256(filepath: str) -> str:
         while chunk := f.read(65536):
             hasher.update(chunk)
     return hasher.hexdigest()
+
+
+_model_load_lock = threading.RLock()
 
 
 class ModelRegistry:
@@ -157,7 +161,8 @@ class ModelRegistry:
                 f"Expected: {expected_hash}, Actual: {actual_hash}"
             )
 
-        model = joblib.load(artifact_path)
+        with _model_load_lock:
+            model = joblib.load(artifact_path)
         return model, meta
 
     def get_production_model(self) -> Optional[Tuple[Any, Dict[str, Any]]]:

@@ -20,16 +20,16 @@ engine_kwargs = {}
 if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
     engine_kwargs["connect_args"] = {"check_same_thread": False, "timeout": 60.0}
     engine_kwargs["poolclass"] = QueuePool
-    engine_kwargs["pool_size"] = int(os.getenv("DB_POOL_SIZE", "30"))
-    engine_kwargs["max_overflow"] = int(os.getenv("DB_MAX_OVERFLOW", "20"))
+    engine_kwargs["pool_size"] = int(os.getenv("DB_POOL_SIZE", "20"))
+    engine_kwargs["max_overflow"] = int(os.getenv("DB_MAX_OVERFLOW", "10"))
 else:
     # Production PostgreSQL / TimescaleDB Enterprise Pooling (Chapter 48)
     # Calibrated production connection budget: default 10 connections + 5 overflow per worker
     # Across 4 Uvicorn workers: 4 * 15 = 60 max connections, comfortably within PostgreSQL 100-connection limit.
     engine_kwargs["poolclass"] = QueuePool
-    engine_kwargs["pool_size"] = int(os.getenv("DB_POOL_SIZE", "30"))
-    engine_kwargs["max_overflow"] = int(os.getenv("DB_MAX_OVERFLOW", "20"))
-    engine_kwargs["pool_timeout"] = int(os.getenv("DB_POOL_TIMEOUT", "60"))
+    engine_kwargs["pool_size"] = int(os.getenv("DB_POOL_SIZE", "20"))
+    engine_kwargs["max_overflow"] = int(os.getenv("DB_MAX_OVERFLOW", "10"))
+    engine_kwargs["pool_timeout"] = int(os.getenv("DB_POOL_TIMEOUT", "30"))
     engine_kwargs["pool_recycle"] = int(os.getenv("DB_POOL_RECYCLE", "1800"))
     engine_kwargs["pool_pre_ping"] = True
 

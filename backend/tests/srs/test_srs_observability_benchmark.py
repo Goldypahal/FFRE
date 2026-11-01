@@ -88,6 +88,18 @@ class ThreadSafeMemorySaver(MemorySaver):
         with self._lock:
             return super().put(config, checkpoint, metadata, new_versions or {})
 
+    def put_writes(self, config, writes, task_id, task_path=""):
+        with self._lock:
+            return super().put_writes(config, writes, task_id, task_path=task_path)
+
+    def get(self, config):
+        with self._lock:
+            return super().get(config)
+
+    def get_next_version(self, current, channel):
+        with self._lock:
+            return super().get_next_version(current, channel)
+
 def test_concurrency_load_benchmark_suite():
     """Task 20/21/22 Real Concurrency Load Benchmark Suite: Evaluates graph executions, 100% success rate, & p95 < 8s target."""
     concurrency_levels = [1, 5, 10, 20]

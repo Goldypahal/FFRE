@@ -97,8 +97,17 @@ def test_user_mfa_setup_enable_and_disable_api_flow(twilio_client, db_session):
     assert status_res2.status_code == 200
     assert status_res2.json()["mfa_enabled"] is True
 
-    # 3. Disable MFA
-    disable_res = twilio_client.post("/api/v1/auth/mfa/disable", headers=headers)
+    # 3. Disable MFA: Step-Up Authentication Required
+    # Bare request without credentials MUST be rejected with 401
+    bad_disable = twilio_client.post("/api/v1/auth/mfa/disable", headers=headers)
+    assert bad_disable.status_code == 401
+
+    # Disabling with valid password step-up MUST succeed
+    disable_res = twilio_client.post(
+        "/api/v1/auth/mfa/disable",
+        json={"password": "Password123!"},
+        headers=headers
+    )
     assert disable_res.status_code == 200
     assert disable_res.json()["status"] == "disabled"
 

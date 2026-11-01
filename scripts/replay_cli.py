@@ -69,11 +69,20 @@ def verify_replay_bundle(bundle: Dict[str, Any], signing_key: str = None) -> Tup
     """
     errors = []
 
-    # 1. Structural check
+    # 1. Structural check (enforce complete provenance metadata)
     required_keys = ["investigation_id", "tenant_id", "replay_fingerprint", "investigation", "audit_logs"]
     for k in required_keys:
         if k not in bundle:
             errors.append(f"Missing required top-level field: '{k}'")
+
+    model_meta = bundle.get("model_metadata")
+    if not model_meta or not isinstance(model_meta, dict):
+        errors.append("Missing required 'model_metadata' object on sealed replay bundle.")
+    else:
+        if not model_meta.get("artifact_sha256"):
+            errors.append("Missing required 'artifact_sha256' in model_metadata on sealed replay bundle.")
+        if not model_meta.get("model_id"):
+            errors.append("Missing required 'model_id' in model_metadata on sealed replay bundle.")
 
     if errors:
         return False, errors
@@ -375,48 +384,59 @@ def run_deterministic_replay(bundle: Dict[str, Any]) -> Tuple[bool, Dict[str, An
     except Exception as e:
         simulated_reasons.append(f"Rules engine fallback: {e}")
 
-    # 2. Offline ML model inference bound to exact artifact digest (fail closed)
+    # 2. Offline ML model inference: strictly bound to exact recorded model identity and digest
     ml_score = None
     ml_error = None
-    expected_artifact_sha = bundle.get("model_metadata", {}).get("artifact_sha256")
-    try:
-        from ml.registry import ModelRegistry
-        from ml.inference import get_inference_service
-        registry = ModelRegistry()
-        manifest = registry._load_manifest()
-        prod_id = manifest.get("active_production_model_id", "lightgbm_fraud_detector_v1")
-        prod_meta = manifest.get("models", {}).get(prod_id, {})
-        artifact_path = registry.resolve_artifact_path(prod_meta.get("artifact_path", "lightgbm_fraud_detector_v1.joblib"))
+    model_metadata = bundle.get("model_metadata") or {}
+    expected_artifact_sha = model_metadata.get("artifact_sha256")
+    target_model_id = model_metadata.get("model_id")
 
-        if not os.path.exists(artifact_path):
-            ml_error = f"Model artifact '{artifact_path}' missing; offline inference halted (fail closed)."
-        else:
-            with open(artifact_path, "rb") as f:
-                actual_artifact_sha = hashlib.sha256(f.read()).hexdigest()
-            if expected_artifact_sha and actual_artifact_sha != expected_artifact_sha:
-                ml_error = f"Model artifact digest mismatch: expected '{expected_artifact_sha}', found '{actual_artifact_sha}'."
-            else:
-                svc = get_inference_service()
-                pred = svc.predict_from_state(state)
-                ml_score = pred.risk_score
-    except Exception as e:
-        ml_error = str(e)
-
-    delta_rule = abs(recorded_score - rule_score)
-    delta_ml = abs(recorded_score - ml_score) if ml_score is not None else 999.0
-    max_combined = max(rule_score, ml_score if ml_score is not None else 0.0)
-    delta_max = abs(recorded_score - max_combined)
-    delta = min(delta_rule, delta_ml, delta_max)
-
-    if delta_rule <= delta_ml and delta_rule <= delta_max:
-        effective_score = rule_score
-    elif delta_ml <= delta_rule and delta_ml <= delta_max:
-        effective_score = ml_score
+    if not expected_artifact_sha:
+        ml_error = "Missing required 'artifact_sha256' in model_metadata; offline inference cannot verify integrity (fail closed)."
+    elif not target_model_id:
+        ml_error = "Missing required 'model_id' in model_metadata; cannot resolve model artifact."
     else:
-        effective_score = max_combined
+        try:
+            from ml.registry import ModelRegistry
+            from ml.inference import get_inference_service
+            registry = ModelRegistry()
+            manifest = registry._load_manifest()
+            target_meta = manifest.get("models", {}).get(target_model_id)
 
-    replayed_status = "ESCALATED" if (effective_score >= 0.70 or rule_score >= 0.70 or recorded_status == "ESCALATED") else "COMPLETED"
-    is_reproduced = (delta <= 0.05) and (recorded_status == replayed_status)
+            if not target_meta:
+                artifact_path = os.path.join(registry.registry_dir, f"{target_model_id}.joblib")
+            else:
+                artifact_path = registry.resolve_artifact_path(target_meta.get("artifact_path", f"{target_model_id}.joblib"))
+
+            if not os.path.exists(artifact_path):
+                ml_error = f"Model artifact '{artifact_path}' missing; offline replay halted (fail closed)."
+            else:
+                with open(artifact_path, "rb") as f:
+                    actual_artifact_sha = hashlib.sha256(f.read()).hexdigest()
+                if actual_artifact_sha != expected_artifact_sha:
+                    ml_error = f"Model artifact digest mismatch: expected '{expected_artifact_sha}', found '{actual_artifact_sha}'."
+                else:
+                    svc = get_inference_service()
+                    pred = svc.predict_from_state(state)
+                    ml_score = pred.risk_score
+        except Exception as e:
+            ml_error = str(e)
+
+    # 3. Deterministic Pipeline Scoring Reproduction
+    # If any underlying engine component failed, reproduction MUST be marked False (fail closed).
+    has_rule_fallback = any("fallback" in r.lower() for r in simulated_reasons)
+    if ml_error or has_rule_fallback:
+        effective_score = rule_score if not has_rule_fallback else 0.0
+        replayed_status = "FAILED"
+        is_reproduced = False
+        delta = abs(recorded_score - effective_score)
+    else:
+        # Authentic scoring reproduction:
+        # Standard combined calculation: max(rule_score, ml_score)
+        effective_score = max(rule_score, ml_score if ml_score is not None else 0.0)
+        delta = abs(recorded_score - effective_score)
+        replayed_status = "ESCALATED" if (effective_score >= 0.70 or rule_score >= 0.70) else "COMPLETED"
+        is_reproduced = (delta <= 0.05) and (recorded_status == replayed_status)
 
     result_meta = {
         "investigation_id": bundle.get("investigation_id"),

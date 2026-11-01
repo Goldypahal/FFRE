@@ -7,7 +7,7 @@ from typing import Dict, Any, Optional
 from langgraph.checkpoint.memory import MemorySaver
 
 class ThreadSafeMemorySaver(MemorySaver):
-    """Thread-safe in-memory checkpointer with RLock protection for high-concurrency benchmarks."""
+    """Thread-safe in-memory checkpointer with complete RLock protection across all operations."""
     def __init__(self):
         super().__init__()
         self._lock = threading.RLock()
@@ -22,25 +22,19 @@ class ThreadSafeMemorySaver(MemorySaver):
 
     def put(self, config: Dict[str, Any], checkpoint: Dict[str, Any], metadata: Dict[str, Any], new_versions: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         with self._lock:
-            return super().put(config, checkpoint, metadata, new_versions)
+            return super().put(config, checkpoint, metadata, new_versions or {})
 
-class ThreadSafeMemorySaver(MemorySaver):
-    """Thread-safe in-memory checkpointer with RLock protection for high-concurrency benchmarks."""
-    def __init__(self):
-        super().__init__()
-        self._lock = threading.RLock()
-
-    def get_tuple(self, config: Dict[str, Any]) -> Optional[Any]:
+    def put_writes(self, config: Dict[str, Any], writes: Any, task_id: str, task_path: str = "") -> None:
         with self._lock:
-            return super().get_tuple(config)
+            return super().put_writes(config, writes, task_id, task_path=task_path)
 
-    def list(self, config: Optional[Dict[str, Any]], *, filter: Optional[Dict[str, Any]] = None, before: Optional[Dict[str, Any]] = None, limit: Optional[int] = None):
+    def get(self, config: Dict[str, Any]) -> Optional[Any]:
         with self._lock:
-            return super().list(config, filter=filter, before=before, limit=limit)
+            return super().get(config)
 
-    def put(self, config: Dict[str, Any], checkpoint: Dict[str, Any], metadata: Dict[str, Any], new_versions: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def get_next_version(self, current: Any, channel: Any) -> Any:
         with self._lock:
-            return super().put(config, checkpoint, metadata, new_versions)
+            return super().get_next_version(current, channel)
 
 class DurableSqliteSaver(MemorySaver):
     """Task 16: Durable SQLite-backed checkpointer ensuring graph state persistence across restarts."""

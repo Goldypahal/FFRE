@@ -45,7 +45,7 @@ class FraudInferenceService:
 
     def __init__(self, registry: Optional[ModelRegistry] = None):
         self.registry = registry or ModelRegistry()
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._cached_model = None
         self._cached_meta = None
         self._cached_model_id = None
@@ -54,13 +54,14 @@ class FraudInferenceService:
 
     def reload_production_model(self) -> bool:
         """Loads or refreshes the current production model from registry."""
-        prod = self.registry.get_production_model()
-        if prod:
-            self._cached_model, self._cached_meta = prod
-            self._cached_model_id = self._cached_meta["model_id"]
-            self._cached_importances = self._resolve_importances(self._cached_model)
-            return True
-        return False
+        with self._lock:
+            prod = self.registry.get_production_model()
+            if prod:
+                self._cached_model, self._cached_meta = prod
+                self._cached_model_id = self._cached_meta["model_id"]
+                self._cached_importances = self._resolve_importances(self._cached_model)
+                return True
+            return False
 
     def predict(
         self,
@@ -197,12 +198,15 @@ class FraudInferenceService:
         ]
 
 
-# Global singleton inference service
+# Global singleton inference service with thread-safe double-checked locking
 _global_inference_service: Optional[FraudInferenceService] = None
+_inference_service_lock = threading.RLock()
 
 
 def get_inference_service() -> FraudInferenceService:
     global _global_inference_service
     if _global_inference_service is None:
-        _global_inference_service = FraudInferenceService()
+        with _inference_service_lock:
+            if _global_inference_service is None:
+                _global_inference_service = FraudInferenceService()
     return _global_inference_service

@@ -180,6 +180,15 @@ def run_training_pipeline(
             "active_production_model": pred.model_id,
             "latency_ms": pred.latency_ms,
             "sample_prediction": pred.to_dict()
+        },
+        "holdout_evaluation": {
+            "y_true": test_ds.y.tolist(),
+            "champion_predictions": calibrated_eval["predictions"],
+            "champion_probabilities": calibrated_eval["probabilities"],
+            "challenger_predictions": baseline_eval["predictions"],
+            "challenger_probabilities": baseline_eval["probabilities"],
+            "train_scores": [round(float(p), 4) for p in trainer.calibrated_gbm.predict_proba(train_ds.X)[:, 1]],
+            "test_scores": calibrated_eval["probabilities"]
         }
     }
 

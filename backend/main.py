@@ -598,6 +598,11 @@ class MFACodeVerifyRequest(BaseModel):
     code: str
 
 
+class MFADisableRequest(BaseModel):
+    password: Optional[str] = None
+    code: Optional[str] = None
+
+
 class MFAStatusResponse(BaseModel):
     mfa_enabled: bool
     masked_phone: Optional[str] = None
@@ -1541,14 +1546,44 @@ def enable_user_mfa(
 
 @app.post("/api/v1/auth/mfa/disable")
 def disable_user_mfa(
+    payload: Optional[MFADisableRequest] = Body(default=None),
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Deactivates MFA for the authenticated user."""
+    """
+    Deactivates MFA for the authenticated user.
+    Requires step-up authentication (user password verification or valid SMS OTP code)
+    to prevent an attacker with a stolen bearer session token from disabling MFA.
+    """
     user_record = db.query(models.User).filter(models.User.user_id == current_user.user_id).first() or current_user
+
+    # If MFA is not even enabled, nothing to disable
+    if not getattr(user_record, "mfa_enabled", False):
+        return {"status": "disabled", "message": "SMS Multi-Factor Authentication is not active."}
+
+    # Step-Up Verification: require password or valid OTP
+    has_step_up = False
+    if payload and payload.password:
+        if auth.verify_password(payload.password, user_record.hashed_password):
+            has_step_up = True
+        else:
+            raise HTTPException(status_code=401, detail="Step-up authentication failed: incorrect password.")
+    elif payload and payload.code:
+        from twilio_service import twilio_service
+        if twilio_service.verify_mfa_code(user_record.user_id, payload.code):
+            has_step_up = True
+        else:
+            raise HTTPException(status_code=401, detail="Step-up authentication failed: invalid verification code.")
+
+    if not has_step_up:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Step-up authentication required to disable MFA. Please provide current password or SMS verification code."
+        )
+
     user_record.mfa_enabled = False
     db.commit()
-    return {"status": "disabled", "message": "SMS Multi-Factor Authentication disabled."}
+    return {"status": "disabled", "message": "SMS Multi-Factor Authentication disabled successfully."}
 
 
 @app.post("/api/v1/admin/alerts/test-sms")

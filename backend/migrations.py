@@ -205,20 +205,38 @@ def migration_008_tenant_invitations_token_hash(conn: Connection, is_sqlite: boo
     else:
         safe_add_column(conn, is_sqlite, "tenant_invitations", "token_hash", "VARCHAR(64)")
         try:
-            import hashlib
-            rows = conn.execute(text("SELECT invitation_id, token FROM tenant_invitations WHERE token_hash IS NULL OR token_hash = ''")).fetchall()
-            for r in rows:
-                inv_id, raw_tok = r[0], r[1]
-                if raw_tok:
-                    th = hashlib.sha256(raw_tok.encode("utf-8")).hexdigest()
-                    conn.execute(
-                        text("UPDATE tenant_invitations SET token_hash = :th, token = NULL WHERE invitation_id = :iid"),
-                        {"th": th, "iid": inv_id}
-                    )
-            # Scrub all remaining plaintext tokens completely
-            conn.execute(text("UPDATE tenant_invitations SET token = NULL WHERE token IS NOT NULL"))
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_tenant_invitations_token_hash ON tenant_invitations (token_hash);"))
         except Exception:
             pass
+
+
+def migration_010_backfill_and_enforce_invitation_token_hash(conn: Connection, is_sqlite: bool):
+    """
+    Migration 010: Backfills legacy invitation token_hash, strictly verifies zero nulls,
+    and scrubs plaintext tokens from storage at rest. Fails deployment on any error.
+    """
+    if table_exists(conn, is_sqlite, "tenant_invitations"):
+        import hashlib
+        # 1. Backfill legacy records
+        rows = conn.execute(text("SELECT invitation_id, token FROM tenant_invitations WHERE token_hash IS NULL OR token_hash = ''")).fetchall()
+        for r in rows:
+            inv_id, raw_tok = r[0], r[1]
+            if raw_tok:
+                th = hashlib.sha256(raw_tok.encode("utf-8")).hexdigest()
+                conn.execute(
+                    text("UPDATE tenant_invitations SET token_hash = :th, token = NULL WHERE invitation_id = :iid"),
+                    {"th": th, "iid": inv_id}
+                )
+
+        # 2. Verify zero null token_hashes
+        null_count = conn.execute(text("SELECT COUNT(*) FROM tenant_invitations WHERE token_hash IS NULL OR token_hash = ''")).scalar()
+        if null_count and null_count > 0:
+            raise RuntimeError(f"Migration 010 failure: {null_count} tenant invitation records lack token_hash!")
+
+        # 3. Scrub any remaining plaintext tokens
+        conn.execute(text("UPDATE tenant_invitations SET token = NULL WHERE token IS NOT NULL"))
+
+        # 4. Ensure unique index on token_hash
         try:
             conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_tenant_invitations_token_hash ON tenant_invitations (token_hash);"))
         except Exception:
@@ -240,6 +258,7 @@ MIGRATIONS: List[Tuple[int, str, Callable[[Connection, bool], None]]] = [
     (7, "transaction_metadata_and_counterparty", migration_007_transaction_metadata),
     (8, "tenant_invitations_token_hash", migration_008_tenant_invitations_token_hash),
     (9, "user_mfa_and_phone", migration_009_user_mfa_and_phone),
+    (10, "backfill_and_enforce_invitation_token_hash", migration_010_backfill_and_enforce_invitation_token_hash),
 ]
 
 
