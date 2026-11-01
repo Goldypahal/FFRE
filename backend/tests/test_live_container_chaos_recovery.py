@@ -15,11 +15,20 @@ def is_docker_running():
     except Exception:
         return False
 
+def is_container_running(name: str):
+    try:
+        res = subprocess.run(["docker", "ps", "--format", "{{.Names}}"], capture_output=True, text=True)
+        if res.returncode != 0:
+            return False
+        return name in res.stdout.split()
+    except Exception:
+        return False
+
 # ==============================================================================
 # REAL CHAOS TEST 1: POSTGRESQL RESTART & WORKER CRASH RECOVERY
 # ==============================================================================
 
-@pytest.mark.skipif(not is_docker_running(), reason="Requires live Docker daemon")
+@pytest.mark.skipif(not is_container_running("ffire_test_postgres"), reason="Requires running 'ffire_test_postgres' Docker container")
 def test_postgres_restart_and_worker_resumption():
     """
     Simulates abrupt worker crash + live PostgreSQL container restart.
@@ -116,7 +125,7 @@ def test_postgres_restart_and_worker_resumption():
 # REAL CHAOS TEST 2: REDIS CONTAINER INTERRUPTION & FAIL-CLOSED VERIFICATION
 # ==============================================================================
 
-@pytest.mark.skipif(not is_docker_running(), reason="Requires live Docker daemon")
+@pytest.mark.skipif(not is_container_running("ffire_test_redis"), reason="Requires running 'ffire_test_redis' Docker container")
 def test_redis_interruption_fail_closed_and_recovery(monkeypatch):
     """
     Stops live Redis container.
