@@ -1,3 +1,4 @@
+import logging
 from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, status, Query, Response, Header, UploadFile, File, Form, Request, Body
 
 from fastapi.security import OAuth2PasswordRequestForm
@@ -1453,6 +1454,9 @@ def verify_mfa_login(payload: MFALoginVerifyRequest, db: Session = Depends(get_d
             detail="Invalid verification code. Please check your SMS and try again."
         )
 
+    # Consume single-use ticket to prevent replay
+    twilio_service.consume_mfa_ticket(payload.mfa_ticket)
+
     user = db.query(models.User).filter(models.User.user_id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User account not found.")
@@ -1460,10 +1464,10 @@ def verify_mfa_login(payload: MFALoginVerifyRequest, db: Session = Depends(get_d
     tenant = getattr(user, "tenant_id", "default_tenant")
     access_token_expires = datetime.timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = auth.create_access_token(
-        data={"sub": user.email, "role": user.role, "tenant_id": tenant}, expires_delta=access_token_expires
+        data={"sub": user.email, "role": user.role, "tenant_id": tenant, "mfa_verified": True}, expires_delta=access_token_expires
     )
     refresh_token = auth.create_refresh_token(
-        data={"sub": user.email, "role": user.role, "tenant_id": tenant}
+        data={"sub": user.email, "role": user.role, "tenant_id": tenant, "mfa_verified": True}
     )
     return Token(
         access_token=access_token,
@@ -1943,10 +1947,13 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
 
         )
 
-    tenant = getattr(user, "tenant_id", "default_tenant")
-
-    # SMS Multi-Factor Authentication check
-    if getattr(user, "mfa_enabled", False) and getattr(user, "phone_number", None):
+    tenant = getattr(user, "tenant_id", "default_tenant")    # SMS Multi-Factor Authentication check (Strict Fail-Closed Enforcement)
+    if getattr(user, "mfa_enabled", False):
+        if not getattr(user, "phone_number", None):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="MFA is enabled for this account but no verified phone number is registered. Please contact an administrator."
+            )
         try:
             from twilio_service import twilio_service
             masked_phone, mfa_ticket = twilio_service.generate_and_send_mfa_code(user.user_id, user.phone_number)
@@ -1956,9 +1963,14 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
                 masked_phone=masked_phone,
                 message=f"Two-factor authentication code sent via SMS to {masked_phone}."
             )
+        except HTTPException:
+            raise
         except Exception as exc:
-            logging.getLogger("ffire.auth").warning(f"Failed to initiate SMS MFA: {exc}")
-
+            logging.getLogger("ffire.auth").error(f"Failed to initiate SMS MFA challenge: {exc}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="MFA verification service is temporarily unavailable. Access denied."
+            )
     access_token_expires = datetime.timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
 
     access_token = auth.create_access_token(
@@ -2001,20 +2013,22 @@ def refresh_access_token(payload: RefreshTokenRequest, db: Session = Depends(get
 
 
 
+
+    # Enforce MFA requirement if enabled for user
+    mfa_verified = token_data.get("mfa_verified", False)
+    if getattr(user, "mfa_enabled", False) and not mfa_verified:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="MFA verification required to refresh session tokens."
+        )
+
     tenant = getattr(user, "tenant_id", "default_tenant")
-
     new_access_token = auth.create_access_token(
-
-        data={"sub": user.email, "role": user.role, "tenant_id": tenant},
-
+        data={"sub": user.email, "role": user.role, "tenant_id": tenant, "mfa_verified": mfa_verified},
         expires_delta=datetime.timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
-
     )
-
     new_refresh_token = auth.create_refresh_token(
-
-        data={"sub": user.email, "role": user.role, "tenant_id": tenant}
-
+        data={"sub": user.email, "role": user.role, "tenant_id": tenant, "mfa_verified": mfa_verified}
     )
 
     return {
@@ -3883,6 +3897,14 @@ def export_investigation_report(
 
 
 
+def _get_model_artifact_sha256(model_id: str = "lightgbm_fraud_detector_v1") -> str:
+    artifact_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ml", "model_store", f"{model_id}.joblib")
+    if not os.path.exists(artifact_path):
+        raise FileNotFoundError(f"Model artifact file '{model_id}.joblib' missing from model store; cannot export replay snapshot.")
+    with open(artifact_path, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+
 def generate_replay_snapshot(inv: models.Investigation, db: Session) -> Tuple[Dict[str, Any], str]:
 
     # 1. Canonical investigation dictionary
@@ -4075,11 +4097,7 @@ def generate_replay_snapshot(inv: models.Investigation, db: Session) -> Tuple[Di
 
             "model_version": "1.0.0",
 
-            "artifact_sha256": (lambda: (lambda p: hashlib.sha256(open(p, "rb").read()).hexdigest() if os.path.exists(p) else "e2c7da3fec070c8ddfe45fa62521e8dc33343da647ec55c52302a740b9785d39")(
-
-                os.path.join(os.path.dirname(os.path.abspath(__file__)), "ml", "model_store", "lightgbm_fraud_detector_v1.joblib")
-
-            ))(),
+            "artifact_sha256": _get_model_artifact_sha256(getattr(inv, "ml_model_id", None) or "lightgbm_fraud_detector_v1"),
 
             "calibration_method": "Platt Sigmoid Calibration"
 

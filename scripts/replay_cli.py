@@ -300,12 +300,12 @@ def run_deterministic_replay(bundle: Dict[str, Any]) -> Tuple[bool, Dict[str, An
     recorded_score = float(inv.get("risk_score") or 0.0)
     recorded_status = inv.get("status", "COMPLETED")
 
-    # Faithful state reconstruction from evidence
+    # Faithful state reconstruction from authentic evidence (no synthetic feature fabrication)
     raw_evidence = bundle.get("evidence", [])
-    device_data = {"device_ref": txn.get("device_ref"), "new_device": False, "os": "Linux"}
-    merchant_data = {"merchant_id": txn.get("merchant_id"), "historical_fraud_rate": 0.0}
-    location_data = {"ip_address": txn.get("ip_address"), "country": "US"}
-    customer_data = {"account_id": txn.get("account_id"), "home_country": "US"}
+    device_data = {"device_ref": txn.get("device_ref")} if txn.get("device_ref") else {}
+    merchant_data = {"merchant_id": txn.get("merchant_id")} if txn.get("merchant_id") else {}
+    location_data = {"ip_address": txn.get("ip_address")} if txn.get("ip_address") else {}
+    customer_data = {"account_id": txn.get("account_id")} if txn.get("account_id") else {}
     history_list = []
 
     if isinstance(raw_evidence, list):
@@ -375,14 +375,30 @@ def run_deterministic_replay(bundle: Dict[str, Any]) -> Tuple[bool, Dict[str, An
     except Exception as e:
         simulated_reasons.append(f"Rules engine fallback: {e}")
 
-    # 2. Offline ML model inference if artifact and engine are available
+    # 2. Offline ML model inference bound to exact artifact digest (fail closed)
     ml_score = None
     ml_error = None
+    expected_artifact_sha = bundle.get("model_metadata", {}).get("artifact_sha256")
     try:
+        from ml.registry import ModelRegistry
         from ml.inference import get_inference_service
-        svc = get_inference_service()
-        pred = svc.predict_from_state(state)
-        ml_score = pred.risk_score
+        registry = ModelRegistry()
+        manifest = registry._load_manifest()
+        prod_id = manifest.get("active_production_model_id", "lightgbm_fraud_detector_v1")
+        prod_meta = manifest.get("models", {}).get(prod_id, {})
+        artifact_path = registry.resolve_artifact_path(prod_meta.get("artifact_path", "lightgbm_fraud_detector_v1.joblib"))
+
+        if not os.path.exists(artifact_path):
+            ml_error = f"Model artifact '{artifact_path}' missing; offline inference halted (fail closed)."
+        else:
+            with open(artifact_path, "rb") as f:
+                actual_artifact_sha = hashlib.sha256(f.read()).hexdigest()
+            if expected_artifact_sha and actual_artifact_sha != expected_artifact_sha:
+                ml_error = f"Model artifact digest mismatch: expected '{expected_artifact_sha}', found '{actual_artifact_sha}'."
+            else:
+                svc = get_inference_service()
+                pred = svc.predict_from_state(state)
+                ml_score = pred.risk_score
     except Exception as e:
         ml_error = str(e)
 

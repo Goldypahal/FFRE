@@ -202,13 +202,13 @@ def test_critical_escalation_sms_alerting(twilio_client, db_session):
     )
     assert update_res.status_code == 200
 
-    # Verify chained audit log entry was created for SMS alert
+    # Verify chained audit log entry was created for SMS alert (DISPATCHED or SIMULATED)
     audit = db_session.query(models.AuditLog).filter(
         models.AuditLog.investigation_id == inv_id,
-        models.AuditLog.action == "SMS_ESCALATION_ALERT_SENT"
+        models.AuditLog.action.in_(["SMS_ALERT_DISPATCHED", "SMS_ALERT_SIMULATED", "SMS_ESCALATION_ALERT_SENT"])
     ).first()
     assert audit is not None
-    assert "Twilio SMS dispatched" in audit.details
+    assert "Twilio SMS" in audit.details
 
 
 def test_admin_test_sms_alert_endpoint(twilio_client, db_session):
@@ -251,3 +251,102 @@ def test_admin_test_sms_alert_endpoint(twilio_client, db_session):
     assert res_ok.status_code == 200
     assert res_ok.json()["status"] == "success"
 
+
+
+def test_login_fails_closed_when_mfa_delivery_fails(twilio_client, db_session, monkeypatch):
+    """P0 Regression: Ensure MFA login fails closed (503) if Twilio SMS dispatch errors out."""
+    email = "fail_closed_mfa@bank.com"
+    pwd = "SecureLoginPass123!"
+    user = models.User(
+        name="Fail Closed MFA User",
+        email=email,
+        role="investigator",
+        hashed_password=auth.get_password_hash(pwd),
+        tenant_id="tenant_fail_closed"
+    )
+    user.phone_number = "+15550001111"
+    user.mfa_enabled = True
+    db_session.add(user)
+    db_session.commit()
+
+    # Simulate Twilio delivery exception
+    def mock_fail_send(*args, **kwargs):
+        raise RuntimeError("Twilio network carrier timeout")
+
+    from twilio_service import twilio_service
+    monkeypatch.setattr(twilio_service, "generate_and_send_mfa_code", mock_fail_send)
+
+    login_res = twilio_client.post(
+        "/api/v1/auth/login",
+        data={"username": email, "password": pwd}
+    )
+    # MUST fail closed with 503, NEVER issue access or refresh token
+    assert login_res.status_code == 503
+    body = login_res.json()
+    assert "access_token" not in body
+    assert "refresh_token" not in body
+
+
+def test_login_fails_closed_when_mfa_enabled_without_phone(twilio_client, db_session):
+    """P0 Regression: Ensure MFA login fails closed (403) if mfa_enabled is True without a registered phone."""
+    email = "no_phone_mfa@bank.com"
+    pwd = "SecureLoginPass123!"
+    user = models.User(
+        name="No Phone MFA User",
+        email=email,
+        role="investigator",
+        hashed_password=auth.get_password_hash(pwd),
+        tenant_id="tenant_no_phone"
+    )
+    user.phone_number = None
+    user.mfa_enabled = True
+    db_session.add(user)
+    db_session.commit()
+
+    login_res = twilio_client.post(
+        "/api/v1/auth/login",
+        data={"username": email, "password": pwd}
+    )
+    assert login_res.status_code == 403
+    body = login_res.json()
+    assert "access_token" not in body
+
+
+def test_mfa_ticket_replay_attack_prevention(twilio_client, db_session):
+    """P0 Regression: Ensure MFA tickets are single-use and cannot be replayed."""
+    email = "single_use_ticket@bank.com"
+    pwd = "SecureLoginPass123!"
+    user = models.User(
+        name="Single Use Ticket User",
+        email=email,
+        role="investigator",
+        hashed_password=auth.get_password_hash(pwd),
+        tenant_id="tenant_replay"
+    )
+    user.phone_number = "+15552223333"
+    user.mfa_enabled = True
+    db_session.add(user)
+    db_session.commit()
+
+    login_res = twilio_client.post("/api/v1/auth/login", data={"username": email, "password": pwd})
+    assert login_res.status_code == 200
+    ticket = login_res.json()["mfa_ticket"]
+
+    # Verify with valid code
+    import hashlib
+    valid_code = "999888"
+    _MFA_STORE[user.user_id]["hash"] = hashlib.sha256(valid_code.encode()).hexdigest()
+    _MFA_STORE[user.user_id]["attempts"] = 0
+
+    verify_first = twilio_client.post(
+        "/api/v1/auth/mfa/verify",
+        json={"mfa_ticket": ticket, "code": valid_code}
+    )
+    assert verify_first.status_code == 200
+
+    # Second attempt with identical ticket MUST be rejected (single-use consumption)
+    verify_second = twilio_client.post(
+        "/api/v1/auth/mfa/verify",
+        json={"mfa_ticket": ticket, "code": valid_code}
+    )
+    assert verify_second.status_code == 401

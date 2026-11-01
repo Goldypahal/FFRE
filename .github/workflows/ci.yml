@@ -57,12 +57,18 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
           ENVIRONMENT: test
           PYTHONPATH: backend:.
+          OMP_NUM_THREADS: "1"
+          OPENBLAS_NUM_THREADS: "1"
+          MKL_NUM_THREADS: "1"
         run: |
           pytest backend/tests -v --maxfail=1
 
       - name: Run SRS Audit Verification
         env:
           PYTHONPATH: backend:.
+          OMP_NUM_THREADS: "1"
+          OPENBLAS_NUM_THREADS: "1"
+          MKL_NUM_THREADS: "1"
         run: |
           python scripts/srs_audit_engine.py
 

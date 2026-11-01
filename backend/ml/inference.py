@@ -7,6 +7,7 @@ with top contributing feature attributions.
 """
 
 import time
+import threading
 from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass, asdict
 import numpy as np
@@ -44,6 +45,7 @@ class FraudInferenceService:
 
     def __init__(self, registry: Optional[ModelRegistry] = None):
         self.registry = registry or ModelRegistry()
+        self._lock = threading.Lock()
         self._cached_model = None
         self._cached_meta = None
         self._cached_model_id = None
@@ -95,64 +97,65 @@ class FraudInferenceService:
         return self._predict_from_vector(vec, t0, threshold)
 
     def _predict_from_vector(self, vec: np.ndarray, t0: float, threshold: float = 0.50) -> FraudPrediction:
-        if self._cached_model is None:
-            self.reload_production_model()
+        with self._lock:
+            if self._cached_model is None:
+                self.reload_production_model()
 
-        X = vec.reshape(1, -1)
+            X = vec.reshape(1, -1)
 
-        if self._cached_model is not None:
-            model = self._cached_model
-            meta = self._cached_meta
-            model_id = meta.get("model_id", "unknown_model")
-            version = meta.get("version", "1.0.0")
-            model_type = meta.get("model_type", "lightgbm")
+            if self._cached_model is not None:
+                model = self._cached_model
+                meta = self._cached_meta
+                model_id = meta.get("model_id", "unknown_model")
+                version = meta.get("version", "1.0.0")
+                model_type = meta.get("model_type", "lightgbm")
 
-            if hasattr(model, "predict_proba"):
-                probs = model.predict_proba(X)[0]
-                prob = float(probs[1]) if len(probs) > 1 else float(probs[0])
-            elif hasattr(model, "decision_function"):
-                raw = float(model.decision_function(X)[0])
-                prob = 1.0 / (1.0 + np.exp(-raw))
+                if hasattr(model, "predict_proba"):
+                    probs = model.predict_proba(X)[0]
+                    prob = float(probs[1]) if len(probs) > 1 else float(probs[0])
+                elif hasattr(model, "decision_function"):
+                    raw = float(model.decision_function(X)[0])
+                    prob = 1.0 / (1.0 + np.exp(-raw))
+                else:
+                    prob = 0.50
+
+                # Feature attribution (tree feature importances or feature magnitude)
+                top_feats = self._extract_top_features(model, vec)
+
             else:
-                prob = 0.50
+                # Fallback heuristic if no ML model has been registered yet
+                model_id = "heuristic_fallback_v0"
+                version = "0.1.0"
+                model_type = "heuristic"
+                # Simple fallback based on amount structuring / velocity
+                amt = float(vec[0])
+                has_cycle = float(vec[16])
+                has_sg = float(vec[18])
+                is_comm = float(vec[21])
+                is_struct = float(vec[5])
 
-            # Feature attribution (tree feature importances or feature magnitude)
-            top_feats = self._extract_top_features(model, vec)
+                score = 0.15
+                if has_cycle > 0: score += 0.40
+                if has_sg > 0: score += 0.35
+                if is_struct > 0: score += 0.35
+                if is_comm > 0 and amt >= 20000.0: score = min(score, 0.30)
+                prob = min(max(score, 0.0), 0.99)
+                top_feats = [{"feature": "heuristic_risk", "value": round(prob, 3)}]
 
-        else:
-            # Fallback heuristic if no ML model has been registered yet
-            model_id = "heuristic_fallback_v0"
-            version = "0.1.0"
-            model_type = "heuristic"
-            # Simple fallback based on amount structuring / velocity
-            amt = float(vec[0])
-            has_cycle = float(vec[16])
-            has_sg = float(vec[18])
-            is_comm = float(vec[21])
-            is_struct = float(vec[5])
+            latency_ms = (time.perf_counter() - t0) * 1000.0
+            label = "SUSPICIOUS" if prob >= threshold else "BENIGN"
 
-            score = 0.15
-            if has_cycle > 0: score += 0.40
-            if has_sg > 0: score += 0.35
-            if is_struct > 0: score += 0.35
-            if is_comm > 0 and amt >= 20000.0: score = min(score, 0.30)
-            prob = min(max(score, 0.0), 0.99)
-            top_feats = [{"feature": "heuristic_risk", "value": round(prob, 3)}]
-
-        latency_ms = (time.perf_counter() - t0) * 1000.0
-        label = "SUSPICIOUS" if prob >= threshold else "BENIGN"
-
-        return FraudPrediction(
-            risk_score=round(prob, 4),
-            raw_probability=round(prob, 4),
-            predicted_label=label,
-            model_id=model_id,
-            model_version=version,
-            model_type=model_type,
-            top_features=top_feats,
-            feature_vector=[round(float(v), 4) for v in vec],
-            latency_ms=round(latency_ms, 2)
-        )
+            return FraudPrediction(
+                risk_score=round(prob, 4),
+                raw_probability=round(prob, 4),
+                predicted_label=label,
+                model_id=model_id,
+                model_version=version,
+                model_type=model_type,
+                top_features=top_feats,
+                feature_vector=[round(float(v), 4) for v in vec],
+                latency_ms=round(latency_ms, 2)
+            )
 
     def _resolve_importances(self, model: Any) -> Optional[np.ndarray]:
         base_est = getattr(model, "estimator", model)

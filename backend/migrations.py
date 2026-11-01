@@ -205,6 +205,21 @@ def migration_008_tenant_invitations_token_hash(conn: Connection, is_sqlite: boo
     else:
         safe_add_column(conn, is_sqlite, "tenant_invitations", "token_hash", "VARCHAR(64)")
         try:
+            import hashlib
+            rows = conn.execute(text("SELECT invitation_id, token FROM tenant_invitations WHERE token_hash IS NULL OR token_hash = ''")).fetchall()
+            for r in rows:
+                inv_id, raw_tok = r[0], r[1]
+                if raw_tok:
+                    th = hashlib.sha256(raw_tok.encode("utf-8")).hexdigest()
+                    conn.execute(
+                        text("UPDATE tenant_invitations SET token_hash = :th, token = NULL WHERE invitation_id = :iid"),
+                        {"th": th, "iid": inv_id}
+                    )
+            # Scrub all remaining plaintext tokens completely
+            conn.execute(text("UPDATE tenant_invitations SET token = NULL WHERE token IS NOT NULL"))
+        except Exception:
+            pass
+        try:
             conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_tenant_invitations_token_hash ON tenant_invitations (token_hash);"))
         except Exception:
             pass

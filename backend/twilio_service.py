@@ -33,7 +33,9 @@ def _get_redis_client():
         client = redis.Redis.from_url(redis_url, socket_timeout=1)
         client.ping()
         return client
-    except Exception:
+    except Exception as exc:
+        if os.getenv("STRICT_ENTERPRISE_MODE", "false").lower() == "true":
+            raise RuntimeError(f"STRICT_ENTERPRISE_MODE: Redis outage detected: {exc}")
         return None
 
 
@@ -119,20 +121,20 @@ class TwilioService:
                         }
                     else:
                         logger.warning(f"Twilio API error ({resp.status_code}): {resp.text}")
-                        # Return failed status or fall through to simulation in dev/test
-                        if os.getenv("STRICT_ENTERPRISE_MODE", "false").lower() == "true":
-                            return {
-                                "status": "failed",
-                                "error": resp.text,
-                                "status_code": resp.status_code,
-                                "simulated": False,
-                            }
+                        return {
+                            "status": "failed",
+                            "error": resp.text,
+                            "status_code": resp.status_code,
+                            "simulated": False,
+                        }
             except Exception as exc:
                 logger.error(f"Failed to communicate with Twilio API: {exc}")
-                if os.getenv("STRICT_ENTERPRISE_MODE", "false").lower() == "true":
-                    return {"status": "error", "error": str(exc), "simulated": False}
+                return {"status": "error", "error": str(exc), "simulated": False}
 
-        # Simulated fallback mode (guarantees tests pass offline)
+        # Simulated fallback mode if not configured
+        if os.getenv("STRICT_ENTERPRISE_MODE", "false").lower() == "true":
+            raise RuntimeError("STRICT_ENTERPRISE_MODE: Twilio API credentials not configured.")
+
         sim_sid = f"SM_sim_{secrets.token_hex(16)}"
         logger.info(f"[SIMULATED TWILIO SMS] To: {clean_to} | Body: {clean_body}")
         return {
@@ -175,10 +177,16 @@ class TwilioService:
 
         # 2. Transmit SMS
         sms_body = f"Your FFIRE verification code is: {code}. Valid for 5 minutes. Do not share this code."
-        self.send_sms(phone_number, sms_body)
+        dispatch_res = self.send_sms(phone_number, sms_body)
+
+        # Fail closed if delivery failed
+        if dispatch_res.get("status") in ("failed", "error"):
+            if r is not None:
+                r.delete(f"ffre:mfa:code:{user_id}")
+            _MFA_STORE.pop(user_id, None)
+            raise RuntimeError(f"SMS MFA delivery failed: {dispatch_res.get('error', 'Carrier error')}")
 
         # 3. Create single-use MFA login ticket
-        ticket_raw = f"{user_id}:{secrets.token_urlsafe(32)}"
         ticket_token = secrets.token_hex(24)
         if r is not None:
             r.set(f"ffre:mfa:ticket:{ticket_token}", user_id, ex=_MFA_EXPIRY_SECONDS)
@@ -214,9 +222,19 @@ class TwilioService:
                 return item.get("user_id")
             return None
 
+    def consume_mfa_ticket(self, ticket_token: str) -> bool:
+        """Consumes (deletes) a single-use MFA login ticket upon successful verification."""
+        if not ticket_token:
+            return False
+        r = _get_redis_client()
+        if r is not None:
+            r.delete(f"ffre:mfa:ticket:{ticket_token}")
+        _MFA_STORE.pop(f"ticket:{ticket_token}", None)
+        return True
+
     def verify_mfa_code(self, user_id: str, code: str) -> bool:
         """
-        Validates the user's submitted OTP code with rate-limiting and timing-safe comparison.
+        Validates the user's submitted OTP code with atomic rate-limiting and timing-safe comparison.
         """
         if not user_id or not code:
             return False
@@ -226,42 +244,60 @@ class TwilioService:
 
         r = _get_redis_client()
         if r is not None:
-            raw = r.get(f"ffre:mfa:code:{user_id}")
-            if not raw:
-                return False
-            data = json.loads(raw)
-            attempts = data.get("attempts", 0) + 1
-            if attempts > _MAX_MFA_ATTEMPTS:
-                r.delete(f"ffre:mfa:code:{user_id}")
-                return False
+            lua_script = """
+            local key = KEYS[1]
+            local cand_hash = ARGV[1]
+            local max_att = tonumber(ARGV[2])
+            local raw = redis.call('GET', key)
+            if not raw then
+                return -1
+            end
+            local data = cjson.decode(raw)
+            local att = (data.attempts or 0) + 1
+            if att > max_att then
+                redis.call('DEL', key)
+                return -2
+            end
+            if data.hash == cand_hash then
+                redis.call('DEL', key)
+                return 1
+            else
+                data.attempts = att
+                local ttl = redis.call('TTL', key)
+                if ttl > 0 then
+                    redis.call('SET', key, cjson.encode(data), 'EX', ttl)
+                else
+                    redis.call('SET', key, cjson.encode(data), 'EX', 300)
+                end
+                return 0
+            end
+            """
+            try:
+                res = r.eval(lua_script, 1, f"ffre:mfa:code:{user_id}", candidate_hash, _MAX_MFA_ATTEMPTS)
+                return res == 1
+            except Exception as e:
+                logger.warning(f"Redis Lua script execution error: {e}")
+                if os.getenv("STRICT_ENTERPRISE_MODE", "false").lower() == "true":
+                    raise RuntimeError(f"Strict mode: Redis failure during MFA verification: {e}")
 
-            stored_hash = data.get("hash", "")
-            is_valid = hmac.compare_digest(candidate_hash, stored_hash)
-            if is_valid:
-                r.delete(f"ffre:mfa:code:{user_id}")
-                return True
-            else:
-                data["attempts"] = attempts
-                r.set(f"ffre:mfa:code:{user_id}", json.dumps(data), ex=_MFA_EXPIRY_SECONDS)
-                return False
-        else:
-            item = _MFA_STORE.get(user_id)
-            if not item:
-                return False
-            if item.get("expires", 0) < time.time():
-                _MFA_STORE.pop(user_id, None)
-                return False
-
-            item["attempts"] = item.get("attempts", 0) + 1
-            if item["attempts"] > _MAX_MFA_ATTEMPTS:
-                _MFA_STORE.pop(user_id, None)
-                return False
-
-            is_valid = hmac.compare_digest(candidate_hash, item.get("hash", ""))
-            if is_valid:
-                _MFA_STORE.pop(user_id, None)
-                return True
+        # In-memory fallback
+        item = _MFA_STORE.get(user_id)
+        if not item:
             return False
+        if item.get("expires", 0) < time.time():
+            _MFA_STORE.pop(user_id, None)
+            return False
+
+        item["attempts"] = item.get("attempts", 0) + 1
+        if item["attempts"] > _MAX_MFA_ATTEMPTS:
+            _MFA_STORE.pop(user_id, None)
+            return False
+
+        is_valid = hmac.compare_digest(candidate_hash, item.get("hash", ""))
+        if is_valid:
+            _MFA_STORE.pop(user_id, None)
+            return True
+        return False
 
     # -------------------------------------------------------------------------
     # Critical Fraud Escalation Incident Alerting
@@ -280,9 +316,24 @@ class TwilioService:
         Dispatches an executive SMS alert to the compliance / risk officer team
         when an investigation is escalated or exhibits severe typology alerts.
         """
-        target_phone = recipient_phone or self.alert_phone or os.getenv("TWILIO_ALERT_RECIPIENT_PHONE") or "+15005550006"
+        target_phone = recipient_phone or self.alert_phone or os.getenv("TWILIO_ALERT_RECIPIENT_PHONE")
+        if not target_phone and (os.getenv("PYTEST_CURRENT_TEST") or os.getenv("TWILIO_MOCK_MODE", "false").lower() == "true"):
+            target_phone = "+15005550006"
+
         if not target_phone:
-            logger.info("No TWILIO_ALERT_RECIPIENT_PHONE configured; skipping critical escalation SMS alert.")
+            logger.info("No recipient phone configured; skipping critical escalation SMS alert.")
+            if db is not None:
+                try:
+                    import models
+                    models.AuditLog.create_chained_entry(
+                        db=db,
+                        tenant_id=tenant_id,
+                        investigation_id=investigation_id,
+                        action="SMS_ALERT_SKIPPED",
+                        details="No recipient phone configured for critical escalation alert.",
+                    )
+                except Exception as exc:
+                    logger.warning(f"Could not write SMS alert skip to audit log: {exc}")
             return {"status": "skipped", "reason": "No recipient phone configured"}
 
         trigger_summary = "; ".join(triggers[:2]) if triggers else "Autonomous threshold breach"
@@ -293,34 +344,43 @@ class TwilioService:
         )
 
         res = self.send_sms(target_phone, alert_msg)
+        is_simulated = res.get("simulated", False)
+        status_val = res.get("status", "unknown")
+
+        if is_simulated:
+            action_name = "SMS_ALERT_SIMULATED"
+        elif status_val == "delivered":
+            action_name = "SMS_ALERT_DISPATCHED"
+        else:
+            action_name = "SMS_ALERT_FAILED"
 
         # Record event in immutable audit log if db session provided
         if db is not None:
             try:
                 import models
-                if hasattr(models.AuditLog, "create_chained_entry"):
+                models.AuditLog.create_chained_entry(
+                    db=db,
+                    tenant_id=tenant_id,
+                    investigation_id=investigation_id,
+                    action=action_name,
+                    details=f"Twilio SMS to {target_phone}; provider_status: {status_val}; SID: {res.get('sid')}; simulated: {is_simulated}",
+                )
+            except Exception as exc:
+                logger.error(f"Critical: could not write SMS alert to audit chain: {exc}")
+                try:
+                    import models
                     models.AuditLog.create_chained_entry(
                         db=db,
                         tenant_id=tenant_id,
                         investigation_id=investigation_id,
-                        action="SMS_ESCALATION_ALERT_SENT",
-                        details=f"Twilio SMS dispatched to {target_phone}; status: {res.get('status')}; SID: {res.get('sid')}",
+                        action="SMS_ALERT_AUDIT_WRITE_FAILED",
+                        details=f"Audit chain write error: {exc}",
                     )
-                else:
-                    audit = models.AuditLog(
-                        tenant_id=tenant_id,
-                        investigation_id=investigation_id,
-                        action="SMS_ESCALATION_ALERT_SENT",
-                        details=f"Twilio SMS dispatched to {target_phone}; status: {res.get('status')}; SID: {res.get('sid')}",
-                    )
-                    db.add(audit)
-                    db.commit()
-            except Exception as exc:
-                logger.warning(f"Could not write SMS alert to audit chain: {exc}")
+                except Exception:
+                    pass
 
         return res
 
 
 # Singleton instance
 twilio_service = TwilioService()
-
