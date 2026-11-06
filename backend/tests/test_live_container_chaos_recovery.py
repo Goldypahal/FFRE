@@ -67,8 +67,15 @@ def test_postgres_restart_and_worker_resumption():
     restart_res = subprocess.run(["docker", "restart", "ffire_test_postgres"], capture_output=True, text=True)
     assert restart_res.returncode == 0, f"Failed to restart PostgreSQL container: {restart_res.stderr}"
     
-    # Wait for PostgreSQL to become ready
-    time.sleep(3)
+    # Wait (up to 60s) for PostgreSQL to accept connections again; a fixed sleep is flaky on slow CI runners.
+    deadline = time.time() + 60
+    while time.time() < deadline:
+        ready = subprocess.run(["docker", "exec", "ffire_test_postgres", "pg_isready"], capture_output=True, text=True)
+        if ready.returncode == 0:
+            break
+        time.sleep(1)
+    else:
+        pytest.fail("PostgreSQL container did not become ready within 60s after restart")
     
     # Step 3: Worker 2 starts up, reconnects to the restarted PostgreSQL, and verifies recovery
     saver_2 = DurablePostgresSaver(REAL_PG_URL)
