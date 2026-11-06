@@ -3,6 +3,7 @@ import threading
 import time
 import queue
 import datetime
+import timeutil
 from typing import Dict, Any, Optional, Set
 import models
 from database import SessionLocal
@@ -107,7 +108,7 @@ class DurableWorkerQueue:
                     raise ValueError(f"Invalid state transition from '{old_status}' to '{new_status}'")
 
                 inv.status = new_status
-                inv.updated_at = datetime.datetime.utcnow()
+                inv.updated_at = timeutil.utcnow()
 
                 audit = models.AuditLog(
                     investigation_id=investigation_id,
@@ -177,7 +178,7 @@ class DurableWorkerQueue:
                 except Exception as e:
                     print(f"Redis pending recovery warning: {e}")
 
-            cutoff = datetime.datetime.utcnow() - datetime.timedelta(seconds=max_age_seconds)
+            cutoff = timeutil.utcnow() - datetime.timedelta(seconds=max_age_seconds)
             stale_jobs = db.query(models.Investigation).filter(
                 models.Investigation.status == "RUNNING",
                 models.Investigation.updated_at <= cutoff
@@ -185,7 +186,7 @@ class DurableWorkerQueue:
 
             for inv in stale_jobs:
                 inv.status = "RETRYING"
-                inv.updated_at = datetime.datetime.utcnow()
+                inv.updated_at = timeutil.utcnow()
                 audit = models.AuditLog(
                     investigation_id=inv.investigation_id,
                     action="WORKER_CRASH_RECOVERY",

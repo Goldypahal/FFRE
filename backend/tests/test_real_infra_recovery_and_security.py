@@ -4,6 +4,7 @@ import time
 import subprocess
 import pytest
 from datetime import datetime, timedelta
+import timeutil
 from jose import jwt
 
 import models
@@ -144,7 +145,7 @@ def test_jwt_token_expiration_fails_closed(client):
     """Expired JWT access token must fail closed with 401 Unauthorized."""
     expired_payload = {
         "sub": "analyst@bank.internal",
-        "exp": datetime.utcnow() - timedelta(minutes=5),
+        "exp": timeutil.utcnow() - timedelta(minutes=5),
         "type": "access"
     }
     expired_token = jwt.encode(expired_payload, SECRET_KEY, algorithm=ALGORITHM)
@@ -176,7 +177,7 @@ def test_jwt_refresh_token_as_bearer_fails_closed(client):
     """Refresh tokens presented to API bearer endpoints must be rejected with 401."""
     refresh_payload = {
         "sub": "analyst@bank.internal",
-        "exp": datetime.utcnow() + timedelta(days=7),
+        "exp": timeutil.utcnow() + timedelta(days=7),
         "type": "refresh"
     }
     refresh_token = jwt.encode(refresh_payload, SECRET_KEY, algorithm=ALGORITHM)

@@ -1,4 +1,5 @@
 import datetime
+import timeutil
 import pytest
 import models
 from main import build_investigation_response
@@ -97,7 +98,7 @@ def test_multi_window_velocity_metrics_and_anomaly_signals(db_session):
     merch2 = models.Merchant(merchant_id="m_sig_2", name="Merchant 2", risk_score=0.01)
     merch3 = models.Merchant(merchant_id="m_sig_3", name="Merchant 3", risk_score=0.01)
 
-    now = datetime.datetime.utcnow()
+    now = timeutil.utcnow()
     t1 = models.Transaction(txn_id="T-SIG-1", account_id="a_sig_1", merchant_id="m_sig_1", amount=1000.0, currency="USD", status="COMPLETED", timestamp=now)
     t2 = models.Transaction(txn_id="T-SIG-2", account_id="a_sig_1", merchant_id="m_sig_2", amount=1000.0, currency="USD", status="COMPLETED", timestamp=now)
     t3 = models.Transaction(txn_id="T-SIG-3", account_id="a_sig_1", merchant_id="m_sig_3", amount=1000.0, currency="USD", status="PENDING", timestamp=now)

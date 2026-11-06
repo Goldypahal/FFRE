@@ -14,6 +14,7 @@ PLUS: Contradictory evidence claim rejection and correction verification.
 
 import uuid
 import datetime
+import timeutil
 import pytest
 from unittest.mock import patch
 
@@ -110,7 +111,7 @@ def test_scenario_2_unusual_velocity(client, db_session, test_investigator):
             amount=500.00,
             currency="USD",
             status="COMPLETED",
-            timestamp=datetime.datetime.utcnow() - datetime.timedelta(minutes=i + 1),
+            timestamp=timeutil.utcnow() - datetime.timedelta(minutes=i + 1),
             tenant_id="tenant_bank_p4"
         )
         db_session.add(hist_txn)

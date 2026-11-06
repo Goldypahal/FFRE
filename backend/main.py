@@ -10,6 +10,7 @@ from typing import List, Optional, Dict, Any, Union, Tuple
 import uuid
 
 import datetime
+import timeutil
 
 import time
 
@@ -1311,7 +1312,7 @@ def register_user(user: UserCreate, request: Request, db: Session = Depends(get_
 
 
 
-        if invitation.expires_at < datetime.datetime.utcnow():
+        if invitation.expires_at < timeutil.utcnow():
 
             raise HTTPException(
 
@@ -1337,7 +1338,7 @@ def register_user(user: UserCreate, request: Request, db: Session = Depends(get_
 
         # Atomic single-use update with row-count check to prevent race-condition concurrency
 
-        now_utc = datetime.datetime.utcnow()
+        now_utc = timeutil.utcnow()
 
         updated = db.query(models.TenantInvitation).filter(
 
@@ -1778,7 +1779,7 @@ def create_tenant_invitation(
 
     token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
 
-    expires_at = datetime.datetime.utcnow() + datetime.timedelta(hours=max(1, min(payload.expires_in_hours, 720)))
+    expires_at = timeutil.utcnow() + datetime.timedelta(hours=max(1, min(payload.expires_in_hours, 720)))
 
     tenant_id = getattr(current_user, "tenant_id", "default_tenant")
 
@@ -1798,7 +1799,7 @@ def create_tenant_invitation(
 
         created_by=current_user.email or "admin",
 
-        created_at=datetime.datetime.utcnow(),
+        created_at=timeutil.utcnow(),
 
         expires_at=expires_at,
 
@@ -2718,7 +2719,7 @@ def _sync_process_transactions(db: Session, raw_records: List[Dict[str, Any]], u
 
         # Timestamp validation
 
-        timestamp_val = datetime.datetime.utcnow()
+        timestamp_val = timeutil.utcnow()
 
         raw_ts = row.get("timestamp")
 
@@ -3750,7 +3751,7 @@ def export_investigation_report(
 
     payload = {
 
-        "export_date": datetime.datetime.utcnow().isoformat(),
+        "export_date": timeutil.utcnow().isoformat(),
 
         "investigation": response_data.model_dump(),
 
@@ -4108,7 +4109,7 @@ def generate_replay_snapshot(inv: models.Investigation, db: Session) -> Tuple[Di
 
         "snapshot_version": "1.0.0",
 
-        "generated_at": datetime.datetime.utcnow().isoformat(),
+        "generated_at": timeutil.utcnow().isoformat(),
 
         "investigation_id": inv.investigation_id,
 
@@ -4836,7 +4837,7 @@ def seed_default_evidence_if_empty(db: Session, tenant_id: str):
 
             description="Verified biometric passport records cross-referenced against Interpol alert registers.",
 
-            created_at=datetime.datetime.utcnow() - datetime.timedelta(minutes=2)
+            created_at=timeutil.utcnow() - datetime.timedelta(minutes=2)
 
         ),
 
@@ -4866,7 +4867,7 @@ def seed_default_evidence_if_empty(db: Session, tenant_id: str):
 
             description="Specially Designated Nationals (SDN) and Consolidated Sanctions List snapshot.",
 
-            created_at=datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+            created_at=timeutil.utcnow() - datetime.timedelta(hours=1)
 
         ),
 
@@ -4896,7 +4897,7 @@ def seed_default_evidence_if_empty(db: Session, tenant_id: str):
 
             description="Facial vector embedding hashes authenticated inside hardware secure enclave.",
 
-            created_at=datetime.datetime.utcnow() - datetime.timedelta(minutes=5)
+            created_at=timeutil.utcnow() - datetime.timedelta(minutes=5)
 
         ),
 
@@ -4926,7 +4927,7 @@ def seed_default_evidence_if_empty(db: Session, tenant_id: str):
 
             description="Cross-matched patterns involving coordinated KYC document tampering across multiple neo-bank domains.",
 
-            created_at=datetime.datetime.utcnow() - datetime.timedelta(days=1)
+            created_at=timeutil.utcnow() - datetime.timedelta(days=1)
 
         ),
 
@@ -4956,7 +4957,7 @@ def seed_default_evidence_if_empty(db: Session, tenant_id: str):
 
             description="High-frequency, low-value transactions utilizing recycled mobile hardware fingerprints from APAC regions.",
 
-            created_at=datetime.datetime.utcnow() - datetime.timedelta(days=2)
+            created_at=timeutil.utcnow() - datetime.timedelta(days=2)
 
         ),
 
@@ -4986,7 +4987,7 @@ def seed_default_evidence_if_empty(db: Session, tenant_id: str):
 
             description="Persistent use of high-reputation residential IPs to mask systematic scraping of credit application endpoints.",
 
-            created_at=datetime.datetime.utcnow() - datetime.timedelta(days=4)
+            created_at=timeutil.utcnow() - datetime.timedelta(days=4)
 
         )
 
@@ -5238,7 +5239,7 @@ def _sync_store_evidence(
 
     else:
 
-        sample_payload = f"Evidence payload created at {datetime.datetime.utcnow().isoformat()} by {user_name}".encode("utf-8")
+        sample_payload = f"Evidence payload created at {timeutil.utcnow().isoformat()} by {user_name}".encode("utf-8")
 
         file_bytes = sample_payload
 
@@ -5290,7 +5291,7 @@ def _sync_store_evidence(
 
         storage_path=storage_path,
 
-        created_at=datetime.datetime.utcnow()
+        created_at=timeutil.utcnow()
 
     )
 
@@ -5464,7 +5465,7 @@ def seed_default_reports_if_empty(db: Session, tenant_id: str):
 
             content_json="Executive Summary: High-velocity smurfing identified across 14 transactions totaling $420,000.\nFiling Category: BSA/AML FinCEN Form 111.\nRisk Score: 0.96 (CRITICAL).",
 
-            created_at=datetime.datetime.utcnow() - datetime.timedelta(days=1)
+            created_at=timeutil.utcnow() - datetime.timedelta(days=1)
 
         ),
 
@@ -5488,7 +5489,7 @@ def seed_default_reports_if_empty(db: Session, tenant_id: str):
 
             content_json="Daily Summary: 1,480 transactions evaluated. 99.2% automated pass rate, 12 human review escalations.",
 
-            created_at=datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+            created_at=timeutil.utcnow() - datetime.timedelta(hours=6)
 
         ),
 
@@ -5512,7 +5513,7 @@ def seed_default_reports_if_empty(db: Session, tenant_id: str):
 
             content_json="Q1 Chargeback Audit: Net dispute recovery rate 74.2%. Synthetic identity exposure mitigated $1.8M.",
 
-            created_at=datetime.datetime.utcnow() - datetime.timedelta(days=14)
+            created_at=timeutil.utcnow() - datetime.timedelta(days=14)
 
         ),
 
@@ -5536,7 +5537,7 @@ def seed_default_reports_if_empty(db: Session, tenant_id: str):
 
             content_json="Forensic Dossier: Verified IP geo-hop across London VPC and Frankfurt exit relays.",
 
-            created_at=datetime.datetime.utcnow() - datetime.timedelta(days=3)
+            created_at=timeutil.utcnow() - datetime.timedelta(days=3)
 
         ),
 
@@ -5560,7 +5561,7 @@ def seed_default_reports_if_empty(db: Session, tenant_id: str):
 
             content_json="Failure diagnostic: SocketTimeoutException on sanctions gateway port 443.",
 
-            created_at=datetime.datetime.utcnow() - datetime.timedelta(days=5)
+            created_at=timeutil.utcnow() - datetime.timedelta(days=5)
 
         )
 
@@ -5690,7 +5691,7 @@ def generate_report(
 
 
 
-    content = f"FFIRE Regulatory & Executive Dossier: {request_data.title}\nReport Type: {request_data.report_type}\nGenerated By: {current_user.name}\nTenant: {tenant}{inv_details}\nDescription: {request_data.description or 'No description provided.'}\nGenerated At: {datetime.datetime.utcnow().isoformat()}"
+    content = f"FFIRE Regulatory & Executive Dossier: {request_data.title}\nReport Type: {request_data.report_type}\nGenerated By: {current_user.name}\nTenant: {tenant}{inv_details}\nDescription: {request_data.description or 'No description provided.'}\nGenerated At: {timeutil.utcnow().isoformat()}"
 
     file_size = len(content.encode("utf-8")) + 102400
 
@@ -5720,7 +5721,7 @@ def generate_report(
 
         content_json=content,
 
-        created_at=datetime.datetime.utcnow()
+        created_at=timeutil.utcnow()
 
     )
 
@@ -6448,7 +6449,7 @@ def update_prompt_version(
 
 
 
-    prompt.updated_at = datetime.datetime.utcnow()
+    prompt.updated_at = timeutil.utcnow()
 
     db.commit()
 
@@ -6506,7 +6507,7 @@ def activate_prompt_version(
 
     prompt.is_active = True
 
-    prompt.updated_at = datetime.datetime.utcnow()
+    prompt.updated_at = timeutil.utcnow()
 
     db.commit()
 
@@ -6834,7 +6835,7 @@ def get_admin_users(
 
                 hashed_password=auth.get_password_hash("FinSecure2026!"),
 
-                created_at=datetime.datetime.utcnow() - datetime.timedelta(days=120)
+                created_at=timeutil.utcnow() - datetime.timedelta(days=120)
 
             )
 
@@ -6912,7 +6913,7 @@ def create_admin_user(
 
         hashed_password=auth.get_password_hash(payload.password or "P@ssword123!"),
 
-        created_at=datetime.datetime.utcnow()
+        created_at=timeutil.utcnow()
 
     )
 
@@ -7344,7 +7345,7 @@ def get_integrations(
 
                 config_count=count,
 
-                last_sync=datetime.datetime.utcnow() - datetime.timedelta(hours=2)
+                last_sync=timeutil.utcnow() - datetime.timedelta(hours=2)
 
             )
 
@@ -7412,7 +7413,7 @@ def sync_integration(
 
     i.status = "connected"
 
-    i.last_sync = datetime.datetime.utcnow()
+    i.last_sync = timeutil.utcnow()
 
     db.commit()
 
@@ -7540,7 +7541,7 @@ def get_admin_audit_logs(
 
                 investigation_id=inv_ref if inv_ref.startswith("INV") else None,
 
-                timestamp=datetime.datetime.utcnow() - datetime.timedelta(minutes=15)
+                timestamp=timeutil.utcnow() - datetime.timedelta(minutes=15)
 
             )
 
@@ -7560,7 +7561,7 @@ def get_admin_audit_logs(
 
             "id": l.log_id,
 
-            "timestamp": l.timestamp.isoformat() + "Z" if l.timestamp else datetime.datetime.utcnow().isoformat() + "Z",
+            "timestamp": l.timestamp.isoformat() + "Z" if l.timestamp else timeutil.utcnow().isoformat() + "Z",
 
             "user": "alex.johnson@company.com" if "user" in l.action else "System",
 

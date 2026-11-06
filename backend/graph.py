@@ -5,6 +5,7 @@ from langgraph.graph import StateGraph, END
 import json
 import time
 import datetime
+import timeutil
 import functools
 from decimal import Decimal
 from decimal import Decimal
@@ -519,7 +520,7 @@ def velocity_check_node(state: AgentState):
     """Multi-window velocity check, anomaly detection, and decoupled RiskSignal generation (Tasks 6-9)"""
     print("Performing multi-window transaction velocity analysis & anomaly pattern detection...")
     try:
-        now = datetime.datetime.utcnow()
+        now = timeutil.utcnow()
         t_5m = now - datetime.timedelta(minutes=5)
         t_1h = now - datetime.timedelta(hours=1)
         t_24h = now - datetime.timedelta(hours=24)
@@ -735,7 +736,7 @@ def evidence_verifier_node(state: AgentState):
 
     # Task 5: Build Complete Evidence Provenance Object Model with Dynamic Confidence
     provenance_records = []
-    now_iso = datetime.datetime.utcnow().isoformat()
+    now_iso = timeutil.utcnow().isoformat()
     inv_id = state.get("investigation_id", "N/A")
 
     CONFIDENCE_MAP = {

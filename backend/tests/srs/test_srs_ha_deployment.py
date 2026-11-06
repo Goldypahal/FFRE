@@ -2,6 +2,7 @@ import os
 import json
 import time
 import datetime
+import timeutil
 import pytest
 import concurrent.futures
 from unittest.mock import MagicMock
@@ -111,7 +112,7 @@ def test_ha_rolling_update_simulation(db_session):
     txn_id = "T-HA-ROLLING-1"
 
     # Pre-create investigation stuck in RUNNING with old timestamp
-    stale_time = datetime.datetime.utcnow() - datetime.timedelta(seconds=10)
+    stale_time = timeutil.utcnow() - datetime.timedelta(seconds=10)
     inv = models.Investigation(
         investigation_id=inv_id,
         txn_id=txn_id,

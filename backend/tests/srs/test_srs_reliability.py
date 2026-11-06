@@ -1,4 +1,5 @@
 import datetime
+import timeutil
 import pytest
 import models
 from retry_policy import RetryPolicy, execute_with_timeout
@@ -10,7 +11,7 @@ def test_zero_transaction_velocity_window_metrics(db_session):
     acct = models.Account(account_id="a_zero_1", customer_id="c_zero_1")
     merch = models.Merchant(merchant_id="m_zero_1", name="Zero Merchant", risk_score=0.01)
 
-    now = datetime.datetime.utcnow()
+    now = timeutil.utcnow()
     three_hours_ago = now - datetime.timedelta(hours=3)
 
     # Historical transaction 3 hours ago (outside 1h and 5m windows)

@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import timeutil
 from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -60,9 +61,9 @@ REFRESH_TOKEN_EXPIRE_DAYS = 7
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = timeutil.utcnow() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+        expire = timeutil.utcnow() + timedelta(minutes=15)
     to_encode.update({"exp": expire, "type": "access"})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
@@ -74,9 +75,9 @@ def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) 
     """Generate cryptographically signed JWT refresh token (Chapter 47)."""
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = timeutil.utcnow() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+        expire = timeutil.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
     to_encode.update({"exp": expire, "type": "refresh"})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt

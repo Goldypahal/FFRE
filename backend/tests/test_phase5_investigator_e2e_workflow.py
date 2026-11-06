@@ -19,6 +19,7 @@ Validates the full investigator user journey against the real HTTP API without m
 
 import uuid
 import datetime
+import timeutil
 import pytest
 from jose import jwt
 
@@ -228,7 +229,7 @@ def test_investigator_error_states_fail_closed(client, make_invitation):
         "role": "investigator",
         "tenant_id": "tenant_fail",
         "type": "access",
-        "exp": datetime.datetime.utcnow() - datetime.timedelta(hours=2)
+        "exp": timeutil.utcnow() - datetime.timedelta(hours=2)
     }
     expired_token = jwt.encode(expired_payload, SECRET_KEY, algorithm=ALGORITHM)
     expired_res = client.get("/api/v1/investigations", headers={"Authorization": f"Bearer {expired_token}"})

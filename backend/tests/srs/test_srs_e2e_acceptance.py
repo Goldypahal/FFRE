@@ -1,4 +1,5 @@
 import datetime
+import timeutil
 import pytest
 import models
 from main import app
@@ -186,7 +187,7 @@ def test_acceptance_test_e_pure_one_hour_velocity_window(db_session):
     acct = models.Account(account_id="a_e2e_e", customer_id="c_e2e_e")
     merch = models.Merchant(merchant_id="m_e2e_e", name="Merchant E2E", risk_score=0.01)
 
-    now = datetime.datetime.utcnow()
+    now = timeutil.utcnow()
     three_hours_ago = now - datetime.timedelta(hours=3)
 
     t_old = models.Transaction(txn_id="T-E2E-OLD", account_id="a_e2e_e", merchant_id="m_e2e_e", amount=9000.0, currency="USD", status="COMPLETED", timestamp=three_hours_ago)
@@ -209,7 +210,7 @@ def test_acceptance_test_f_full_investigation_pipeline_e2e(client, db_session):
     cust = models.Customer(customer_id="c_e2e_f", name="Full Pipeline Customer", kyc_status="VERIFIED")
     acct = models.Account(account_id="a_e2e_f", customer_id="c_e2e_f")
     merch = models.Merchant(merchant_id="m_e2e_f", name="Full Pipeline Merchant", risk_score=0.02)
-    txn = models.Transaction(txn_id="T-E2E-F", account_id="a_e2e_f", merchant_id="m_e2e_f", amount=1200.0, currency="USD", status="PENDING", timestamp=datetime.datetime.utcnow())
+    txn = models.Transaction(txn_id="T-E2E-F", account_id="a_e2e_f", merchant_id="m_e2e_f", amount=1200.0, currency="USD", status="PENDING", timestamp=timeutil.utcnow())
     dev = models.Device(device_id="d_e2e_f", customer_id="c_e2e_f", os="iOS")
     loc = models.Location(location_id="l_e2e_f", txn_id="T-E2E-F", geo_coord="37.7749,-122.4194", country="US")
 

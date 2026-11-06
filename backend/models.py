@@ -1,5 +1,6 @@
 import uuid
 import datetime
+import timeutil
 from typing import Optional, Sequence, Any, Tuple, List
 from sqlalchemy import Column, String, Float, DateTime, ForeignKey, Text, Numeric, Integer, Boolean, UniqueConstraint, UniqueConstraint, event, select
 from sqlalchemy.orm import relationship
@@ -22,7 +23,7 @@ class User(Base):
     role = Column(String(50), nullable=False, default="investigator")
     status = Column(String(20), nullable=False, default="active")
     last_login = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=timeutil.utcnow)
     _phone_number = Column("phone_number", String(255), nullable=True)
     mfa_enabled = Column(Boolean, default=False, nullable=False)
 
@@ -63,7 +64,7 @@ class Customer(Base):
     _name = Column("name", String(255), nullable=False)
     kyc_status = Column(String(50), default="UNVERIFIED")
     risk_tier = Column(String(20), default="LOW")
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=timeutil.utcnow)
 
     accounts = relationship("Account", back_populates="customer")
     devices = relationship("Device", back_populates="customer")
@@ -84,7 +85,7 @@ class Account(Base):
     customer_id = Column(String, ForeignKey("customer.customer_id"))
     account_type = Column(String(50), default="CHECKING")
     balance = Column(Numeric(12, 2), default=0.0)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=timeutil.utcnow)
 
     customer = relationship("Customer", back_populates="accounts")
     transactions = relationship("Transaction", back_populates="account")
@@ -97,7 +98,7 @@ class Merchant(Base):
     name = Column(String(100), nullable=False)
     category = Column(String(50), default="RETAIL")
     risk_score = Column(Numeric(4, 3), default=0.0)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=timeutil.utcnow)
 
     transactions = relationship("Transaction", back_populates="merchant")
 
@@ -111,7 +112,7 @@ class Transaction(Base):
     amount = Column(Numeric(12, 2), nullable=False)
     currency = Column(String(10), nullable=False, default="USD")
     status = Column(String(50), default="PENDING")
-    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    timestamp = Column(DateTime, default=timeutil.utcnow)
     counterparty = Column(String(255), nullable=True)
     channel = Column(String(50), nullable=True)
     ip_address = Column(String(45), nullable=True)
@@ -162,8 +163,8 @@ class Investigation(Base):
     investigation_id = Column(String, primary_key=True, default=generate_uuid)
     tenant_id = Column(String(50), nullable=True, index=True)
     txn_id = Column(String, ForeignKey("transaction.txn_id"))
-    created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=True)
+    created_at = Column(DateTime, default=timeutil.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=timeutil.utcnow, nullable=True)
     status = Column(String(20), nullable=False, index=True)
     confidence = Column(Numeric(4, 3), nullable=True)
     risk_score = Column(Numeric(4, 3), nullable=True)
@@ -218,7 +219,7 @@ class AuditLog(Base):
     investigation_id = Column(String, ForeignKey("investigation.investigation_id", ondelete="SET NULL"), nullable=True, index=True)
     action = Column(String(250), nullable=False)
     details = Column(Text, nullable=True)
-    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    timestamp = Column(DateTime, default=timeutil.utcnow)
     previous_hash = Column(String(64), nullable=True, default=None)
     entry_hash = Column(String(64), nullable=True, default=None)
 
@@ -243,7 +244,7 @@ class AuditLog(Base):
         prev_entry = query.order_by(cls.timestamp.desc()).first()
         prev_hash = prev_entry.entry_hash if prev_entry and prev_entry.entry_hash else (prev_entry.previous_hash if prev_entry else None)
 
-        now = datetime.datetime.utcnow()
+        now = timeutil.utcnow()
         new_log_id = generate_uuid()
         entry_hash = cls.calculate_entry_hash(
             prev_hash=prev_hash,
@@ -364,7 +365,7 @@ def _auto_chain_audit_log(mapper, connection, target):
     if not target.log_id:
         target.log_id = generate_uuid()
     if not target.timestamp:
-        target.timestamp = datetime.datetime.utcnow()
+        target.timestamp = timeutil.utcnow()
 
     # If entry_hash already explicitly supplied by caller, track and respect it
     if target.entry_hash:
@@ -466,7 +467,7 @@ def _auto_chain_audit_log(mapper, connection, target):
     if not target.log_id:
         target.log_id = generate_uuid()
     if not target.timestamp:
-        target.timestamp = datetime.datetime.utcnow()
+        target.timestamp = timeutil.utcnow()
 
     # If entry_hash already explicitly supplied by caller, track and respect it
     if target.entry_hash:
@@ -509,7 +510,7 @@ class DeadLetterJob(Base):
     transaction_id = Column(String, nullable=False)
     failure_reason = Column(Text, nullable=True)
     retry_count = Column(Integer, default=3, nullable=False)
-    failed_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    failed_at = Column(DateTime, default=timeutil.utcnow, nullable=False)
 
 class EvidenceVaultItem(Base):
     __tablename__ = "evidence_vault"
@@ -530,8 +531,8 @@ class EvidenceVaultItem(Base):
     description = Column(Text, nullable=True)
     storage_path = Column(String(500), nullable=True)
     metadata_json = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=True)
+    created_at = Column(DateTime, default=timeutil.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=timeutil.utcnow, onupdate=timeutil.utcnow, nullable=True)
 
 class ReportRecord(Base):
     __tablename__ = "reports"
@@ -547,8 +548,8 @@ class ReportRecord(Base):
     file_size = Column(Integer, default=2400000)
     description = Column(Text, nullable=True)
     content_json = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=True)
+    created_at = Column(DateTime, default=timeutil.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=timeutil.utcnow, onupdate=timeutil.utcnow, nullable=True)
 
 class SystemSetting(Base):
     __tablename__ = "system_settings"
@@ -560,7 +561,7 @@ class SystemSetting(Base):
     value = Column(Text, nullable=False)
     description = Column(Text, nullable=True)
     is_sensitive = Column(Boolean, default=False)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=timeutil.utcnow, onupdate=timeutil.utcnow)
 
 class SystemIntegration(Base):
     __tablename__ = "system_integrations"
@@ -572,8 +573,8 @@ class SystemIntegration(Base):
     status = Column(String(20), nullable=False, default="connected")
     last_sync = Column(DateTime, nullable=True)
     config_count = Column(Integer, default=3)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=timeutil.utcnow)
+    updated_at = Column(DateTime, default=timeutil.utcnow, onupdate=timeutil.utcnow)
 
 class PromptRecord(Base):
     __tablename__ = "prompt_registry"
@@ -587,8 +588,8 @@ class PromptRecord(Base):
     variables = Column(String(255), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     created_by = Column(String(100), default="System")
-    created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=True)
+    created_at = Column(DateTime, default=timeutil.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=timeutil.utcnow, onupdate=timeutil.utcnow, nullable=True)
 
 class TenantInvitation(Base):
     """
@@ -605,7 +606,7 @@ class TenantInvitation(Base):
     email = Column(String(255), nullable=True)
     role = Column(String(50), nullable=False, default="investigator")
     created_by = Column(String(100), nullable=False)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=timeutil.utcnow, nullable=False)
     expires_at = Column(DateTime, nullable=False)
     is_used = Column(Boolean, default=False, nullable=False, index=True)
     used_at = Column(DateTime, nullable=True)

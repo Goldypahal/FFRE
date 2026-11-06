@@ -2,6 +2,7 @@ import pytest
 from models import *
 import uuid
 from datetime import datetime
+import timeutil
 
 def test_user_creation(db_session):
     """Test creating a User model instance"""
@@ -154,7 +155,7 @@ def test_audit_log_creation(db_session):
         investigation_id=investigation_id,
         action="Investigation Completed",
         details="Investigation finished with high confidence",
-        timestamp=datetime.utcnow()
+        timestamp=timeutil.utcnow()
     )
 
     db_session.add(audit_log)
@@ -212,7 +213,7 @@ def test_audit_log_cryptographic_hash_chain_immutability(db_session):
 
     # Block 1 (Genesis)
     log1_id = str(uuid.uuid4())
-    ts1 = datetime.utcnow().isoformat()
+    ts1 = timeutil.utcnow().isoformat()
     action1 = "INVESTIGATION_SUBMITTED"
     hash1 = AuditLog.calculate_entry_hash(None, log1_id, action1, ts1, "Genesis investigation event")
 
@@ -229,7 +230,7 @@ def test_audit_log_cryptographic_hash_chain_immutability(db_session):
 
     # Block 2 (Chained to Block 1)
     log2_id = str(uuid.uuid4())
-    ts2 = datetime.utcnow().isoformat()
+    ts2 = timeutil.utcnow().isoformat()
     action2 = "EVIDENCE_RETRIEVED"
     hash2 = AuditLog.calculate_entry_hash(hash1, log2_id, action2, ts2, "Retrieved 5 evidence sources")
 

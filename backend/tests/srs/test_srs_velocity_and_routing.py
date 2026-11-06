@@ -1,4 +1,5 @@
 import datetime
+import timeutil
 import pytest
 import models
 from graph import (
@@ -42,7 +43,7 @@ def test_velocity_timestamp_window_filtering(db_session):
     acct = models.Account(account_id="a_win_1", customer_id="c_win_1")
     merch = models.Merchant(merchant_id="m_win_1", name="Window Merchant", risk_score=0.01)
 
-    now = datetime.datetime.utcnow()
+    now = timeutil.utcnow()
     two_hours_ago = now - datetime.timedelta(hours=2)
 
     t_old = models.Transaction(txn_id="T-OLD-1", account_id="a_win_1", merchant_id="m_win_1", amount=9000.0, currency="USD", status="COMPLETED", timestamp=two_hours_ago)

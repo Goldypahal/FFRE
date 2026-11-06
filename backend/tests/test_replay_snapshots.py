@@ -1,6 +1,7 @@
 import pytest
 import uuid
 import datetime
+import timeutil
 import hashlib
 import json
 from decimal import Decimal
@@ -132,7 +133,7 @@ def seeded_investigation(db_session):
 def test_audit_log_verify_chain_unit():
     """Unit test: AuditLog.verify_chain detects valid chains, broken links, tampered details, and invalid genesis."""
     log1_id = str(uuid.uuid4())
-    ts1 = datetime.datetime.utcnow().isoformat()
+    ts1 = timeutil.utcnow().isoformat()
     h1 = models.AuditLog.calculate_entry_hash(None, log1_id, "ACT_INIT", ts1, "Genesis details")
     entry1 = {
         "log_id": log1_id,
@@ -144,7 +145,7 @@ def test_audit_log_verify_chain_unit():
     }
 
     log2_id = str(uuid.uuid4())
-    ts2 = datetime.datetime.utcnow().isoformat()
+    ts2 = timeutil.utcnow().isoformat()
     h2 = models.AuditLog.calculate_entry_hash(h1, log2_id, "ACT_STEP2", ts2, "Step 2 details")
     entry2 = {
         "log_id": log2_id,

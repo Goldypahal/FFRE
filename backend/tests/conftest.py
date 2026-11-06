@@ -205,6 +205,7 @@ def create_test_invitation(db, tenant_id="default_tenant", role="investigator", 
     import secrets
 
     import datetime
+    import timeutil
 
     import hashlib
 
@@ -226,9 +227,9 @@ def create_test_invitation(db, tenant_id="default_tenant", role="investigator", 
 
         created_by="test_harness",
 
-        created_at=datetime.datetime.utcnow(),
+        created_at=timeutil.utcnow(),
 
-        expires_at=datetime.datetime.utcnow() + datetime.timedelta(hours=expires_in_hours),
+        expires_at=timeutil.utcnow() + datetime.timedelta(hours=expires_in_hours),
 
         is_used=False
 
