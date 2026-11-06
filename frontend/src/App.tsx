@@ -10,7 +10,7 @@ import { Admin, Analytics, EvidenceLibrary, Help, Profile, Reports, Auth, Landin
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
   if (!isAuthenticated) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/landing" replace />;
   }
   return <>{children}</>;
 }
