@@ -53,45 +53,35 @@ def get_applied_versions(conn: Connection) -> List[int]:
 
 def table_exists(conn: Connection, is_sqlite: bool, table: str) -> bool:
     """Check if a table exists in the database."""
+    # Errors propagate: a lookup failure must not be mistaken for "table absent",
+    # which would silently skip the migration step and still record it as applied.
     clean_table = table.strip('"')
-    try:
-        if is_sqlite:
-            r = conn.execute(text(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{clean_table}'")).fetchone()
-            return r is not None
-        else:
-            r = conn.execute(text(f"SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name='{clean_table}'")).fetchone()
-            return r is not None
-    except Exception:
-        return False
+    if is_sqlite:
+        r = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name=:t"), {"t": clean_table}).fetchone()
+    else:
+        r = conn.execute(text("SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name=:t"), {"t": clean_table}).fetchone()
+    return r is not None
 
 
 def column_exists(conn: Connection, table: str, column: str) -> bool:
     """Check if a column exists in a table (SQLite specific helper)."""
     clean_table = table.strip('"')
-    try:
-        rows = conn.execute(text(f"PRAGMA table_info({clean_table})")).fetchall()
-        cols = [r[1] for r in rows]
-        return column in cols
-    except Exception:
-        return False
+    rows = conn.execute(text(f'PRAGMA table_info("{clean_table}")')).fetchall()
+    return column in [r[1] for r in rows]
 
 
 def safe_add_column(conn: Connection, is_sqlite: bool, table: str, column: str, col_type: str):
-    """Safely add a column if the table exists and column does not already exist."""
+    """Add a column if the table exists and the column does not already exist."""
     if not table_exists(conn, is_sqlite, table):
         return
 
+    # Existence is checked up front, so any exception here is a real failure
+    # and must abort the migration rather than be recorded as applied.
     if is_sqlite:
         if not column_exists(conn, table, column):
-            try:
-                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"))
-            except Exception:
-                pass
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"))
     else:
-        try:
-            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {col_type}"))
-        except Exception:
-            pass
+        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {col_type}"))
 
 
 # Definition of versioned migrations: (version, name, up_func_sqlite, up_func_postgres)
@@ -104,11 +94,9 @@ def migration_002_investigation_idempotency(conn: Connection, is_sqlite: bool):
     safe_add_column(conn, is_sqlite, "investigation", "idempotency_key", "VARCHAR")
     safe_add_column(conn, is_sqlite, "investigation", "request_fingerprint", "VARCHAR(64)")
     safe_add_column(conn, is_sqlite, "investigation", "updated_at", "DATETIME" if is_sqlite else "TIMESTAMP")
-    try:
+    if table_exists(conn, is_sqlite, "investigation"):
         conn.execute(text("DROP INDEX IF EXISTS uq_investigation_idempotency_key;"))
         conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_investigation_tenant_idempotency_key ON investigation (tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL;"))
-    except Exception:
-        pass
 
 
 def migration_003_customer_account_merchant_extensions(conn: Connection, is_sqlite: bool):
@@ -204,10 +192,7 @@ def migration_008_tenant_invitations_token_hash(conn: Connection, is_sqlite: boo
             conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_tenant_invitations_token_hash ON tenant_invitations (token_hash);"))
     else:
         safe_add_column(conn, is_sqlite, "tenant_invitations", "token_hash", "VARCHAR(64)")
-        try:
-            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_tenant_invitations_token_hash ON tenant_invitations (token_hash);"))
-        except Exception:
-            pass
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_tenant_invitations_token_hash ON tenant_invitations (token_hash);"))
 
 
 def migration_010_backfill_and_enforce_invitation_token_hash(conn: Connection, is_sqlite: bool):
@@ -236,11 +221,100 @@ def migration_010_backfill_and_enforce_invitation_token_hash(conn: Connection, i
         # 3. Scrub any remaining plaintext tokens
         conn.execute(text("UPDATE tenant_invitations SET token = NULL WHERE token IS NOT NULL"))
 
-        # 4. Ensure unique index on token_hash
-        try:
-            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_tenant_invitations_token_hash ON tenant_invitations (token_hash);"))
-        except Exception:
-            pass
+        # 4. Ensure unique index on token_hash (a failure here aborts the migration)
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_tenant_invitations_token_hash ON tenant_invitations (token_hash);"))
+
+
+# Canonical SQLite DDL for tenant_invitations, used to rebuild legacy tables whose
+# token_hash column was added as nullable (SQLite cannot ALTER COLUMN ... SET NOT NULL).
+_SQLITE_TENANT_INVITATIONS_DDL = """
+    CREATE TABLE {name} (
+        invitation_id VARCHAR(64) PRIMARY KEY,
+        token VARCHAR(128),
+        token_hash VARCHAR(64) NOT NULL UNIQUE,
+        tenant_id VARCHAR(50) NOT NULL,
+        email VARCHAR(255),
+        role VARCHAR(50) NOT NULL DEFAULT 'investigator',
+        created_by VARCHAR(100) NOT NULL,
+        created_at DATETIME NOT NULL,
+        expires_at DATETIME NOT NULL,
+        is_used BOOLEAN NOT NULL DEFAULT 0,
+        used_at DATETIME,
+        used_by VARCHAR(255)
+    )
+"""
+
+
+def verify_invitation_token_hash_constraints(conn: Connection) -> None:
+    """
+    Assert tenant_invitations.token_hash is NOT NULL and covered by a unique index
+    or unique constraint on exactly (token_hash); raise RuntimeError otherwise.
+    Shared by the internal engine and Alembic revision e7f8a9b0c1d2 so both
+    migration systems guarantee the same schema.
+    """
+    from sqlalchemy import inspect as sa_inspect
+
+    insp = sa_inspect(conn)
+    if "tenant_invitations" not in insp.get_table_names():
+        return
+
+    cols = {c["name"]: c for c in insp.get_columns("tenant_invitations")}
+    if "token_hash" not in cols:
+        raise RuntimeError("tenant_invitations.token_hash column is missing")
+    if cols["token_hash"]["nullable"]:
+        raise RuntimeError("tenant_invitations.token_hash is nullable; NOT NULL is not enforced")
+
+    unique_on_hash = any(
+        ix.get("unique") and list(ix.get("column_names") or []) == ["token_hash"]
+        for ix in insp.get_indexes("tenant_invitations")
+    ) or any(
+        list(uc.get("column_names") or []) == ["token_hash"]
+        for uc in insp.get_unique_constraints("tenant_invitations")
+    )
+    if not unique_on_hash:
+        raise RuntimeError("tenant_invitations.token_hash has no unique index or unique constraint")
+
+
+def _sqlite_token_hash_is_not_null(conn: Connection) -> bool:
+    for row in conn.execute(text('PRAGMA table_info("tenant_invitations")')).fetchall():
+        if row[1] == "token_hash":
+            return bool(row[3])
+    return False
+
+
+def migration_011_enforce_invitation_token_hash_constraints(conn: Connection, is_sqlite: bool):
+    """
+    Migration 011: bring the internal engine to parity with Alembic revision
+    e7f8a9b0c1d2 (token_hash NOT NULL + unique index) and verify both exist.
+    Kept separate from 010 because 010 is already recorded as applied on existing
+    databases and would never re-run.
+    """
+    if not table_exists(conn, is_sqlite, "tenant_invitations"):
+        return
+
+    null_count = conn.execute(text(
+        "SELECT COUNT(*) FROM tenant_invitations WHERE token_hash IS NULL OR token_hash = ''"
+    )).scalar()
+    if null_count:
+        raise RuntimeError(f"Migration 011 failure: {null_count} tenant invitation records lack token_hash")
+
+    if is_sqlite:
+        if not _sqlite_token_hash_is_not_null(conn):
+            existing_cols = [r[1] for r in conn.execute(text('PRAGMA table_info("tenant_invitations")')).fetchall()]
+            conn.execute(text("DROP TABLE IF EXISTS tenant_invitations__rebuild"))
+            conn.execute(text(_SQLITE_TENANT_INVITATIONS_DDL.format(name="tenant_invitations__rebuild")))
+            target_cols = [r[1] for r in conn.execute(text('PRAGMA table_info("tenant_invitations__rebuild")')).fetchall()]
+            shared = ", ".join(c for c in target_cols if c in existing_cols)
+            conn.execute(text(f"INSERT INTO tenant_invitations__rebuild ({shared}) SELECT {shared} FROM tenant_invitations"))
+            conn.execute(text("DROP TABLE tenant_invitations"))
+            conn.execute(text("ALTER TABLE tenant_invitations__rebuild RENAME TO tenant_invitations"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_tenant_invitations_tenant_id ON tenant_invitations (tenant_id);"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_tenant_invitations_is_used ON tenant_invitations (is_used);"))
+    else:
+        conn.execute(text("ALTER TABLE tenant_invitations ALTER COLUMN token_hash SET NOT NULL"))
+
+    conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_tenant_invitations_token_hash ON tenant_invitations (token_hash);"))
+    verify_invitation_token_hash_constraints(conn)
 
 
 def migration_009_user_mfa_and_phone(conn: Connection, is_sqlite: bool):
@@ -259,6 +333,7 @@ MIGRATIONS: List[Tuple[int, str, Callable[[Connection, bool], None]]] = [
     (8, "tenant_invitations_token_hash", migration_008_tenant_invitations_token_hash),
     (9, "user_mfa_and_phone", migration_009_user_mfa_and_phone),
     (10, "backfill_and_enforce_invitation_token_hash", migration_010_backfill_and_enforce_invitation_token_hash),
+    (11, "enforce_invitation_token_hash_constraints", migration_011_enforce_invitation_token_hash_constraints),
 ]
 
 
@@ -281,7 +356,9 @@ def run_migrations(engine: Engine) -> int:
                     conn.execute(text(f"SELECT pg_advisory_lock({MIGRATION_ADVISORY_LOCK_ID})"))
                 locked = True
             except Exception as e:
-                logger.warning(f"Could not acquire PostgreSQL advisory lock: {e}")
+                # Proceeding unsynchronized risks concurrent DDL from several workers.
+                logger.error(f"Could not acquire PostgreSQL advisory lock: {e}")
+                raise RuntimeError("Unable to acquire migration advisory lock; aborting migrations") from e
 
         try:
             # 2. Ensure tracking table exists

@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from backend.ml.features import FEATURE_NAMES, NUM_FEATURES
-from backend.ml.dataset import load_amlsim_tabular_dataset, FraudDataset
+from backend.ml.dataset import load_amlsim_tabular_dataset, FraudDataset, summarize_provenance
 from backend.ml.training import FraudModelTrainer, compute_metrics
 from backend.ml.registry import ModelRegistry
 from backend.ml.inference import FraudInferenceService
@@ -158,6 +158,8 @@ def run_training_pipeline(
             "fraud_ratio": round(ds.positive_ratio, 4),
             "pos_weight": round(pos_weight, 2),
             "num_features": NUM_FEATURES,
+            "provenance": summarize_provenance(ds.case_ids),
+            "holdout_provenance": summarize_provenance(test_ds.case_ids),
         },
         "models": {
             "baseline_logistic_regression": {

@@ -464,6 +464,47 @@ def generate_synthetic_aml_stream(
     return np.array(X_list, dtype=np.float32), np.array(y_list, dtype=np.int32), case_ids
 
 
+# Case-ID prefix -> data source. Every source FFRE currently trains on is simulated:
+# SYN_* comes from generate_synthetic_aml_stream(), the others from IBM AMLSim
+# outputs or hand-built AMLSim-style benchmark scenarios. None is real bank data.
+_PROVENANCE_PREFIXES = {
+    "SYN": "generated_synthetic_stream",
+    "AML": "amlsim_simulated_transactions",
+    "CHALLENGE": "amlsim_style_challenge_cases",
+    "TEST": "amlsim_style_held_out_cases",
+}
+SIMULATED_SOURCES = frozenset(_PROVENANCE_PREFIXES.values())
+
+
+def classify_case_source(case_id: str) -> str:
+    prefix = str(case_id).split("_", 1)[0].upper()
+    return _PROVENANCE_PREFIXES.get(prefix, "unknown")
+
+
+def summarize_provenance(case_ids: List[str]) -> Dict[str, Any]:
+    """
+    Count samples per data source so validation reports can state honestly how
+    much of the evidence is generated vs. simulated vs. real.
+    """
+    counts: Dict[str, int] = {}
+    for cid in case_ids:
+        src = classify_case_source(cid)
+        counts[src] = counts.get(src, 0) + 1
+    total = len(case_ids)
+    generated = counts.get("generated_synthetic_stream", 0)
+    simulated = sum(n for src, n in counts.items() if src in SIMULATED_SOURCES)
+    unknown = counts.get("unknown", 0)
+    known_real = total - simulated - unknown
+    return {
+        "total": total,
+        "by_source": dict(sorted(counts.items())),
+        "generated_synthetic_fraction": round(generated / total, 4) if total else None,
+        "simulated_fraction": round(simulated / total, 4) if total else None,
+        # True only for an explicitly registered real-data source; None when undetermined.
+        "contains_real_world_data": True if known_real > 0 else (None if unknown else False),
+    }
+
+
 def _safe_float(v: Any, default: float = 0.0) -> float:
     try:
         return float(v)

@@ -3,9 +3,10 @@
 FFIRE Model Risk Management Validation Kit (SR 26-2 / SR 11-7 / OCC 2011-12 Aligned).
 Differentiating Feature #3 from Enterprise Readiness Report.
 
-Performs empirical statistical calculations and generates an exhaustive,
-audit-ready validation evidence package for institutional Model Risk Management (MRM)
-and independent examination teams based on verified out-of-time test partitions.
+Derives every reported metric from per-observation holdout prediction arrays and
+derives the qualification status from recorded evidence (data provenance, threshold
+results, external validation). It never substitutes default metric values: if the
+evidence is missing it refuses to generate the pack.
 """
 
 import os
@@ -17,12 +18,13 @@ from typing import Dict, Any, Tuple, List, Sequence, Optional
 import numpy as np
 
 BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend"))
-if BACKEND_DIR not in sys.path:
-    sys.path.insert(0, BACKEND_DIR)
+REPO_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+for _p in (BACKEND_DIR, REPO_DIR):  # ml.dataset imports via the backend.* package path
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 from ml.registry import ModelRegistry
 
-REPO_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DEFAULT_DOC_PATH = os.path.join(REPO_DIR, "docs", "MODEL_RISK_VALIDATION_PACK.md")
 TRAINING_REPORT_PATH = os.path.join(BACKEND_DIR, "ml", "training_report.json")
 
@@ -194,241 +196,412 @@ def compute_paired_mcnemar_test(
     return round(float(chi2), 2), round(float(p_val), 4), b, c
 
 
-def compute_mcnemar_test(
-    tp1: int, fp1: int, tn1: int, fn1: int,
-    tp2: int, fp2: int, tn2: int, fn2: int
-) -> Tuple[float, float]:
-    """
-    Backward-compatible adapter for marginal confusion matrix inputs.
-    """
-    b = max(0, tp1 - tp2) + max(0, tn1 - tn2)
-    c = max(0, tp2 - tp1) + max(0, tn2 - tn1)
-    total_discordant = b + c
-    if total_discordant == 0:
-        return 0.0, 1.0
-    chi2 = ((abs(b - c) - 1.0) ** 2) / total_discordant
-    p_val = math.erfc(math.sqrt(max(0.0, chi2) / 2.0))
-    return round(chi2, 2), round(p_val, 4)
+class ValidationEvidenceError(RuntimeError):
+    """Raised when per-observation evidence needed for a metric is unavailable."""
 
 
-def generate_validation_pack(output_path: str = DEFAULT_DOC_PATH) -> str:
+# Acceptance thresholds: (metric key, comparator, threshold, display label)
+ACCEPTANCE_THRESHOLDS = [
+    ("precision", ">=", 0.85, "Precision"),
+    ("recall", ">=", 0.80, "Recall"),
+    ("roc_auc", ">=", 0.90, "ROC-AUC"),
+    ("pr_auc", ">=", 0.85, "PR-AUC"),
+    ("brier_score", "<=", 0.05, "Brier Score"),
+    ("ece", "<=", 0.025, "ECE (10 bins)"),
+]
+
+STATUS_QUALIFIED = "EMPIRICALLY QUALIFIED"
+STATUS_SYNTHETIC_CANDIDATE = "INTERNAL SYNTHETIC-DATA BENCHMARK CANDIDATE - NOT EMPIRICALLY QUALIFIED"
+STATUS_FAILED = "NOT QUALIFIED - ACCEPTANCE THRESHOLDS NOT MET"
+STATUS_UNVERIFIED = "NOT QUALIFIED - DATA PROVENANCE UNVERIFIED"
+
+
+def compute_binary_metrics(y_true: Sequence[int], y_pred: Sequence[int], y_prob: Sequence[float]) -> Dict[str, Any]:
+    """Derive every reported metric from per-observation arrays. No stored or default values."""
+    from sklearn.metrics import roc_auc_score, average_precision_score, brier_score_loss
+
+    yt = np.asarray(y_true, dtype=np.int32)
+    yp = np.asarray(y_pred, dtype=np.int32)
+    pr = np.asarray(y_prob, dtype=np.float64)
+    if not (len(yt) == len(yp) == len(pr)) or len(yt) == 0:
+        raise ValidationEvidenceError(
+            f"Prediction arrays are empty or misaligned (y_true={len(yt)}, preds={len(yp)}, probs={len(pr)})"
+        )
+
+    tp = int(np.sum((yt == 1) & (yp == 1)))
+    fp = int(np.sum((yt == 0) & (yp == 1)))
+    tn = int(np.sum((yt == 0) & (yp == 0)))
+    fn = int(np.sum((yt == 1) & (yp == 0)))
+    both_classes = len(np.unique(yt)) == 2
+    ece, mce, cal_bins = compute_calibration_metrics(yt, pr, n_bins=10)
+
+    return {
+        "tp": tp, "fp": fp, "tn": tn, "fn": fn,
+        "n": int(len(yt)), "n_pos": tp + fn, "n_neg": tn + fp, "n_pred_pos": tp + fp,
+        # None (not a default) when the metric is undefined for these arrays.
+        "precision": tp / (tp + fp) if (tp + fp) else None,
+        "recall": tp / (tp + fn) if (tp + fn) else None,
+        "roc_auc": float(roc_auc_score(yt, pr)) if both_classes else None,
+        "pr_auc": float(average_precision_score(yt, pr)) if both_classes else None,
+        "brier_score": float(brier_score_loss(yt, pr)),
+        "ece": ece,
+        "mce": mce,
+        "calibration_bins": cal_bins,
+    }
+
+
+def evaluate_thresholds(metrics: Dict[str, Any]) -> Dict[str, str]:
+    verdicts = {}
+    for key, op, thr, _ in ACCEPTANCE_THRESHOLDS:
+        val = metrics.get(key)
+        if val is None:
+            verdicts[key] = "UNDEFINED"
+        elif (val >= thr) if op == ">=" else (val <= thr):
+            verdicts[key] = "MEETS THRESHOLD"
+        else:
+            verdicts[key] = "FAILS THRESHOLD"
+    return verdicts
+
+
+def determine_qualification_status(
+    provenance: Optional[Dict[str, Any]],
+    verdicts: Dict[str, str],
+    champion: Dict[str, Any],
+    mcnemar_discordant: int,
+    external_validation: Optional[Dict[str, Any]] = None,
+) -> Tuple[str, List[str]]:
+    """
+    Derive the qualification status and the reasons for it from evidence.
+    EMPIRICALLY QUALIFIED requires a passing, independent external validation on
+    non-simulated data; internal metrics on generated data can never earn it.
+    """
+    reasons: List[str] = []
+
+    if any(v != "MEETS THRESHOLD" for v in verdicts.values()):
+        failed = [k for k, v in verdicts.items() if v != "MEETS THRESHOLD"]
+        reasons.append(f"Champion does not meet acceptance thresholds for: {', '.join(failed)}.")
+        status = STATUS_FAILED
+    elif not provenance or provenance.get("contains_real_world_data") is None:
+        reasons.append("Holdout data provenance could not be determined.")
+        status = STATUS_UNVERIFIED
+    else:
+        status = STATUS_SYNTHETIC_CANDIDATE
+
+    if provenance:
+        frac = provenance.get("generated_synthetic_fraction")
+        if frac is not None:
+            reasons.append(
+                f"{frac * 100:.1f}% of the holdout was produced by the in-repo synthetic generator "
+                f"(`generate_synthetic_aml_stream`); the remainder is AMLSim-style simulated data."
+            )
+        if provenance.get("contains_real_world_data") is False:
+            reasons.append("No real-world transaction data is present in the evaluation partition.")
+
+    if champion.get("fp") == 0 and champion.get("fn") == 0 and champion.get("roc_auc") == 1.0:
+        reasons.append(
+            "Perfect separation (zero errors, ROC-AUC = 1.0) reflects how the synthetic generator draws "
+            "fraud and benign samples from distinct feature distributions; it is not evidence of "
+            "real-world discrimination performance."
+        )
+    if mcnemar_discordant == 0:
+        reasons.append(
+            "Champion and challenger made identical classifications on every holdout case, so the paired "
+            "McNemar test is uninformative and provides no evidence that the champion is superior."
+        )
+
+    ext = external_validation or {}
+    ext_ok = (
+        status == STATUS_SYNTHETIC_CANDIDATE
+        and ext.get("passed") is True
+        and ext.get("independent") is True
+        and ext.get("contains_real_world_data") is True
+    )
+    if ext_ok:
+        status = STATUS_QUALIFIED
+        reasons.append(f"Independent external validation passed: {ext.get('reference', 'see external_validation record')}.")
+    elif status == STATUS_SYNTHETIC_CANDIDATE:
+        reasons.append(
+            "No independent external validation on real-world data is recorded; empirical qualification "
+            "cannot be claimed until one is performed."
+        )
+    return status, reasons
+
+
+def _reconstruct_holdout_provenance(y_true: np.ndarray) -> Optional[Dict[str, Any]]:
+    """Rebuild the deterministic split to recover holdout provenance for older reports."""
+    try:
+        from ml.dataset import load_amlsim_tabular_dataset, summarize_provenance
+        ds = load_amlsim_tabular_dataset(seed=42)
+        _, test_ds = ds.split(test_size=0.25, seed=42)
+        if len(test_ds.y) != len(y_true) or not np.array_equal(test_ds.y, y_true):
+            return None  # Cannot prove the reconstructed split is the evaluated one.
+        return summarize_provenance(test_ds.case_ids)
+    except Exception:
+        return None
+
+
+def _load_holdout_evidence(training_report: Dict[str, Any], registry, prod_model_meta, staging_models) -> Dict[str, Any]:
+    holdout = training_report.get("holdout_evaluation", {})
+    ev = {
+        "y_true": np.asarray(holdout.get("y_true", [])),
+        "champ_preds": np.asarray(holdout.get("champion_predictions", [])),
+        "champ_probs": np.asarray(holdout.get("champion_probabilities", [])),
+        "chall_preds": np.asarray(holdout.get("challenger_predictions", [])),
+        "chall_probs": np.asarray(holdout.get("challenger_probabilities", [])),
+        "train_scores": np.asarray(holdout.get("train_scores", [])),
+        "test_scores": np.asarray(holdout.get("test_scores", [])),
+        "source": "persisted training report (backend/ml/training_report.json)",
+    }
+    if len(ev["y_true"]) > 0:
+        return ev
+
+    # Recompute live on the deterministic test split; fail if artifacts are missing.
+    from ml.dataset import load_amlsim_tabular_dataset
+    import joblib
+    ds = load_amlsim_tabular_dataset(seed=42)
+    train_ds, test_ds = ds.split(test_size=0.25, seed=42)
+    prod_path = registry.resolve_artifact_path(prod_model_meta.get("artifact_path", "lightgbm_fraud_detector_v1.joblib"))
+    base_meta = staging_models[0] if staging_models else {}
+    base_path = registry.resolve_artifact_path(base_meta.get("artifact_path", "baseline_logistic_regression_v1.joblib"))
+    if not (os.path.exists(prod_path) and os.path.exists(base_path)):
+        raise ValidationEvidenceError(
+            "No persisted holdout arrays and model artifacts are missing; refusing to report metrics without evidence."
+        )
+    prod_m = joblib.load(prod_path)
+    base_m = joblib.load(base_path)
+    champ_probs = prod_m.predict_proba(test_ds.X)[:, 1]
+    chall_probs = base_m.predict_proba(test_ds.X)[:, 1]
+    return {
+        "y_true": test_ds.y,
+        "champ_preds": (champ_probs >= 0.50).astype(int),
+        "champ_probs": champ_probs,
+        "chall_preds": (chall_probs >= 0.50).astype(int),
+        "chall_probs": chall_probs,
+        "train_scores": prod_m.predict_proba(train_ds.X)[:, 1],
+        "test_scores": champ_probs,
+        "source": "live recomputation on deterministic test split (seed=42)",
+    }
+
+
+def _fmt_pct(v: Optional[float]) -> str:
+    return "undefined" if v is None else f"{v * 100:.1f}%"
+
+
+def _fmt_num(v: Optional[float], digits: int = 3) -> str:
+    return "undefined" if v is None else f"{v:.{digits}f}"
+
+
+def generate_validation_pack(output_path: str = DEFAULT_DOC_PATH, training_report_path: str = TRAINING_REPORT_PATH) -> str:
     registry = ModelRegistry()
     manifest = registry._load_manifest()
     prod_id = manifest.get("active_production_model_id", "lightgbm_fraud_detector_v1")
-
     models = manifest.get("models", {})
     prod_model_meta = models.get(prod_id, {})
     staging_models = [m for k, m in models.items() if k != prod_id]
 
-    # Load authentic training & holdout evaluation report
-    training_report = {}
-    if os.path.exists(TRAINING_REPORT_PATH):
-        try:
-            with open(TRAINING_REPORT_PATH, "r", encoding="utf-8") as f:
-                training_report = json.load(f)
-        except Exception:
-            pass
+    training_report: Dict[str, Any] = {}
+    if os.path.exists(training_report_path):
+        with open(training_report_path, "r", encoding="utf-8") as f:
+            training_report = json.load(f)
 
-    calibrated_meta = training_report.get("models", {}).get("calibrated_lightgbm", {})
-    calibrated_metrics = calibrated_meta.get("metrics") or prod_model_meta.get("metrics", {})
+    ev = _load_holdout_evidence(training_report, registry, prod_model_meta, staging_models)
+    y_true = ev["y_true"]
 
-    # Extract authentic holdout evaluation data
-    holdout = training_report.get("holdout_evaluation", {})
-    y_true = np.array(holdout.get("y_true", []))
-    champ_preds = np.array(holdout.get("champion_predictions", []))
-    champ_probs = np.array(holdout.get("champion_probabilities", []))
-    chall_preds = np.array(holdout.get("challenger_predictions", []))
-    chall_probs = np.array(holdout.get("challenger_probabilities", []))
-    train_scores = holdout.get("train_scores", [])
-    test_scores = holdout.get("test_scores", [])
+    champ = compute_binary_metrics(y_true, ev["champ_preds"], ev["champ_probs"])
+    chall = compute_binary_metrics(y_true, ev["chall_preds"], ev["chall_probs"])
+    verdicts = evaluate_thresholds(champ)
 
-    # If holdout evaluation is not persisted in report, compute live on test split
-    if len(y_true) == 0:
-        from ml.dataset import load_amlsim_tabular_dataset
-        import joblib
-        ds = load_amlsim_tabular_dataset(seed=42)
-        train_ds, test_ds = ds.split(test_size=0.25, seed=42)
-        y_true = test_ds.y
-
-        prod_path = registry.resolve_artifact_path(prod_model_meta.get("artifact_path", "lightgbm_fraud_detector_v1.joblib"))
-        base_meta = staging_models[0] if staging_models else {}
-        base_path = registry.resolve_artifact_path(base_meta.get("artifact_path", "baseline_logistic_regression_v1.joblib"))
-
-        if os.path.exists(prod_path) and os.path.exists(base_path):
-            prod_m = joblib.load(prod_path)
-            base_m = joblib.load(base_path)
-            champ_probs = prod_m.predict_proba(test_ds.X)[:, 1]
-            champ_preds = (champ_probs >= 0.50).astype(int)
-            chall_probs = base_m.predict_proba(test_ds.X)[:, 1]
-            chall_preds = (chall_probs >= 0.50).astype(int)
-            train_scores = prod_m.predict_proba(train_ds.X)[:, 1]
-            test_scores = champ_probs
-
-    # Authentic sample sizes and confusion matrix
-    if len(y_true) > 0 and len(champ_preds) == len(y_true):
-        tp = int(np.sum((y_true == 1) & (champ_preds == 1)))
-        fp = int(np.sum((y_true == 0) & (champ_preds == 1)))
-        tn = int(np.sum((y_true == 0) & (champ_preds == 0)))
-        fn = int(np.sum((y_true == 1) & (champ_preds == 0)))
-    else:
-        tp = int(calibrated_metrics.get("true_positives", 24))
-        fp = int(calibrated_metrics.get("false_positives", 0))
-        tn = int(calibrated_metrics.get("true_negatives", 485))
-        fn = int(calibrated_metrics.get("false_negatives", 0))
-
-    n_test_eval = tp + fp + tn + fn
-    n_actual_pos = tp + fn
-    n_actual_neg = tn + fp
-    n_pred_pos = tp + fp
-
-    precision = float(calibrated_metrics.get("precision", tp / max(1, n_pred_pos)))
-    recall = float(calibrated_metrics.get("recall", tp / max(1, n_actual_pos)))
-    roc_auc = float(calibrated_metrics.get("roc_auc", 1.0))
-    pr_auc = float(calibrated_metrics.get("pr_auc", 1.0))
-    brier = float(calibrated_metrics.get("brier_score", 0.0001))
-
-    # Dynamic Calibration Metrics: compute real ECE and MCE from empirical probabilities
-    if len(y_true) > 0 and len(champ_probs) == len(y_true):
-        dynamic_ece, dynamic_mce, cal_bins = compute_calibration_metrics(y_true, champ_probs, n_bins=10)
-    else:
-        dynamic_ece = float(calibrated_metrics.get("expected_calibration_error", 0.0038))
-        dynamic_mce = 0.0125
-
-    # Dynamic Asymptotic Standard Error for PR-AUC
-    pr_auc_se, pr_auc_ci_low, pr_auc_ci_high = compute_pr_auc_se(pr_auc, n_actual_pos)
-
-    # Exact Wilson Score Intervals with authentic sample denominators:
-    prec_ci_low, prec_ci_high = wilson_score_interval(tp, max(1, n_pred_pos))
-    rec_ci_low, rec_ci_high = wilson_score_interval(tp, max(1, n_actual_pos))
-    auc_ci_low, auc_ci_high = compute_hanley_mcneil_ci(roc_auc, max(1, n_actual_pos), max(1, n_actual_neg))
-
-    # Challenger metrics (Baseline Logistic Regression)
-    baseline_meta = training_report.get("models", {}).get("baseline_logistic_regression", {})
-    ch_metrics = baseline_meta.get("metrics") or (staging_models[0].get("metrics", {}) if staging_models else {})
-    ch_tp = int(ch_metrics.get("true_positives", 24))
-    ch_fp = int(ch_metrics.get("false_positives", 0))
-    ch_tn = int(ch_metrics.get("true_negatives", 485))
-    ch_fn = int(ch_metrics.get("false_negatives", 0))
-    ch_precision = float(ch_metrics.get("precision", 1.0))
-    ch_recall = float(ch_metrics.get("recall", 1.0))
-    ch_auc = float(ch_metrics.get("roc_auc", 1.0))
-    ch_pr_auc = float(ch_metrics.get("pr_auc", 1.0))
-    ch_brier = float(ch_metrics.get("brier_score", 0.0))
-    ch_ece = float(ch_metrics.get("expected_calibration_error", 0.0003))
-
-    # True per-observation paired McNemar test on authentic observation arrays
-    if len(y_true) > 0 and len(champ_preds) == len(y_true) and len(chall_preds) == len(y_true):
-        mcnemar_chi2, mcnemar_p, b_cases, c_cases = compute_paired_mcnemar_test(y_true, champ_preds, chall_preds)
-    else:
-        mcnemar_chi2, mcnemar_p = compute_mcnemar_test(tp, fp, tn, fn, ch_tp, ch_fp, ch_tn, ch_fn)
-        b_cases, c_cases = 0, 0
-
+    mcnemar_chi2, mcnemar_p, b_cases, c_cases = compute_paired_mcnemar_test(y_true, ev["champ_preds"], ev["chall_preds"])
     p_display = "< 0.0001" if mcnemar_p < 0.0001 else f"= {mcnemar_p:.4f}"
-
-    # True Population Stability Index (PSI) computed from empirical training vs test distributions
-    if len(train_scores) > 0 and len(test_scores) > 0:
-        psi_metric, psi_bins = compute_population_stability_index(train_scores, test_scores, n_bins=10)
+    if b_cases + c_cases == 0:
+        mcnemar_verdict = ("Uninformative: the two models made identical classifications on every case. "
+                           "This is not evidence that the champion outperforms the challenger.")
+    elif mcnemar_p < 0.05:
+        better = "champion" if b_cases > c_cases else "challenger"
+        mcnemar_verdict = f"Significant difference at alpha = 0.05 favouring the {better}."
     else:
-        psi_metric = 0.0124
+        mcnemar_verdict = "No statistically significant difference at alpha = 0.05."
+
+    ds_meta = training_report.get("dataset", {})
+    provenance = ds_meta.get("holdout_provenance") or _reconstruct_holdout_provenance(y_true)
+    full_provenance = ds_meta.get("provenance")
+
+    status, reasons = determine_qualification_status(
+        provenance, verdicts, champ, b_cases + c_cases, training_report.get("external_validation")
+    )
+
+    # Confidence intervals from actual counts
+    prec_ci = wilson_score_interval(champ["tp"], champ["n_pred_pos"]) if champ["n_pred_pos"] else None
+    rec_ci = wilson_score_interval(champ["tp"], champ["n_pos"]) if champ["n_pos"] else None
+    auc_ci = compute_hanley_mcneil_ci(champ["roc_auc"], champ["n_pos"], champ["n_neg"]) if champ["roc_auc"] is not None else None
+    pr_se = compute_pr_auc_se(champ["pr_auc"], champ["n_pos"]) if champ["pr_auc"] is not None else None
+
+    def ci_str(ci, label):
+        if ci is None:
+            return "undefined"
+        note = " (degenerate: zero width at a boundary estimate)" if ci[0] == ci[1] else ""
+        return f"[{ci[0]:.3f}, {ci[1]:.3f}] {label}{note}"
+
+    ci_cells = {
+        "precision": ci_str(prec_ci, f"Wilson, n={champ['n_pred_pos']}"),
+        "recall": ci_str(rec_ci, f"Wilson, n={champ['n_pos']}"),
+        "roc_auc": ci_str(auc_ci, "Hanley-McNeil"),
+        "pr_auc": ci_str(pr_se[1:] if pr_se else None, "Wald"),
+        "brier_score": "N/A",
+        "ece": f"MCE = {champ['mce']:.4f}",
+    }
+
+    rows = []
+    for key, op, thr, label in ACCEPTANCE_THRESHOLDS:
+        pct = key in ("precision", "recall")
+        digits = 4 if key in ("brier_score", "ece") else 3
+        fmt = _fmt_pct if pct else (lambda v, d=digits: _fmt_num(v, d))
+        thr_s = f"{op} {thr * 100:.1f}%" if pct else f"{op} {thr}"
+        rows.append(f"| **{label}** | **{fmt(champ[key])}** | {ci_cells[key]} | {fmt(chall[key])} | {thr_s} | {verdicts[key]} |")
+    metrics_table = "\n".join(rows)
+
+    # PSI: train vs. holdout scores from the same random split
+    if len(ev["train_scores"]) and len(ev["test_scores"]):
+        psi_metric, _ = compute_population_stability_index(ev["train_scores"], ev["test_scores"], n_bins=10)
+        psi_band = "stable (< 0.10)" if psi_metric < 0.10 else ("moderate shift (0.10-0.25)" if psi_metric < 0.25 else "significant shift (> 0.25)")
+        psi_section = (
+            f"   - PSI between training scores ($N={len(ev['train_scores'])}$) and holdout scores "
+            f"($N={len(ev['test_scores'])}$): **`{psi_metric}`** - {psi_band}.\n"
+            f"   - Scope: both partitions come from one random split of the same dataset, so this checks split "
+            f"consistency only. It is not evidence of stability against production traffic, which requires "
+            f"monitoring live score distributions."
+        )
+    else:
+        psi_section = "   - Not computed: no training/holdout score arrays are available."
+
+    stress = training_report.get("stress_tests")
+    if stress:
+        stress_rows = "\n".join(
+            f"| {s.get('scenario')} | {s.get('perturbation')} | {s.get('f1_delta')} | {s.get('ece_delta')} | {s.get('status')} |"
+            for s in stress
+        )
+        stress_section = ("| Scenario | Perturbation | F1 Change | ECE Change | Status |\n"
+                          "| :--- | :--- | :--- | :--- | :--- |\n" + stress_rows)
+    else:
+        stress_section = (
+            "**Not performed.** No stress-test results are recorded in the training report. Earlier versions of "
+            "this document listed stress-test figures that were not produced by any executed test; they have "
+            "been removed."
+        )
+
+    def prov_lines(p: Optional[Dict[str, Any]], label: str) -> str:
+        if not p:
+            return f"- **{label}:** provenance unavailable"
+        srcs = ", ".join(f"{k}: {v}" for k, v in p.get("by_source", {}).items())
+        frac = p.get("generated_synthetic_fraction")
+        frac_s = "unknown" if frac is None else f"{frac * 100:.1f}%"
+        return (f"- **{label}:** N = {p.get('total')} ({srcs}); generated-synthetic share = {frac_s}; "
+                f"real-world data present = {p.get('contains_real_world_data')}")
+
+    reasons_md = "\n".join(f"- {r}" for r in reasons)
+    now = datetime.datetime.now(datetime.timezone.utc)
 
     report = f"""# Model Risk Management (MRM) Validation Pack
-**Document ID:** MRM-VAL-FFIRE-{datetime.datetime.now().strftime('%Y%m%d')}  
-**Standard Compliance:** Federal Reserve SR 11-7 / SR 26-2 & OCC Bulletin 2011-12  
-**System:** Financial Fraud Investigation Reasoning Engine (FFIRE)  
-**Date of Generation:** {datetime.datetime.now(datetime.timezone.utc).isoformat()}  
-**Lead Validation Status:** EMPIRICALLY QUALIFIED (Evaluated on {n_test_eval}-Case Stratified Holdout Partition)  
+**Document ID:** MRM-VAL-FFIRE-{now.strftime('%Y%m%d')}
+**Reference Frameworks:** Federal Reserve SR 11-7 & OCC Bulletin 2011-12 (structure only; this document is not an independent validation)
+**System:** Financial Fraud Investigation Reasoning Engine (FFIRE)
+**Date of Generation:** {now.isoformat()}
+**Validation Status:** {status}
+**Evidence Source:** {ev['source']}
+
+> [!WARNING]
+> **Why this status:**
+{chr(10).join('> ' + line for line in reasons_md.splitlines())}
 
 ---
 
-## 1. Executive Summary & Model Inventory Entry
-- **Model Name:** Calibrated LightGBM GBDT Fraud Reasoning Classifier
+## 1. Model Inventory Entry
+- **Model Name:** Calibrated LightGBM GBDT Fraud Classifier
 - **Model Identifier:** `{prod_id}`
-- **Model Version:** `{prod_model_meta.get('version', '1.0.0')}`
-- **Lifecycle Stage:** `{prod_model_meta.get('stage', 'production')}`
-- **Model Owner:** Fraud Risk & AML Investigation Engineering
+- **Model Version:** `{prod_model_meta.get('version', 'UNRECORDED')}`
+- **Lifecycle Stage (registry):** `{prod_model_meta.get('stage', 'UNRECORDED')}`
 - **Production Artifact Digest (SHA-256):** `{prod_model_meta.get('sha256', 'UNAVAILABLE')}`
-- **Intended Use Case:** Post-transaction fraud investigation decision support, typology anomaly detection, and human-in-the-loop triage priority ranking.
-- **Out-of-Scope Use Case:** Autonomous inline payment interdiction; direct automated regulatory filing.
+- **Intended Use:** Post-transaction fraud investigation decision support and human-in-the-loop triage ranking.
+- **Out-of-Scope Use:** Autonomous inline payment interdiction; automated regulatory filing.
 
 ---
 
-## 2. Conceptual Soundness & Architecture
-### 2.1 Theoretical Framework
-FFIRE combines **gradient boosted decision trees (GBDT)** with **Platt Sigmoid Probability Calibration** to output true posterior fraud probabilities rather than uncalibrated margin rankings:
+## 2. Data Provenance
+{prov_lines(full_provenance, 'Full dataset')}
+{prov_lines(provenance, 'Holdout partition')}
+
+All current data sources are simulated: the in-repo generator draws fraud and benign samples from deliberately
+different feature distributions (KYC status, risk tier, velocity, graph signals), and the remaining cases are
+AMLSim-style simulated scenarios. Metrics below therefore measure how well the model recovers the generator's
+rules, not real-world fraud detection performance.
+
+---
+
+## 3. Conceptual Soundness
+FFIRE combines gradient boosted decision trees with Platt sigmoid calibration
+(`CalibratedClassifierCV(method="sigmoid", cv=3)`):
 $$\\hat{{P}}(Y=1 | X) = \\frac{{1}}{{1 + \\exp(A \\cdot f(X) + B)}}$$
-Where $f(X)$ represents the LightGBM margin score and parameters $A, B$ are estimated via 3-fold cross-validation.
-
-### 2.2 Feature Representation Matrix
-The production model consumes {len(prod_model_meta.get('feature_names', []))} engineered features across 5 core risk categories:
-1. **Velocity Bursts:** Short-term (1h), medium-term (24h), and structural (7d) cumulative velocity counts and transaction sums.
-2. **Amount Ratios:** Ratio of current transaction amount to historical 30-day account average, and amount-to-balance depletion ratio.
-3. **Graph Topology Signals:** Homogeneous and heterogeneous multi-hop cycle score, fan-in/fan-out scatter-gather score.
-4. **Structuring Heuristics:** Statutory threshold proximity ($9,000–$9,999 bounds testing) and micro-transfer burst flags.
-5. **Entity Context:** KYC verification tier, account classification (Checking vs Commercial), and counterparty newness indicators.
+The production model consumes {len(prod_model_meta.get('feature_names', []))} engineered features (velocity, amount ratios,
+graph topology, structuring heuristics, and entity context).
 
 ---
 
-## 3. Empirical Performance & Statistical Confidence Intervals (SR 11-7 Section III.B)
-Validation was conducted on the authentic held-out evaluation partition ($N_{{test}} = {n_test_eval}$, Actual Positive Class $N_{{pos}} = {n_actual_pos}$, Actual Negative Class $N_{{neg}} = {n_actual_neg}$).
+## 4. Holdout Performance (internal, synthetic-data benchmark)
+Every value below is computed from per-observation prediction arrays ($N = {champ['n']}$, positives = {champ['n_pos']},
+negatives = {champ['n_neg']}). No stored or default metric values are used.
 
-### Confusion Matrix on Held-Out Test Partition ($N = {n_test_eval}$)
-- **True Positives (TP):** {tp}
-- **False Positives (FP):** {fp}
-- **True Negatives (TN):** {tn}
-- **False Negatives (FN):** {fn}
-- **Predicted Positives ($TP + FP$):** {n_pred_pos}
-- **Actual Positives ($TP + FN$):** {n_actual_pos}
+### Champion Confusion Matrix
+- **TP:** {champ['tp']} | **FP:** {champ['fp']} | **TN:** {champ['tn']} | **FN:** {champ['fn']}
 
-| Evaluation Metric | Champion (`{prod_id}`) | 95% Confidence Interval | Challenger (Logistic Regression) | Acceptance Threshold | Compliance Verdict |
+| Metric | Champion (`{prod_id}`) | 95% CI | Challenger (Logistic Regression) | Threshold | Result |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Precision** | **{precision * 100:.1f}%** | [{prec_ci_low * 100:.1f}%, {prec_ci_high * 100:.1f}%] (Wilson $n={max(1, n_pred_pos)}$) | {ch_precision * 100:.1f}% | >= 85.0% | **PASSED** |
-| **Recall** | **{recall * 100:.1f}%** | [{rec_ci_low * 100:.1f}%, {rec_ci_high * 100:.1f}%] (Wilson $n={max(1, n_actual_pos)}$) | {ch_recall * 100:.1f}% | >= 80.0% | **PASSED** |
-| **ROC-AUC** | **{roc_auc:.3f}** | [{auc_ci_low:.3f}, {auc_ci_high:.3f}] (Hanley-McNeil Asymptotic 95% CI) | {ch_auc:.3f} | >= 0.900 | **PASSED** |
-| **PR-AUC** | **{pr_auc:.3f}** | Asymptotic SE = {pr_auc_se:.4f} (95% CI: [{pr_auc_ci_low:.3f}, {pr_auc_ci_high:.3f}]) | {ch_pr_auc:.3f} | >= 0.850 | **PASSED** |
-| **Brier Score** | **{brier:.4f}** | N/A | {ch_brier:.4f} | <= 0.050 | **PASSED** |
-| **ECE (10 Bins)** | **{dynamic_ece:.4f}** | Dynamic MCE = {dynamic_mce:.4f} | {ch_ece:.4f} | <= 0.025 | **PASSED** |
+{metrics_table}
 
-> [!NOTE]
-> **Champion vs Challenger True Paired Statistical Significance:**
-> Evaluated on identical {n_test_eval} per-observation predictions:
-> - Discordant cases where Champion correct & Challenger incorrect ($b$): **{b_cases}**
-> - Discordant cases where Challenger correct & Champion incorrect ($c$): **{c_cases}**
-> - Edwards continuity-corrected paired McNemar statistic: $\\chi^2 = {mcnemar_chi2}$ ($p {p_display}$).
-> - Statistical Verdict: Confirms statistically robust classification performance with verified calibration stability.
+Meeting these thresholds on this holdout is a necessary internal check, not a qualification.
+
+### Champion vs. Challenger (paired McNemar, Edwards continuity correction)
+- Champion correct / challenger wrong ($b$): **{b_cases}**
+- Challenger correct / champion wrong ($c$): **{c_cases}**
+- $\\chi^2 = {mcnemar_chi2}$, $p {p_display}$
+- **Interpretation:** {mcnemar_verdict}
 
 ---
 
-## 4. Sensitivity Analysis & Stress Testing (Severe Adversarial Scenarios)
-Stress tests subject the model to synthetic data corruptions and macro shifts to evaluate resilience against out-of-distribution shifts.
-
-| Scenario | Perturbation Description | Impact on F1-Score | Calibration Drift (ECE) | Robustness Threshold | Status |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **S1: Extreme Velocity Burst** | 5x historical transaction frequency | -2.1% | +0.0031 | Max degradation < 5.0% | **ROBUST** |
-| **S2: Smurfing Boundary Attack**| Clustering at $9,950–$9,999 | +1.4% (Detection sensitivity rises) | +0.0012 | False Positive Spike < 2.0% | **ROBUST** |
-| **S3: Graph Missingness** | 50% dropped counterparty edge links | -3.8% | +0.0058 | Max degradation < 8.0% | **ACCEPTABLE** |
-| **S4: Feature Noise Injection**| Gaussian noise (std=0.20) on balances | -1.9% | +0.0024 | Max degradation < 5.0% | **ROBUST** |
+## 5. Sensitivity Analysis & Stress Testing
+{stress_section}
 
 ---
 
-## 5. Ongoing Monitoring & Governance Controls (SR 26-2 Section IV)
+## 6. Monitoring & Governance Controls
 1. **Population Stability Index (PSI):**
-   - Empirical PSI between baseline training distribution ($N=1528$) and holdout test distribution ($N=509$): **`{psi_metric}`**
-   - Governance Interpretation: `{psi_metric}` < 0.10 indicates **STABLE POPULATION (Zero Material Drift)**.
-   - Retraining Trigger Policy: $PSI > 0.10 \\implies$ Automated Investigation Warning; $PSI > 0.25 \\implies$ Mandatory Pipeline Retraining.
-2. **Cryptographic Provenance:** The SHA-256 digest of `{prod_model_meta.get('sha256', '')}` is verified in memory prior to loading any joblib artifact to defeat deserialization attacks.
-3. **Audit Trail Immutability:** All model scores, confidence measures, and top feature attributions are written to SHA-256 chained audit logs.
+{psi_section}
+2. **Artifact Integrity:** the registry recomputes each artifact's SHA-256 and compares it with the manifest before
+   loading it with joblib. This detects tampering with the artifact file; it does not make untrusted pickles safe.
+3. **Audit Trail:** model scores and top feature attributions are written to the SHA-256 chained audit log.
 
 ---
-*Report auto-generated by `scripts/generate_model_validation_kit.py` for Model Governance & Audit Record Keeping.*
+
+## 7. Required Before Empirical Qualification
+1. Independent validation on real (or contractually representative) labelled transaction data.
+2. Out-of-time evaluation rather than a single random split.
+3. Executed stress tests with recorded results.
+4. A challenger evaluation in which the models actually disagree, so that superiority can be tested.
+
+---
+*Generated by `scripts/generate_model_validation_kit.py`. Status and every metric are derived from recorded evidence.*
 """
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(report)
 
-    print(f"[*] MRM Validation Pack generated at: {output_path}")
+    print(f"[*] MRM Validation Pack generated at: {output_path} (status: {status})")
     return report
 
 
 if __name__ == "__main__":
-    generate_validation_pack()
+    try:
+        generate_validation_pack()
+    except ValidationEvidenceError as exc:
+        print(f"[!] Validation pack NOT generated: {exc}", file=sys.stderr)
+        sys.exit(2)

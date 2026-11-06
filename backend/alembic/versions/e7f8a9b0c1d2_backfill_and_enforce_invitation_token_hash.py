@@ -64,13 +64,32 @@ def upgrade() -> None:
             .values(token=None)
         )
 
-        # 4. Enforce NOT NULL on token_hash
+        # 4. Enforce NOT NULL on token_hash. Batch operations are deferred to the
+        #    context exit, so errors surface there and abort the revision.
         with op.batch_alter_table('tenant_invitations') as batch_op:
-            batch_op.alter_column('token_hash', nullable=False)
-            try:
-                batch_op.create_index('ix_tenant_invitations_token_hash', ['token_hash'], unique=True)
-            except Exception:
-                pass
+            batch_op.alter_column('token_hash', existing_type=sa.String(length=64), nullable=False)
+
+        # 5. Ensure a unique index on token_hash. Revision d5f6a7b8c9d0 normally
+        #    creates it already; only create it when no unique index/constraint
+        #    covers the column, and never swallow a creation failure.
+        insp = sa.inspect(bind)
+        has_unique = any(
+            ix.get('unique') and list(ix.get('column_names') or []) == ['token_hash']
+            for ix in insp.get_indexes('tenant_invitations')
+        ) or any(
+            list(uc.get('column_names') or []) == ['token_hash']
+            for uc in insp.get_unique_constraints('tenant_invitations')
+        )
+        if not has_unique:
+            existing_names = {ix['name'] for ix in insp.get_indexes('tenant_invitations')}
+            if 'ix_tenant_invitations_token_hash' in existing_names:
+                # A non-unique index holds the canonical name; replace it.
+                op.drop_index('ix_tenant_invitations_token_hash', table_name='tenant_invitations')
+            op.create_index('ix_tenant_invitations_token_hash', 'tenant_invitations', ['token_hash'], unique=True)
+
+        # 6. Verify the guarantees with the same check the internal engine uses.
+        from migrations import verify_invitation_token_hash_constraints
+        verify_invitation_token_hash_constraints(bind)
 
 
 def downgrade() -> None:
