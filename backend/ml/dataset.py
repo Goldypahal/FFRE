@@ -102,10 +102,17 @@ def load_amlsim_tabular_dataset(
     n_synthetic: int = 2000,
     fraud_ratio: float = 0.04,
     seed: int = 42,
+    include_held_out: bool = False,
 ) -> FraudDataset:
     """
     Constructs a tabular FraudDataset from IBM AMLSim accounts, transactions,
     alert ground truth, and optional calibrated synthetic banking stream.
+
+    The held-out scenario battery (``amlsim_held_out_test.json``, case ids ``TEST_*``)
+    is excluded by default so it can never leak into training. Load it separately
+    with :func:`load_amlsim_held_out_dataset` for independent evaluation.
+    ``include_held_out=True`` exists only to reproduce reports built before this
+    separation.
     """
     if workspace_root is None:
         workspace_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -183,59 +190,15 @@ def load_amlsim_tabular_dataset(
         y_list.append(label)
         case_ids.append(f"AML_{t['txn_id']}")
 
-    # Augment with hardened challenge & held-out scenarios
-    dev_json = os.path.join(dataset_dir, "amlsim_hardened_challenge.json")
-    held_json = os.path.join(dataset_dir, "amlsim_held_out_test.json")
-
-    for p in [dev_json, held_json]:
-        if os.path.exists(p):
-            with open(p, "r", encoding="utf-8") as f:
-                cases = json.load(f)
-                for c in cases:
-                    if c.get("expected_abstention"):
-                        continue
-                    meta = c.get("metadata", {})
-                    amt = _safe_float(meta.get("amount", 1000.0))
-                    gold = c.get("ground_truth_label", "BENIGN")
-                    label = 1 if gold == "SUSPICIOUS" else 0
-                    cat = c.get("category", "")
-
-                    edges = c.get("ground_truth_edges", [])
-                    orig = edges[0]["source"] if edges else f"ACC_{c['case_id']}"
-                    dest = edges[0]["dest"] if edges else f"DEST_{c['case_id']}"
-
-                    c_score = 0.50 if "cycle" in cat or "cycle" in c.get("case_id", "").lower() else 0.0
-                    sg_score = 0.40 if "scatter" in cat or "sg" in c.get("case_id", "").lower() else 0.0
-
-                    txn_dict = {
-                        "txn_id": c["target_transaction_id"],
-                        "account_id": orig,
-                        "counterparty": dest,
-                        "amount": amt,
-                        "timestamp": "2026-01-16T12:00:00+00:00",
-                        "channel": "WIRE" if amt >= 10000.0 else "ACH"
-                    }
-                    acct_dict = {
-                        "account_id": orig,
-                        "account_type": meta.get("account_type", "CHECKING"),
-                        "balance": 250000.0 if "benign_high_value" in meta.get("test_category", "") else 15000.0
-                    }
-                    cust_dict = {
-                        "kyc_status": "VERIFIED" if "benign" in cat or "benign" in meta.get("test_category", "") else "UNVERIFIED",
-                        "risk_tier": "LOW" if "benign" in cat or "benign" in meta.get("test_category", "") else "HIGH"
-                    }
-
-                    vec = extract_features_from_dict(
-                        txn=txn_dict,
-                        account=acct_dict,
-                        customer=cust_dict,
-                        history=[],
-                        cycle_score=c_score,
-                        sg_score=sg_score
-                    )
-                    X_list.append(vec)
-                    y_list.append(label)
-                    case_ids.append(c["case_id"])
+    # Augment with hardened challenge scenarios (and, only if explicitly requested, held-out ones)
+    scenario_files = [os.path.join(dataset_dir, CHALLENGE_SCENARIOS_FILE)]
+    if include_held_out:
+        scenario_files.append(os.path.join(dataset_dir, HELD_OUT_SCENARIOS_FILE))
+    for p in scenario_files:
+        s_X, s_y, s_ids = _scenario_cases_to_rows(p)
+        X_list.extend(s_X)
+        y_list.extend(s_y)
+        case_ids.extend(s_ids)
 
     # Augment with realistic synthetic banking stream to establish realistic imbalanced fraud distribution
     if augment_synthetic and n_synthetic > 0:
@@ -252,6 +215,91 @@ def load_amlsim_tabular_dataset(
     X = np.array(X_list, dtype=np.float32)
     y = np.array(y_list, dtype=np.int32)
     return FraudDataset(X=X, y=y, case_ids=case_ids)
+
+
+CHALLENGE_SCENARIOS_FILE = "amlsim_hardened_challenge.json"
+HELD_OUT_SCENARIOS_FILE = "amlsim_held_out_test.json"
+
+
+def load_amlsim_held_out_dataset(workspace_root: Optional[str] = None) -> FraudDataset:
+    """
+    Load the held-out scenario battery as its own dataset. These cases are never
+    part of :func:`load_amlsim_tabular_dataset` by default, so a model trained on
+    that dataset has not seen any of them.
+    """
+    if workspace_root is None:
+        workspace_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    path = os.path.join(workspace_root, "benchmarks", "third_party", "datasets", HELD_OUT_SCENARIOS_FILE)
+    X_list, y_list, case_ids = _scenario_cases_to_rows(path)
+    return FraudDataset(
+        X=np.array(X_list, dtype=np.float32).reshape(-1, NUM_FEATURES),
+        y=np.array(y_list, dtype=np.int32),
+        case_ids=case_ids,
+    )
+
+
+def assert_disjoint_case_ids(train_ids: List[str], eval_ids: List[str]) -> None:
+    """Raise if any evaluation case also appears in training data."""
+    overlap = sorted(set(train_ids) & set(eval_ids))
+    if overlap:
+        raise ValueError(f"{len(overlap)} evaluation case(s) leaked into training: {overlap[:5]}")
+
+
+def _scenario_cases_to_rows(p: str) -> Tuple[List[np.ndarray], List[int], List[str]]:
+    """Convert an AMLSim-style scenario JSON file into feature rows (abstention cases skipped)."""
+    X_list: List[np.ndarray] = []
+    y_list: List[int] = []
+    case_ids: List[str] = []
+    if os.path.exists(p):
+            with open(p, "r", encoding="utf-8") as f:
+                cases = json.load(f)
+                for c in cases:
+                    if c.get("expected_abstention"):
+                        continue
+                    meta = c.get("metadata", {})
+                    amt = _safe_float(meta.get("amount", 1000.0))
+                    gold = c.get("ground_truth_label", "BENIGN")
+                    label = 1 if gold == "SUSPICIOUS" else 0
+
+                    edges = c.get("ground_truth_edges", [])
+                    orig = edges[0]["source"] if edges else f"ACC_{c['case_id']}"
+                    dest = edges[0]["dest"] if edges else f"DEST_{c['case_id']}"
+
+                    # Scenario files carry no observed KYC, risk-tier, balance or graph-detector
+                    # values. Earlier versions derived them from the label-bearing ``category`` /
+                    # ``test_category`` fields (e.g. "benign_control" -> VERIFIED/LOW), which let
+                    # the model read the answer from its inputs. Use label-independent neutral
+                    # values instead; only observed fields (amount, account_type) vary.
+                    c_score = 0.0
+                    sg_score = 0.0
+
+                    txn_dict = {
+                        "txn_id": c["target_transaction_id"],
+                        "account_id": orig,
+                        "counterparty": dest,
+                        "amount": amt,
+                        "timestamp": "2026-01-16T12:00:00+00:00",
+                        "channel": "WIRE" if amt >= 10000.0 else "ACH"
+                    }
+                    acct_dict = {
+                        "account_id": orig,
+                        "account_type": meta.get("account_type", "CHECKING"),
+                        "balance": 15000.0,
+                    }
+                    cust_dict = {"kyc_status": "UNKNOWN", "risk_tier": "MEDIUM"}
+
+                    vec = extract_features_from_dict(
+                        txn=txn_dict,
+                        account=acct_dict,
+                        customer=cust_dict,
+                        history=[],
+                        cycle_score=c_score,
+                        sg_score=sg_score
+                    )
+                    X_list.append(vec)
+                    y_list.append(label)
+                    case_ids.append(c["case_id"])
+    return X_list, y_list, case_ids
 
 
 def generate_synthetic_aml_stream(

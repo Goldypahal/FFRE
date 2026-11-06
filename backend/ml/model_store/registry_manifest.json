@@ -7,9 +7,9 @@
       "version": "1.0.0",
       "stage": "staging",
       "metrics": {
-        "true_positives": 24,
+        "true_positives": 21,
         "false_positives": 0,
-        "true_negatives": 485,
+        "true_negatives": 482,
         "false_negatives": 0,
         "precision": 1.0,
         "recall": 1.0,
@@ -19,8 +19,8 @@
         "false_negative_rate": 0.0,
         "roc_auc": 1.0,
         "pr_auc": 1.0,
-        "brier_score": 0.0,
-        "expected_calibration_error": 0.0003
+        "brier_score": 0.0002,
+        "expected_calibration_error": 0.0031
       },
       "feature_names": [
         "amount",
@@ -56,8 +56,8 @@
         "amount_to_balance_ratio"
       ],
       "artifact_path": "baseline_logistic_regression_v1.joblib",
-      "sha256": "53acd58f5060f36c79c950ac35451a76c6967da963930682738781de24902dc5",
-      "created_at": "2026-11-01T12:11:22.855103+00:00",
+      "sha256": "7638d052aaf726b091207248d34a8394044fa51278877c551917de6a39a2b6ff",
+      "created_at": "2026-11-06T16:13:50.840230+00:00",
       "notes": "L2-regularized logistic regression with balanced class weights for AML fraud detection"
     },
     "lightgbm_fraud_detector_v1": {
@@ -66,20 +66,20 @@
       "version": "1.0.0",
       "stage": "production",
       "metrics": {
-        "true_positives": 24,
+        "true_positives": 19,
         "false_positives": 0,
-        "true_negatives": 485,
-        "false_negatives": 0,
+        "true_negatives": 482,
+        "false_negatives": 2,
         "precision": 1.0,
-        "recall": 1.0,
-        "f1_score": 1.0,
-        "macro_f1": 1.0,
+        "recall": 0.9048,
+        "f1_score": 0.95,
+        "macro_f1": 0.974,
         "false_positive_rate": 0.0,
-        "false_negative_rate": 0.0,
+        "false_negative_rate": 0.0952,
         "roc_auc": 1.0,
         "pr_auc": 1.0,
-        "brier_score": 0.0001,
-        "expected_calibration_error": 0.0038
+        "brier_score": 0.0023,
+        "expected_calibration_error": 0.0079
       },
       "feature_names": [
         "amount",
@@ -115,8 +115,8 @@
         "amount_to_balance_ratio"
       ],
       "artifact_path": "lightgbm_fraud_detector_v1.joblib",
-      "sha256": "e2c7da3fec070c8ddfe45fa62521e8dc33343da647ec55c52302a740b9785d39",
-      "created_at": "2026-11-01T12:11:22.872984+00:00",
+      "sha256": "785efa44d0b852e163b2762c6ae1fe490be1bc3737ab97a569a702fdca23bb66",
+      "created_at": "2026-11-06T16:13:50.856458+00:00",
       "notes": "LightGBM GBDT with scale_pos_weight imbalanced loss and 3-fold Platt sigmoid calibration"
     }
   }

@@ -21,7 +21,13 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from backend.ml.features import FEATURE_NAMES, NUM_FEATURES
-from backend.ml.dataset import load_amlsim_tabular_dataset, FraudDataset, summarize_provenance
+from backend.ml.dataset import (
+    load_amlsim_tabular_dataset,
+    load_amlsim_held_out_dataset,
+    assert_disjoint_case_ids,
+    FraudDataset,
+    summarize_provenance,
+)
 from backend.ml.training import FraudModelTrainer, compute_metrics
 from backend.ml.registry import ModelRegistry
 from backend.ml.inference import FraudInferenceService
@@ -49,10 +55,15 @@ def run_training_pipeline(
         seed=seed
     )
     neg_count, pos_count = ds.class_counts
-    pos_weight = ds.get_pos_weight()
     print(f"  Dataset loaded in {time.time() - t0:.2f}s")
     print(f"  Total samples: {ds.num_samples} (Negative: {neg_count}, Positive: {pos_count})")
-    print(f"  Positive ratio: {ds.positive_ratio * 100:.2f}% | Positive scale weight: {pos_weight:.2f}")
+    print(f"  Positive ratio: {ds.positive_ratio * 100:.2f}%")
+
+    # Held-out scenario battery: loaded separately and never trained on.
+    held_out_ds: FraudDataset = load_amlsim_held_out_dataset()
+    assert_disjoint_case_ids(ds.case_ids, held_out_ds.case_ids)
+    ho_neg, ho_pos = held_out_ds.class_counts
+    print(f"  Held-out scenarios (excluded from training): {held_out_ds.num_samples} ({ho_neg} neg, {ho_pos} pos)")
 
     # 2. Stratified Train/Test Split
     print("\n[Step 2/6] Performing stratified train/validation split...")
@@ -61,6 +72,9 @@ def run_training_pipeline(
     te_neg, te_pos = test_ds.class_counts
     print(f"  Train set: {train_ds.num_samples} samples ({tr_neg} neg, {tr_pos} pos)")
     print(f"  Test set:  {test_ds.num_samples} samples ({te_neg} neg, {te_pos} pos)")
+    # Class weight from the training split only, so the test split does not influence training.
+    pos_weight = train_ds.get_pos_weight()
+    print(f"  Positive scale weight (train split): {pos_weight:.2f}")
 
     trainer = FraudModelTrainer(random_state=seed)
 
@@ -89,6 +103,13 @@ def run_training_pipeline(
     print(f"  Calibrated LightGBM Metrics:   ROC-AUC={calibrated_eval['metrics']['roc_auc']}, "
           f"PR-AUC={calibrated_eval['metrics']['pr_auc']}, Macro F1={calibrated_eval['metrics']['macro_f1']}, "
           f"Brier={calibrated_eval['metrics']['brier_score']}, ECE={calibrated_eval['metrics']['expected_calibration_error']}")
+
+    # Independent evaluation on the held-out scenario battery (never seen in training).
+    held_out_champion = trainer.evaluate(trainer.calibrated_gbm, held_out_ds.X, held_out_ds.y)
+    held_out_challenger = trainer.evaluate(trainer.baseline_model, held_out_ds.X, held_out_ds.y)
+    print(f"  Held-out scenario battery ({held_out_ds.num_samples} cases, unseen in training): "
+          f"champion Macro F1={held_out_champion['metrics']['macro_f1']}, "
+          f"baseline Macro F1={held_out_challenger['metrics']['macro_f1']}")
 
     # 5. Model Registration & Production Promotion
     print("\n[Step 5/6] Registering models in ModelRegistry...")
@@ -157,9 +178,17 @@ def run_training_pipeline(
             "pos_samples": pos_count,
             "fraud_ratio": round(ds.positive_ratio, 4),
             "pos_weight": round(pos_weight, 2),
+            "pos_weight_source": "train_split",
             "num_features": NUM_FEATURES,
             "provenance": summarize_provenance(ds.case_ids),
+            "training_provenance": summarize_provenance(train_ds.case_ids),
             "holdout_provenance": summarize_provenance(test_ds.case_ids),
+            "held_out_scenarios": {
+                "file": "benchmarks/third_party/datasets/amlsim_held_out_test.json",
+                "num_cases": held_out_ds.num_samples,
+                "cases_in_training": len(set(held_out_ds.case_ids) & set(train_ds.case_ids)),
+                "provenance": summarize_provenance(held_out_ds.case_ids),
+            },
         },
         "models": {
             "baseline_logistic_regression": {
@@ -191,6 +220,17 @@ def run_training_pipeline(
             "challenger_probabilities": baseline_eval["probabilities"],
             "train_scores": [round(float(p), 4) for p in trainer.calibrated_gbm.predict_proba(train_ds.X)[:, 1]],
             "test_scores": calibrated_eval["probabilities"]
+        },
+        "held_out_scenario_evaluation": {
+            "description": "Held-out AMLSim-style scenario battery, excluded from training and from the random split.",
+            "case_ids": held_out_ds.case_ids,
+            "y_true": held_out_ds.y.tolist(),
+            "champion_metrics": held_out_champion["metrics"],
+            "champion_predictions": held_out_champion["predictions"],
+            "champion_probabilities": held_out_champion["probabilities"],
+            "challenger_metrics": held_out_challenger["metrics"],
+            "challenger_predictions": held_out_challenger["predictions"],
+            "challenger_probabilities": held_out_challenger["probabilities"],
         }
     }
 

@@ -383,6 +383,35 @@ def _load_holdout_evidence(training_report: Dict[str, Any], registry, prod_model
     }
 
 
+def _held_out_section(training_report: Dict[str, Any]) -> str:
+    """Summarise the held-out scenario evaluation recorded by the training pipeline."""
+    ho = training_report.get("held_out_scenario_evaluation")
+    meta = training_report.get("dataset", {}).get("held_out_scenarios", {})
+    if not ho or not ho.get("y_true"):
+        return "**Not available.** The training report records no held-out scenario evaluation."
+    y = np.asarray(ho["y_true"])
+    rows = []
+    for role, prefix in (("Champion", "champion"), ("Challenger", "challenger")):
+        m = compute_binary_metrics(y, ho[f"{prefix}_predictions"], ho[f"{prefix}_probabilities"])
+        f1 = (2 * m["tp"]) / (2 * m["tp"] + m["fp"] + m["fn"]) if (m["tp"] + m["fp"] + m["fn"]) else None
+        rows.append(
+            f"| {role} | {m['tp']} | {m['fp']} | {m['tn']} | {m['fn']} | {_fmt_pct(m['precision'])} | "
+            f"{_fmt_pct(m['recall'])} | {_fmt_num(f1)} | {_fmt_num(m['roc_auc'])} |"
+        )
+    in_train = meta.get("cases_in_training")
+    return (
+        f"Source: `{meta.get('file', 'amlsim_held_out_test.json')}`, $N = {len(y)}$ "
+        f"(positives = {int(y.sum())}, negatives = {int(len(y) - y.sum())}); cases also present in training: "
+        f"**{'unrecorded' if in_train is None else in_train}**.\n\n"
+        "| Model | TP | FP | TN | FN | Precision | Recall | F1 | ROC-AUC |\n"
+        "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n"
+        + "\n".join(rows)
+        + "\n\nThese hand-built AMLSim-style scenarios carry no observed KYC, risk-tier, balance or graph-detector "
+        "values, so those features are set to label-independent neutral values. Earlier versions derived them from "
+        "the scenario label, which made scenario scores meaningless. With $N$ this small, the result is indicative only."
+    )
+
+
 def _fmt_pct(v: Optional[float]) -> str:
     return "undefined" if v is None else f"{v * 100:.1f}%"
 
@@ -498,6 +527,8 @@ def generate_validation_pack(output_path: str = DEFAULT_DOC_PATH, training_repor
         return (f"- **{label}:** N = {p.get('total')} ({srcs}); generated-synthetic share = {frac_s}; "
                 f"real-world data present = {p.get('contains_real_world_data')}")
 
+    held_section = _held_out_section(training_report)
+
     reasons_md = "\n".join(f"- {r}" for r in reasons)
     now = datetime.datetime.now(datetime.timezone.utc)
 
@@ -558,6 +589,9 @@ negatives = {champ['n_neg']}). No stored or default metric values are used.
 {metrics_table}
 
 Meeting these thresholds on this holdout is a necessary internal check, not a qualification.
+
+### Held-out Scenario Battery (excluded from training)
+{held_section}
 
 ### Champion vs. Challenger (paired McNemar, Edwards continuity correction)
 - Champion correct / challenger wrong ($b$): **{b_cases}**
