@@ -135,6 +135,15 @@ app.add_middleware(
 
 )
 
+@app.get("/", include_in_schema=False)
+def root():
+    return {
+        "service": "Financial Fraud Investigation Reasoning Engine (FFIRE)",
+        "status": "online",
+        "docs_url": "/docs",
+        "frontend_url": "http://localhost:5173"
+    }
+
 
 
 class InvestigationRequest(BaseModel):
