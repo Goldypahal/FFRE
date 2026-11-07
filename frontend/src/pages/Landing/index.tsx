@@ -5,6 +5,8 @@ import "@fontsource-variable/bricolage-grotesque/opsz.css";
 import "@fontsource-variable/instrument-sans/wght.css";
 import "./landing.css";
 import { useFfl } from "./useFfl";
+import { useTilt } from "./useTilt";
+import { Stage } from "./scenes/Stage";
 import { CONTACT_EMAIL, DEMO_ENDPOINT } from "./config";
 import {
   CHAIN_STEPS,
@@ -227,9 +229,13 @@ function Flow() {
   return (
     <section className="flow" id="flow">
       <h2 className="flow-h">How a case moves</h2>
+      <div className="pipe3">
+        <Stage kind="pipeline" height={150} />
+        <ol className="pipe3-l"><li>Planner</li><li>Retrieval</li><li>Rules and models</li><li>Critic</li><li>Report</li></ol>
+      </div>
       <div className="fields">
         <article className="fld-c f1 rv" style={iv(0)}>
-          <div className="ticket" data-ui>
+          <div className="ticket" data-ui data-tilt>
             <div className="tk-top"><b>Case FF-2041</b><span className="tk-st">Planned</span></div>
             <p className="tk-l">Customer</p><p className="tk-v">acc_corp_88</p>
             <p className="tk-l">Tasks</p>
@@ -238,7 +244,7 @@ function Flow() {
           <p className="fld-t">First it&rsquo;s planned.</p>
         </article>
         <article className="fld-c f2 rv" style={iv(1)}>
-          <div className="ticket" data-ui>
+          <div className="ticket" data-ui data-tilt>
             <div className="tk-top"><b>Case FF-2041</b><span className="tk-st">Retrieved</span></div>
             <p className="tk-l">Transfers</p>
             <ul className="tk-tab"><li><span>1 hour</span><b>2</b></li><li><span>24 hours</span><b>6</b></li><li><span>7 days</span><b>14</b></li></ul>
@@ -247,7 +253,7 @@ function Flow() {
           <p className="fld-t">Then the records load.</p>
         </article>
         <article className="fld-c f3 rv" style={iv(2)}>
-          <div className="ticket" data-ui>
+          <div className="ticket" data-ui data-tilt>
             <div className="tk-top"><b>Case FF-2041</b><span className="tk-st">Reasoned</span></div>
             <p className="tk-l">Rule engine</p><p className="tk-v">Amount sits just under 10,000</p>
             <p className="tk-l">Calibrated model</p><p className="tk-big">0.87 <small>risk score</small></p>
@@ -256,7 +262,7 @@ function Flow() {
           <p className="fld-t">Then it reasons.</p>
         </article>
         <article className="fld-c f4 rv" style={iv(3)}>
-          <div className="ticket" data-ui>
+          <div className="ticket" data-ui data-tilt>
             <div className="tk-top"><b>Case FF-2041</b><span className="tk-st ok">Sealed</span></div>
             <ul className="tk-v3">
               <li data-v="ok"><i></i>3 verified</li>
@@ -287,6 +293,7 @@ function Replay() {
   return (
     <section className="type" id="replay">
       <h2 className="type-h">Change one entry in a sealed case.</h2>
+      <Stage kind="chain" className="s3-chain" height={170} broken={r.broken} />
       <div className="type-in" data-ui id="rp">
         <label className="sr" htmlFor="rp-in">Evidence entry</label>
         <input id="rp-in" className="rp-in" type="text" value={text} onChange={(e) => setText(e.target.value)} autoComplete="off" spellCheck={false} />
@@ -495,6 +502,7 @@ function DemoForm() {
 
 export function Landing() {
   const ref = useFfl<HTMLDivElement>();
+  useTilt(ref);
   return (
     <div className="ffl" ref={ref}>
       <a className="skip" href="#main">Skip to content</a>
@@ -515,6 +523,7 @@ export function Landing() {
             </div>
           </div>
           <div className="hero-r">
+            <Stage kind="orbit" className="s3-bg" />
             <Verifier />
           </div>
         </section>
@@ -528,10 +537,13 @@ export function Landing() {
               <p className="rv" style={iv(2)}>FFIRE sits outside the tool that wrote the case. Every claim comes back <span className="vm ok">verified</span>, <span className="vm bad">contradicted</span> or <span className="vm gap">ungrounded</span>, and the whole case is sealed so it can be replayed offline.</p>
               <p className="rv" style={iv(3)}><a className="lnk" href="#flow">See how a case is checked</a></p>
             </div>
-            <figure className="intro-f rv" style={iv(1)}>
+            <div className="intro-r rv" style={iv(1)}>
+            <Stage kind="case" className="s3-case" height={340} />
+            <figure className="intro-f">
               <img src={dfdContext} width={1218} height={707} alt="Context diagram: fraud analyst, core banking system, knowledge base and compliance around FFIRE" loading="lazy" />
               <figcaption>FFIRE sits between the analyst, the bank&rsquo;s systems and compliance.</figcaption>
             </figure>
+            </div>
           </div>
         </section>
 
@@ -542,6 +554,7 @@ export function Landing() {
         <Faq />
 
         <section className="cta" id="demo">
+          <Stage kind="field" className="s3-bg" />
           <div className="cta-l rv" style={iv(0)}>
             <h2 className="cta-h"><span>See it on</span><span>your cases.</span></h2>
             <p className="cta-p">Tell us a little about your team. We reply with a walkthrough on sample investigations, so nothing real leaves your bank.</p>

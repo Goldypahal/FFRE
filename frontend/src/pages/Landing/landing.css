@@ -399,3 +399,18 @@
   .ffl .au-l { padding-bottom: 36px; }
   .ffl .au-claim ul { display: none; }
 }
+
+/* ---- 3D scenes (decorative, aria-hidden; see scenes/) ---- */
+.ffl .s3 { position: relative; width: 100%; overflow: hidden; }
+.ffl .s3 canvas { display: block; }
+.ffl .s3-bg { position: absolute; inset: 0; z-index: -1; height: auto; }
+.ffl .hero-r, .ffl .cta { isolation: isolate; }
+.ffl .cta { position: relative; }
+.ffl .intro-r { display: grid; gap: 16px; }
+.ffl .s3-case { border-radius: 18px; background: var(--surface); }
+.ffl .pipe3 { padding: 150px var(--gr) 36px var(--g); }
+.ffl .pipe3-l { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); text-align: center; font-size: var(--s-small); color: var(--muted); }
+.ffl .s3-chain { margin: 0 0 24px; }
+.ffl [data-tilt] { transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transition: transform 0.25s var(--ease); will-change: transform; }
+@media (max-width: 1180px) { .ffl .pipe3 { padding-top: 0; } }
+@media (max-width: 640px) { .ffl .pipe3-l { font-size: 0.75rem; } }
