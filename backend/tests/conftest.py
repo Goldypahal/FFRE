@@ -62,22 +62,34 @@ vector_store.collection.count = MagicMock(return_value=0)
 
 
 
-# Create an in-memory SQLite database for testing
+# Test database: a temporary SQLite file, one connection per thread.
+# An in-memory database with StaticPool shares a single connection across every thread, so
+# concurrent requests (the duplicate-submission and chaos tests) interleave each other's
+# transactions and read wrong or half-written rows. A real server never does that, so the
+# tests should not either.
+import atexit
+import shutil
+import tempfile
+from sqlalchemy import event as _sa_event
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
-
-
+_TEST_DB_DIR = tempfile.mkdtemp(prefix="ffire_test_db_")
+atexit.register(shutil.rmtree, _TEST_DB_DIR, ignore_errors=True)
+SQLALCHEMY_DATABASE_URL = f"sqlite:///{os.path.join(_TEST_DB_DIR, 'test.db')}"
 
 engine = create_engine(
-
     SQLALCHEMY_DATABASE_URL,
-
-    connect_args={"check_same_thread": False},
-
-    poolclass=StaticPool,
-
+    connect_args={"check_same_thread": False, "timeout": 30},
+    pool_size=20,
+    max_overflow=20,
 )
 
+
+@_sa_event.listens_for(engine, "connect")
+def _test_sqlite_pragmas(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL;")
+    cursor.execute("PRAGMA busy_timeout=30000;")
+    cursor.close()
 
 
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
