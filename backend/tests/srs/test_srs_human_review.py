@@ -21,7 +21,8 @@ def test_human_review_approve_workflow(client, db_session):
     assert response.status_code == 200
     data = response.json()
     assert data["new_status"] == "CLOSED_APPROVE"
-    assert data["investigation"]["risk_score"] == 0.10
+    # Review records the decision; it must not overwrite the score the model computed.
+    assert data["investigation"]["risk_score"] == 0.75
     assert "Human Analyst Resolution" in data["investigation"]["report"]
     assert "Verified customer identity" in data["investigation"]["report"]
 
@@ -50,7 +51,8 @@ def test_human_review_reject_workflow(client, db_session):
     assert response.status_code == 200
     data = response.json()
     assert data["new_status"] == "CLOSED_REJECT"
-    assert data["investigation"]["risk_score"] == 0.95
+    # Review records the decision; it must not overwrite the score the model computed.
+    assert data["investigation"]["risk_score"] == 0.82
     assert "Confirmed fraudulent activity" in data["investigation"]["report"]
 
     # Check audit log

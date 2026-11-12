@@ -989,6 +989,21 @@ graph_app = build_graph()
 
 
 
+# Exported HTML is a document to save, not a page of this application: it is sent as a download
+# with scripts, frames and outside requests switched off.
+SAFE_HTML_EXPORT_HEADERS = {
+    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox",
+    "X-Content-Type-Options": "nosniff",
+}
+
+
+def _safe_filename(name: str) -> str:
+    """Keep letters, digits, dot, dash and underscore; drop any directory part."""
+    base = os.path.basename(str(name or "").replace("\\", "/"))
+    cleaned = re.sub(r"[^A-Za-z0-9._-]", "_", base).lstrip(".")
+    return cleaned[:150] or "file"
+
+
 GRAPH_RECURSION_LIMIT = int(os.getenv("GRAPH_RECURSION_LIMIT", "60"))
 MAX_PAGE_SIZE = 500
 
@@ -2277,6 +2292,12 @@ def _dispatch_investigation(investigation_id: str, transaction_id: str, backgrou
         background_tasks.add_task(run_investigation_task, investigation_id, transaction_id)
 
 
+# Roles that work cases (administrators are always allowed as well).
+CASE_WORKER_ROLES = ("investigator", "analyst", "compliance_officer")
+CANCELLABLE_STATUSES = {"QUEUED", "RUNNING", "RETRYING", "WAITING_HUMAN", "ESCALATED", "FAILED"}
+REVIEWABLE_STATUSES = {"COMPLETED", "ESCALATED", "WAITING_HUMAN", "FAILED"}
+
+
 # --- Protected Investigation Routes ---
 
 
@@ -3402,42 +3423,67 @@ def get_investigation_graph(
 
 
 
+    # Replace the placeholder figures above with what was actually recorded. The pipeline writes one
+    # audit entry per node run ("NODE_EXECUTION: <node>", "... in <n>ms"), so timings and completion
+    # come from there. Token counts are not recorded per node, so they are reported as unmeasured
+    # (zero, with "measured": false) instead of an invented number.
+    display_to_pipeline = {
+        "evidence_aggregator": ["evidence_verifier", "velocity_check", "rule_engine", "knowledge_lookup"],
+        "evidence_validator": ["validator"],
+        "reasoner": ["risk_reasoning"],
+        "confidence_calculator": ["validator"],
+        "reporter": ["report_generator", "human_review"],
+    }
+    recorded_ms: Dict[str, int] = {}
+    for entry in inv.audit_logs:
+        action = entry.action or ""
+        if not action.startswith("NODE_EXECUTION: "):
+            continue
+        timing = re.search(r" in (\d+)ms", entry.details or "")
+        if timing:
+            node_key = action.split(": ", 1)[1].strip()
+            recorded_ms[node_key] = recorded_ms.get(node_key, 0) + int(timing.group(1))
+    for node in nodes:
+        sources = display_to_pipeline.get(node["id"], [node["id"]])
+        ran = [s for s in sources if s in recorded_ms]
+        node["measured"] = bool(ran)
+        node["duration_ms"] = sum(recorded_ms[s] for s in ran)
+        node["tokens"] = 0
+        node["prompt_version"] = None
+        if ran:
+            node["status"] = "completed"
+        elif is_completed:
+            node["status"] = "skipped"
+        elif node["status"] == "completed":
+            node["status"] = "running" if is_running else "pending"
+        outputs = node.get("outputs") or {}
+        if outputs.get("transaction_evidence") == "Anomaly score 0.82":
+            outputs["transaction_evidence"] = None
+        outputs.pop("contradictions", None)
+        outputs.pop("corroborated", None)
+        if "preliminary_verdict" in outputs:
+            outputs["preliminary_verdict"] = None
+        if "final_confidence" in outputs:
+            outputs["final_confidence"] = float(inv.confidence) if inv.confidence is not None else None
+
     total_duration = sum(n["duration_ms"] for n in nodes if n["status"] == "completed")
-
-    total_tokens = sum(n["tokens"] for n in nodes if n["status"] == "completed")
-
-
-
+    usage = metrics_collector.get_investigation_token_usage(investigation_id) if hasattr(metrics_collector, "get_investigation_token_usage") else None
     return {
-
         "investigation_id": inv.investigation_id,
-
         "status": inv.status,
-
         "graph_version": "v2.4.0-langgraph",
-
         "nodes": nodes,
-
         "metrics": {
-
             "total_runtime_ms": total_duration,
-
-            "average_node_runtime_ms": round(total_duration / max(1, len(nodes)), 1),
-
-            "total_tokens": total_tokens,
-
-            "prompt_tokens": int(total_tokens * 0.65),
-
-            "completion_tokens": int(total_tokens * 0.35),
-
-            "estimated_cost_usd": round((total_tokens / 1000) * 0.002, 4),
-
+            "average_node_runtime_ms": round(total_duration / max(1, sum(1 for n in nodes if n["status"] == "completed")), 1),
+            "total_tokens": (usage or {}).get("total_tokens", 0),
+            "prompt_tokens": (usage or {}).get("prompt_tokens", 0),
+            "completion_tokens": (usage or {}).get("completion_tokens", 0),
+            "estimated_cost_usd": (usage or {}).get("cost_usd", 0.0),
+            "tokens_measured": usage is not None,
             "completed_nodes": sum(1 for n in nodes if n["status"] == "completed"),
-
             "total_nodes": len(nodes)
-
         }
-
     }
 
 
@@ -3463,23 +3509,17 @@ def cancel_investigation(
         raise HTTPException(status_code=404, detail="Investigation not found")
 
     enforce_tenant_isolation(current_user, inv)
-
-    if inv.status in ("COMPLETED", "REJECTED"):
-
+    auth.require_role(current_user, *CASE_WORKER_ROLES)
+    # Only work that is still open can be cancelled. A finished or human-closed case must not be
+    # flipped to CANCELLED, which would erase its outcome.
+    if inv.is_deleted or inv.status not in CANCELLABLE_STATUSES:
         raise HTTPException(status_code=400, detail=f"Cannot cancel investigation in status {inv.status}")
-
-
-
     inv.status = "CANCELLED"
-
     audit_log = models.AuditLog(
-
         investigation_id=inv.investigation_id,
-
+        tenant_id=getattr(inv, "tenant_id", None) or "default_tenant",
         action="INVESTIGATION_CANCELLED",
-
         details=f"Cancelled by user {getattr(current_user, 'email', current_user.user_id)}"
-
     )
 
     db.add(audit_log)
@@ -3527,11 +3567,10 @@ def review_investigation(
         raise HTTPException(status_code=404, detail="Investigation not found")
 
     enforce_tenant_isolation(current_user, inv)
-
-
-
-    if inv.status not in ["COMPLETED", "ESCALATED", "FAILED", "RUNNING"]:
-
+    auth.require_role(current_user, *CASE_WORKER_ROLES)
+    # A case is reviewed once the pipeline has finished with it. Reviewing one that is still running
+    # let the pipeline overwrite the analyst's decision when it completed.
+    if inv.is_deleted or inv.status not in REVIEWABLE_STATUSES:
         raise HTTPException(status_code=400, detail=f"Cannot review investigation in status {inv.status}")
 
 
@@ -3544,18 +3583,10 @@ def review_investigation(
 
 
 
+    # The analyst's decision is recorded in the status, the report and the audit log. The model's
+    # risk score is left as computed: overwriting it with 0.10 or 0.95 destroyed the very number
+    # the decision was made against.
     inv.status = f"CLOSED_{action_type}"
-
-    if action_type == "APPROVE":
-
-        inv.risk_score = 0.10
-
-    else:
-
-        inv.risk_score = 0.95
-
-
-
     notes_str = f"Analyst Review ({action_type}) by {current_user.name}: {review_action.notes or 'No additional notes provided'}"
 
     if inv.report:
@@ -3660,10 +3691,12 @@ def list_investigations(
 
 
 
+    # Deleted investigations are hidden unless they are asked for by status.
+    if status != "ARCHIVED_DELETED":
+        query = query.filter(models.Investigation.is_deleted.is_(False))
+
     # Apply filters
-
     if status:
-
         query = query.filter(models.Investigation.status == status)
 
     if txn_id:
@@ -3870,29 +3903,34 @@ def export_investigation_report(
 
     elif format == "html":
 
+        # Every value below comes from the database: report text, analyst notes, audit details.
+        # All of it is escaped, so none of it can run as script in the reader's browser.
+        def esc(value) -> str:
+            return html.escape("" if value is None else str(value))
+
         html_content = f"""<!DOCTYPE html>
 
 <html>
 
-<head><title>FFRE Investigation Report - {inv.investigation_id}</title><style>body{{font-family:sans-serif;margin:40px;color:#1e293b;}} h1{{color:#0f172a;}} table{{border-collapse:collapse;width:100%;margin-top:20px;}} th,td{{border:1px solid #cbd5e1;padding:8px;text-align:left;}} th{{background-color:#f1f5f9;}} .badge{{padding:4px 8px;border-radius:4px;font-weight:bold;background-color:#e2e8f0;}}</style></head>
+<head><title>FFRE Investigation Report - {esc(inv.investigation_id)}</title><style>body{{font-family:sans-serif;margin:40px;color:#1e293b;}} h1{{color:#0f172a;}} table{{border-collapse:collapse;width:100%;margin-top:20px;}} th,td{{border:1px solid #cbd5e1;padding:8px;text-align:left;}} th{{background-color:#f1f5f9;}} .badge{{padding:4px 8px;border-radius:4px;font-weight:bold;background-color:#e2e8f0;}}</style></head>
 
 <body>
 
 <h1>Financial Fraud Investigation Report</h1>
 
-<p><strong>Investigation ID:</strong> {inv.investigation_id} | <strong>Transaction ID:</strong> {inv.txn_id}</p>
+<p><strong>Investigation ID:</strong> {esc(inv.investigation_id)} | <strong>Transaction ID:</strong> {esc(inv.txn_id)}</p>
 
-<p><strong>Status:</strong> <span class="badge">{inv.status}</span> | <strong>Risk Score:</strong> {inv.risk_score or 'N/A'} | <strong>Confidence:</strong> {inv.confidence or 'N/A'}</p>
+<p><strong>Status:</strong> <span class="badge">{esc(inv.status)}</span> | <strong>Risk Score:</strong> {inv.risk_score or 'N/A'} | <strong>Confidence:</strong> {inv.confidence or 'N/A'}</p>
 
 <h2>Executive Summary & Findings</h2>
 
-<pre>{inv.report or 'No detailed report available.'}</pre>
+<pre>{esc(inv.report or 'No detailed report available.')}</pre>
 
 <h2>Audit Trail</h2>
 
 <table><tr><th>Timestamp</th><th>Action</th><th>Details</th></tr>
 
-{''.join([f"<tr><td>{log['timestamp']}</td><td>{log['action']}</td><td>{log['details']}</td></tr>" for log in audit_trail])}
+{''.join([f"<tr><td>{esc(log['timestamp'])}</td><td>{esc(log['action'])}</td><td>{esc(log['details'])}</td></tr>" for log in audit_trail])}
 
 </table>
 
@@ -3900,7 +3938,11 @@ def export_investigation_report(
 
 </html>"""
 
-        return Response(content=html_content, media_type="text/html")
+        return Response(
+            content=html_content,
+            media_type="text/html",
+            headers=SAFE_HTML_EXPORT_HEADERS | {"Content-Disposition": f'attachment; filename="report_{_safe_filename(investigation_id)}.html"'},
+        )
 
     else:
 
@@ -4135,7 +4177,7 @@ def generate_replay_snapshot(inv: models.Investigation, db: Session) -> Tuple[Di
             })
 
     vault_items = db.query(models.EvidenceVaultItem).filter(
-
+        models.EvidenceVaultItem.tenant_id == (inv.tenant_id or "default_tenant"),
         models.EvidenceVaultItem.investigation_id == inv.investigation_id
 
     ).all()
@@ -4458,29 +4500,13 @@ def verify_replay_snapshot(
 
         pre_repr = json.dumps(pre_copy, sort_keys=True, separators=(',', ':'))
 
-        sig_algo = snapshot.get("signature_algorithm")
-
-        if sig_algo == "Ed25519" or len(provided_sig) == 128:
-
-            try:
-
-                _, verifier_pub = get_verifier_keys()
-
-                verifier_pub.verify(bytes.fromhex(provided_sig), pre_repr.encode("utf-8"))
-
-            except Exception as e:
-
-                mismatches.append(f"Ed25519 digital signature validation failed: {e}")
-
-        else:
-
-            signing_key = os.getenv("REPLAY_SIGNING_KEY", os.getenv("SECRET_KEY", "ffre-replay-signing-root-key"))
-
-            computed_sig = hmac.new(signing_key.encode("utf-8"), pre_repr.encode("utf-8"), hashlib.sha256).hexdigest()
-
-            if not hmac.compare_digest(provided_sig, computed_sig):
-
-                mismatches.append("Digital signature validation failed: bundle has been modified or resigned with unauthorized key")
+        # Ed25519 only. The snapshot itself must not be able to choose a weaker check: the old
+        # fallback verified an HMAC keyed by SECRET_KEY, or by a constant when that was unset.
+        try:
+            _, verifier_pub = get_verifier_keys()
+            verifier_pub.verify(bytes.fromhex(str(provided_sig)), pre_repr.encode("utf-8"))
+        except Exception as e:
+            mismatches.append(f"Ed25519 digital signature validation failed: {e or type(e).__name__}")
 
 
 
@@ -4691,15 +4717,25 @@ async def update_investigation(
                 status_code=400,
 
                 detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}"
-
             )
-
+        # A manual change follows the same state machine as the worker. Without this an
+        # investigator could set any status from any other, for example re-open a closed case
+        # as RUNNING or close one that had never been reviewed.
+        from worker import VALID_TRANSITIONS
+        if getattr(inv, "is_deleted", False):
+            raise HTTPException(status_code=404, detail="Investigation not found")
+        if status != inv.status and status not in VALID_TRANSITIONS.get(inv.status, set()):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Invalid status transition: {inv.status} -> {status}"
+            )
+        previous_status = inv.status
         inv.status = status
 
 
 
         # Trigger Twilio SMS alert on escalation
-        if status == "ESCALATED":
+        if status == "ESCALATED" and previous_status != "ESCALATED":
             try:
                 from twilio_service import twilio_service
                 twilio_service.send_critical_escalation_alert(
@@ -4773,11 +4809,11 @@ def toggle_legal_hold(
         raise HTTPException(status_code=404, detail="Investigation not found")
 
     enforce_tenant_isolation(current_user, inv)
-
-
-
+    # Anyone who works cases may place a hold. Lifting one is a compliance decision: if an
+    # investigator could release it, the hold would not protect the record from deletion.
+    if not payload.legal_hold and getattr(inv, "legal_hold", False):
+        auth.require_role(current_user, "compliance_officer")
     inv.legal_hold = payload.legal_hold
-
     inv.legal_hold_reason = payload.reason
 
     action = "LEGAL_HOLD_APPLIED" if payload.legal_hold else "LEGAL_HOLD_RELEASED"
@@ -4860,7 +4896,7 @@ def delete_investigation(
 
     inv.is_deleted = True
 
-    inv.deleted_at = datetime.datetime.now(datetime.timezone.utc)
+    inv.deleted_at = timeutil.utcnow()
 
     inv.status = "ARCHIVED_DELETED"
 

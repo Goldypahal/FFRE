@@ -151,6 +151,7 @@ def test_investigator_complete_user_journey_e2e(client, db_session, make_invitat
     # --------------------------------------------------------------------------
     # 9 & 10. Human Review: Approve or Reject Case
     # --------------------------------------------------------------------------
+    score_before_review = client.get(f"/api/v1/investigations/{inv_id}", headers=headers).json()["risk_score"]
     review_res = client.post(
         f"/api/v1/investigations/{inv_id}/review",
         json={"action": "APPROVE", "notes": "Verified legitimate historical luxury shopping pattern."},
@@ -159,7 +160,8 @@ def test_investigator_complete_user_journey_e2e(client, db_session, make_invitat
     assert review_res.status_code == 200
     reviewed_data = review_res.json()
     assert reviewed_data["new_status"] == "CLOSED_APPROVE"
-    assert reviewed_data["investigation"]["risk_score"] == 0.10
+    # Review records the decision; the model's score is left as computed.
+    assert reviewed_data["investigation"]["risk_score"] == score_before_review
 
     # --------------------------------------------------------------------------
     # 11. Export Report Dossier with Cryptographic Audit History
