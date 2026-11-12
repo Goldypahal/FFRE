@@ -5,8 +5,18 @@ import models
 from auth import get_current_user
 import io
 
-def test_evidence_vault_listing_and_seeding(client):
-    """Verify evidence listing auto-seeds default items and returns paginated list"""
+def test_evidence_vault_is_not_seeded_by_default(client):
+    """A real tenant's vault starts empty: sample evidence is written only in demo mode."""
+    response = client.get("/api/v1/evidence")
+    assert response.status_code == 200
+    titles = [item["title"] for item in response.json()["items"]]
+    assert "Global Passport Index" not in titles
+    assert "Sanction Lists" not in titles
+
+
+def test_evidence_vault_listing_and_seeding(client, monkeypatch):
+    """With FFRE_DEMO_SEED on, the listing seeds the sample items and returns a paginated list"""
+    monkeypatch.setenv("FFRE_DEMO_SEED", "true")
     response = client.get("/api/v1/evidence")
     assert response.status_code == 200
     data = response.json()
@@ -17,8 +27,9 @@ def test_evidence_vault_listing_and_seeding(client):
     assert "Sanction Lists" in titles
     assert "Synthetic Identity Chain" in titles
 
-def test_evidence_vault_filtering(client):
+def test_evidence_vault_filtering(client, monkeypatch):
     """Verify filtering by category, search query, and risk level"""
+    monkeypatch.setenv("FFRE_DEMO_SEED", "true")
     # Category filter
     resp_cat = client.get("/api/v1/evidence?category=IDENTITY_DOCUMENTS")
     assert resp_cat.status_code == 200
@@ -57,7 +68,10 @@ def test_evidence_upload_and_sha256(client):
     assert data["file_type"] == "PDF"
     assert data["file_size"] == len(file_content)
     assert len(data["sha256_hash"]) == 64
-    assert data["is_verified"] is True
+    # Ingestion records the digest; "verified" is earned by the verify endpoint.
+    assert data["is_verified"] is False
+    import hashlib
+    assert data["sha256_hash"] == hashlib.sha256(file_content).hexdigest()
     item_id = data["item_id"]
 
     # Verify item exists in list
@@ -85,7 +99,9 @@ def test_evidence_verify_and_delete(client):
     verify_resp = client.post(f"/api/v1/evidence/{item_id}/verify")
     assert verify_resp.status_code == 200
     assert verify_resp.json()["is_verified"] is True
-    assert "HSM" in verify_resp.json()["verification_method"]
+    # The method describes what was done: the stored file was re-hashed. No HSM is involved.
+    assert "SHA-256" in verify_resp.json()["verification_method"]
+    assert "HSM" not in verify_resp.json()["verification_method"]
 
     # Delete
     del_resp = client.delete(f"/api/v1/evidence/{item_id}")
@@ -139,3 +155,44 @@ def test_evidence_vault_multitenant_isolation(client):
         role="investigator",
         tenant_id="default_tenant"
     )
+
+
+def test_evidence_verify_detects_a_changed_file(client, db_session):
+    """Verification re-reads the stored file; if it no longer matches the digest, it fails."""
+    upload = client.post(
+        "/api/v1/evidence/upload",
+        data={"title": "Tamper check"},
+        files={"file": ("statement.txt", io.BytesIO(b"original bytes"), "text/plain")},
+    )
+    assert upload.status_code == 200
+    item_id = upload.json()["item_id"]
+    item = db_session.query(models.EvidenceVaultItem).filter_by(item_id=item_id).first()
+    with open(item.storage_path, "wb") as fh:
+        fh.write(b"altered bytes")
+
+    verify = client.post(f"/api/v1/evidence/{item_id}/verify")
+    assert verify.status_code == 409
+    db_session.expire_all()
+    assert db_session.query(models.EvidenceVaultItem).filter_by(item_id=item_id).first().is_verified is False
+
+
+def test_evidence_upload_rejects_another_tenants_investigation(client, db_session):
+    """Evidence cannot be attached to an investigation outside the caller's tenant."""
+    db_session.add(models.Investigation(investigation_id="INV-OTHER-TENANT", txn_id="T-OTHER", status="COMPLETED", tenant_id="tenant_other"))
+    db_session.commit()
+    resp = client.post("/api/v1/evidence/upload", data={"title": "Injected", "investigation_id": "INV-OTHER-TENANT"})
+    assert resp.status_code == 403
+
+
+def test_viewer_cannot_delete_evidence(client):
+    upload = client.post("/api/v1/evidence/upload", data={"title": "Keep me"})
+    item_id = upload.json()["item_id"]
+    app.dependency_overrides[get_current_user] = lambda: models.User(
+        user_id="user_viewer", name="Viewer", email="viewer@example.com", role="viewer", tenant_id="default_tenant"
+    )
+    try:
+        assert client.delete(f"/api/v1/evidence/{item_id}").status_code == 403
+    finally:
+        app.dependency_overrides[get_current_user] = lambda: models.User(
+            user_id="user_1", name="Test User", email="test@example.com", role="investigator", tenant_id="default_tenant"
+        )

@@ -301,3 +301,9 @@ def check_permissions(required_role: str, required_scope: Optional[str] = None):
             raise HTTPException(status_code=403, detail="Not enough privileges")
         return current_user
     return role_checker
+
+
+def get_admin_user(current_user: models.User = Depends(get_current_user)) -> models.User:
+    """Dependency for administration routes: the caller must be a tenant or platform administrator."""
+    require_admin(current_user)
+    return current_user

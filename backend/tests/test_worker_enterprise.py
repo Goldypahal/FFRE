@@ -80,7 +80,17 @@ def test_api_worker_recovery_and_drain_endpoints(client, db_session):
 
 def test_admin_health_metrics_incorporates_worker_data(client):
     """Verify /api/v1/admin/health-metrics incorporates live worker telemetry."""
-    res = client.get("/api/v1/admin/health-metrics")
+    from main import app
+    from auth import get_current_user
+    app.dependency_overrides[get_current_user] = lambda: models.User(
+        user_id="user_admin_health", name="Admin", email="admin.health@example.com", role="admin", tenant_id="default_tenant"
+    )
+    try:
+        res = client.get("/api/v1/admin/health-metrics")
+    finally:
+        app.dependency_overrides[get_current_user] = lambda: models.User(
+            user_id="user_1", name="Test User", email="test@example.com", role="investigator", tenant_id="default_tenant"
+        )
     assert res.status_code == 200
     data = res.json()
     assert "cache_worker" in data
