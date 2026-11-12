@@ -4,6 +4,7 @@ Implements symmetric Fernet encryption (AES-128-CBC with HMAC-SHA256 authenticat
 """
 
 import os
+import json
 import base64
 import hmac
 import hashlib
@@ -426,6 +427,31 @@ class PIITokenizer:
     def export_vault(self) -> Dict[str, str]:
         """Export the token mapping dictionary for state persistence."""
         return dict(self.token_to_pii)
+
+
+_SEALED_VAULT_KEY = "_sealed"
+
+
+def seal_pii_vault(vault: Optional[Dict[str, str]]) -> Optional[Dict[str, str]]:
+    """
+    Encrypt a token-to-value map before it is written into graph state. The state is checkpointed
+    to the database, and the map holds the very values the tokenizer exists to keep out of reach.
+    """
+    if not vault:
+        return vault
+    return {_SEALED_VAULT_KEY: encrypt_aes256_gcm(json.dumps(vault, sort_keys=True))}
+
+
+def open_pii_vault(sealed: Optional[Dict[str, str]]) -> Dict[str, str]:
+    """Reverse of seal_pii_vault. A map that was never sealed is returned unchanged."""
+    if not sealed:
+        return {}
+    if _SEALED_VAULT_KEY not in sealed:
+        return dict(sealed)
+    try:
+        return json.loads(decrypt_aes256_gcm(sealed[_SEALED_VAULT_KEY], fail_closed=True))
+    except (DecryptionError, ValueError):
+        return {}
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.hazmat.primitives import serialization
 

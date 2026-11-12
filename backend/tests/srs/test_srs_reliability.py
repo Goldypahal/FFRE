@@ -20,13 +20,23 @@ def test_zero_transaction_velocity_window_metrics(db_session):
     db_session.add_all([cust, acct, merch, t_old])
     db_session.commit()
 
-    state = {"investigation_id": "inv_zero_1", "transaction_id": "T-ZERO-OLD"}
+    # The transaction under investigation happens now; the windows are measured back from it.
+    t_now = models.Transaction(txn_id="T-ZERO-NOW", account_id="a_zero_1", merchant_id="m_zero_1", amount=20.0, currency="USD", status="COMPLETED", timestamp=now)
+    db_session.add(t_now)
+    db_session.commit()
+
+    state = {"investigation_id": "inv_zero_1", "transaction_id": "T-ZERO-NOW"}
     res = velocity_check_node(state)
     vel = res.get("velocity_evidence", {})
 
-    # 5m window has 0 transactions (old transaction was 3 hours ago)
-    assert vel["velocity_5m"]["count"] == 0
-    assert vel["velocity_5m"]["sum"] == 0.0
+    # The 5m window holds only the transaction itself: the older one was 3 hours earlier.
+    assert vel["velocity_5m"]["count"] == 1
+    assert vel["velocity_5m"]["sum"] == 20.0
+
+    # Investigating the older transaction must not count the later one (windows end at the transaction).
+    res_old = velocity_check_node({"investigation_id": "inv_zero_1", "transaction_id": "T-ZERO-OLD"})
+    assert res_old["velocity_evidence"]["velocity_5m"]["count"] == 1
+    assert res_old["velocity_evidence"]["velocity_5m"]["sum"] == 1500.0
 
 def test_retry_policy_error_classification():
     """Task 11 Test: RetryPolicy correctly distinguishes retryable vs non-retryable exceptions."""
