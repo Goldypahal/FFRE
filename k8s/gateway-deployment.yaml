@@ -24,6 +24,7 @@ spec:
     spec:
       containers:
         - name: ffre-gateway
+          # Pin a released tag or digest in real deployments; "latest" makes rollouts and rollbacks unrepeatable.
           image: ffre-backend:latest
           imagePullPolicy: IfNotPresent
           ports:
@@ -51,7 +52,7 @@ spec:
             failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /api/v1/health
+              path: /api/v1/ready
               port: 8000
             initialDelaySeconds: 5
             periodSeconds: 5
@@ -59,7 +60,7 @@ spec:
             failureThreshold: 2
           securityContext:
             runAsNonRoot: true
-            runAsUser: 1000
+            runAsUser: 1001  # the uid of ffireuser in the image, which owns /app/backend/data
             readOnlyRootFilesystem: false
             allowPrivilegeEscalation: false
             capabilities:

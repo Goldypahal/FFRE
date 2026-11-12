@@ -333,6 +333,21 @@ class MockProvider(NullProvider):
         return resp_obj
 
 
+def _token_usage(response: Any, prompt_str: str, content: str) -> Dict[str, int]:
+    """
+    Token counts as the provider reported them. Only when a response carries no usage data are
+    they estimated from text length (about four characters a token), which is good enough to
+    notice activity but not to bill by.
+    """
+    usage = getattr(response, "usage_metadata", None) or {}
+    prompt_tokens = usage.get("input_tokens") if isinstance(usage, dict) else None
+    completion_tokens = usage.get("output_tokens") if isinstance(usage, dict) else None
+    return {
+        "prompt_tokens": int(prompt_tokens) if prompt_tokens else max(1, len(prompt_str) // 4),
+        "completion_tokens": int(completion_tokens) if completion_tokens else max(1, len(str(content)) // 4),
+    }
+
+
 class OpenAIProvider(BaseLLMProvider):
     """Production OpenAI provider."""
 
@@ -343,7 +358,11 @@ class OpenAIProvider(BaseLLMProvider):
         self.model_name = model_name
         self.api_key = api_key or os.getenv("OPENAI_API_KEY", "").strip()
         from langchain_openai import ChatOpenAI
-        self._client = ChatOpenAI(model=self.model_name, api_key=self.api_key)
+        # A bounded wait and a couple of retries: without them one hung request stalls the pipeline.
+        self._client = ChatOpenAI(
+            model=self.model_name, api_key=self.api_key,
+            timeout=float(os.getenv("LLM_TIMEOUT_SECONDS", "60")), max_retries=int(os.getenv("LLM_MAX_RETRIES", "2")),
+        )
 
     def invoke(self, prompt: Any) -> LLMResponse:
         start_t = time.time()
@@ -356,8 +375,7 @@ class OpenAIProvider(BaseLLMProvider):
             content=content,
             model=self.model_name,
             provider=self.provider_name,
-            prompt_tokens=max(1, len(prompt_str) // 4),
-            completion_tokens=max(1, len(content) // 4),
+            **_token_usage(response, prompt_str, content),
             latency_ms=latency_ms,
         )
 
@@ -388,8 +406,7 @@ class AnthropicProvider(BaseLLMProvider):
             content=content,
             model=self.model_name,
             provider=self.provider_name,
-            prompt_tokens=max(1, len(prompt_str) // 4),
-            completion_tokens=max(1, len(content) // 4),
+            **_token_usage(response, prompt_str, content),
             latency_ms=latency_ms,
         )
 

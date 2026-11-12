@@ -1160,6 +1160,18 @@ def run_investigation_task(investigation_id: str, transaction_id: str, db: Optio
 
             # Finding 3: Analytical pipeline degradation accounting (never silent fallback)
 
+            try:
+                from llm_gateway import get_llm_gateway
+                _offline = get_llm_gateway().is_offline()
+            except Exception:
+                _offline = False
+            if _offline and auth.is_strict_mode():
+                # In production an investigation reasoned by the built-in offline stub, because no
+                # model provider is configured or reachable, must say so on its face.
+                result["is_degraded"] = True
+                result["degraded_reasons"] = list(result.get("degraded_reasons") or []) + [
+                    "No LLM provider available: reasoning produced by the deterministic offline fallback"
+                ]
             is_degraded = bool(result.get("is_degraded", False))
 
             investigation.is_degraded = is_degraded
