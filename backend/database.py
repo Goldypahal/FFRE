@@ -33,8 +33,9 @@ engine_kwargs = {}
 if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
     engine_kwargs["connect_args"] = {"check_same_thread": False, "timeout": 60.0}
     engine_kwargs["poolclass"] = QueuePool
-    engine_kwargs["pool_size"] = int(os.getenv("DB_POOL_SIZE", "10"))
-    engine_kwargs["max_overflow"] = int(os.getenv("DB_MAX_OVERFLOW", "5"))
+    # SQLite has no server-side connection limit, so the local pool can stay generous.
+    engine_kwargs["pool_size"] = int(os.getenv("DB_POOL_SIZE", "20"))
+    engine_kwargs["max_overflow"] = int(os.getenv("DB_MAX_OVERFLOW", "10"))
 else:
     # Production PostgreSQL / TimescaleDB Enterprise Pooling (Chapter 48)
     # Calibrated production connection budget: default 10 connections + 5 overflow per worker
