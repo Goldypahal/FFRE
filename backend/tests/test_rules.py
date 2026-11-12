@@ -21,7 +21,7 @@ def test_evaluate_rules_high_risk():
     """Test rule evaluation for high risk transaction"""
     state = {
         "transaction_evidence": {"amount": 5000.0, "currency": "USD", "status": "PENDING"},
-        "customer_evidence": {"kyc_status": "PENDING", "risk_tier": "HIGH"},
+        "customer_evidence": {"kyc_status": "PENDING", "risk_tier": "HIGH", "home_country": "US"},
         "merchant_evidence": {"historical_fraud_rate": 0.8},
         "device_evidence": {"new_device": True, "os": "Unknown"},
         "location_evidence": {"country": "RU", "ip": "192.168.1.1"}
@@ -38,7 +38,7 @@ def test_evaluate_rules_medium_risk():
     """Test rule evaluation for medium risk transaction"""
     state = {
         "transaction_evidence": {"amount": 500.0, "currency": "USD", "status": "PENDING"},
-        "customer_evidence": {"kyc_status": "VERIFIED", "risk_tier": "MEDIUM"},
+        "customer_evidence": {"kyc_status": "VERIFIED", "risk_tier": "MEDIUM", "home_country": "US"},
         "merchant_evidence": {"historical_fraud_rate": 0.1},
         "device_evidence": {"new_device": False},
         "location_evidence": {"country": "CA"}
@@ -402,3 +402,19 @@ def test_check_graph_cycle_depth_limit():
     score_deep, reason_deep = check_graph_cycle(history, curr_txn, max_depth=5)
     assert score_deep >= 0.50
     assert "Circular flow detected" in reason_deep
+
+def test_structuring_band_covers_amounts_just_under_ten_thousand():
+    """$9,999.01 to $9,999.99 used to fall between the two bands and trigger nothing."""
+    score, reasons = evaluate_rules({"transaction_evidence": {"amount": 9999.50}})
+    assert score >= 0.65
+    assert any("Structuring" in r for r in reasons)
+
+
+def test_geolocation_rule_is_silent_when_home_country_is_unknown():
+    """Without a home country the rule must not assume 'US' and flag every foreign transaction."""
+    score, reasons = evaluate_rules({
+        "transaction_evidence": {"amount": 50.0},
+        "customer_evidence": {"kyc_status": "VERIFIED"},
+        "location_evidence": {"country": "IN"},
+    })
+    assert not any("Geolocation" in r for r in reasons)

@@ -152,7 +152,7 @@ class DurablePostgresSaver(MemorySaver):
 
         # 1. Try initializing native LangGraph PostgresSaver
         try:
-            self._pool = ConnectionPool(conninfo=self.db_url, min_size=minconn, max_size=max(maxconn, 30), kwargs={"autocommit": True})
+            self._pool = ConnectionPool(conninfo=self.db_url, min_size=minconn, max_size=int(os.getenv("CHECKPOINT_POOL_MAX", str(maxconn))), kwargs={"autocommit": True})
             self._pool.open(wait=True, timeout=3.0)
             self._native_saver = NativePostgresSaver(self._pool)
             # Unblock multi-worker concurrency: psycopg_pool manages connection safety across threads
@@ -207,6 +207,8 @@ class DurablePostgresSaver(MemorySaver):
         """Persist intermediate writes for atomic recovery."""
         if self._native_saver is not None and hasattr(self._native_saver, "put_writes"):
             return self._native_saver.put_writes(config, writes, task_id, task_path)
+        # In-memory fallback: keep the pending writes too, or a resumed run loses them.
+        return super().put_writes(config, writes, task_id, task_path)
 
 def get_durable_checkpointer(db_path: str = "ffire_checkpoints.db", db_url: Optional[str] = None):
     """Task 16 & 24 Factory: Returns durable PostgreSQL or SQLite checkpointer instance based on configuration."""

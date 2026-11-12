@@ -322,6 +322,41 @@ def migration_009_user_mfa_and_phone(conn: Connection, is_sqlite: bool):
     safe_add_column(conn, is_sqlite, "users", "mfa_enabled", "BOOLEAN DEFAULT 0" if is_sqlite else "BOOLEAN DEFAULT FALSE")
 
 
+def migration_012_widen_encrypted_columns_and_home_country(conn: Connection, is_sqlite: bool):
+    """
+    Encrypted values outgrow VARCHAR(255) (PostgreSQL rejects them; SQLite ignores the length).
+    Also adds customer.home_country, which the geolocation rule needs.
+    """
+    safe_add_column(conn, is_sqlite, "customer", "home_country", "VARCHAR(64)")
+    if is_sqlite:
+        return
+    for table, column in (
+        ("users", "name"), ("users", "email"), ("users", "phone_number"),
+        ("customer", "name"), ("device", "fingerprint"),
+    ):
+        if table_exists(conn, is_sqlite, table) and column_exists(conn, table, column):
+            conn.execute(text(f'ALTER TABLE "{table}" ALTER COLUMN "{column}" TYPE TEXT'))
+
+
+def migration_013_backfill_pipeline_tenant_ids(conn: Connection, is_sqlite: bool):
+    """
+    Evidence and audit rows written by the pipeline used to fall back to 'default_tenant'.
+    Re-label them with the tenant of the investigation they belong to.
+    """
+    for table in ("evidence", "audit_log"):
+        if not (table_exists(conn, is_sqlite, table) and table_exists(conn, is_sqlite, "investigation")):
+            continue
+        if not column_exists(conn, table, "tenant_id"):
+            continue
+        conn.execute(text(
+            f"UPDATE {table} SET tenant_id = ("
+            f"SELECT i.tenant_id FROM investigation i WHERE i.investigation_id = {table}.investigation_id) "
+            f"WHERE investigation_id IS NOT NULL AND EXISTS ("
+            f"SELECT 1 FROM investigation i WHERE i.investigation_id = {table}.investigation_id "
+            f"AND i.tenant_id IS NOT NULL AND i.tenant_id <> {table}.tenant_id)"
+        ))
+
+
 MIGRATIONS: List[Tuple[int, str, Callable[[Connection, bool], None]]] = [
     (1, "initial_schema_baseline", migration_001_initial_tables),
     (2, "investigation_idempotency_and_fingerprint", migration_002_investigation_idempotency),
@@ -334,6 +369,8 @@ MIGRATIONS: List[Tuple[int, str, Callable[[Connection, bool], None]]] = [
     (9, "user_mfa_and_phone", migration_009_user_mfa_and_phone),
     (10, "backfill_and_enforce_invitation_token_hash", migration_010_backfill_and_enforce_invitation_token_hash),
     (11, "enforce_invitation_token_hash_constraints", migration_011_enforce_invitation_token_hash_constraints),
+    (12, "widen_encrypted_columns_and_home_country", migration_012_widen_encrypted_columns_and_home_country),
+    (13, "backfill_pipeline_tenant_ids", migration_013_backfill_pipeline_tenant_ids),
 ]
 
 

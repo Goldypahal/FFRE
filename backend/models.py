@@ -2,8 +2,10 @@ import uuid
 import datetime
 import timeutil
 from typing import Optional, Sequence, Any, Tuple, List
-from sqlalchemy import Column, String, Float, DateTime, ForeignKey, Text, Numeric, Integer, Boolean, UniqueConstraint, UniqueConstraint, event, select
+from sqlalchemy import Column, String, Float, DateTime, ForeignKey, Text, Numeric, Integer, Boolean, UniqueConstraint, event, select, text
 from sqlalchemy.orm import relationship
+from sqlalchemy.engine import Engine
+from sqlalchemy.pool import Pool
 from sqlalchemy.ext.hybrid import hybrid_property
 from database import Base
 import security
@@ -16,15 +18,17 @@ class User(Base):
 
     user_id = Column(String, primary_key=True, default=generate_uuid)
     tenant_id = Column(String(50), nullable=False, default="default_tenant", index=True)
-    _name = Column("name", String(255), nullable=False)
-    _email = Column("email", String(255), nullable=False)
+    # Encrypted columns are Text: AES-GCM plus base64 grows a value by about a third and adds 40
+    # characters, so a 255-character column cannot hold a long name or email.
+    _name = Column("name", Text, nullable=False)
+    _email = Column("email", Text, nullable=False)
     email_hash = Column(String(64), nullable=True, unique=True, index=True)
     hashed_password = Column(String(255), nullable=True)
     role = Column(String(50), nullable=False, default="investigator")
     status = Column(String(20), nullable=False, default="active")
     last_login = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=timeutil.utcnow)
-    _phone_number = Column("phone_number", String(255), nullable=True)
+    _phone_number = Column("phone_number", Text, nullable=True)
     mfa_enabled = Column(Boolean, default=False, nullable=False)
 
     @hybrid_property
@@ -61,9 +65,10 @@ class Customer(Base):
 
     customer_id = Column(String, primary_key=True, default=generate_uuid)
     tenant_id = Column(String(50), nullable=False, default="default_tenant", index=True)
-    _name = Column("name", String(255), nullable=False)
+    _name = Column("name", Text, nullable=False)
     kyc_status = Column(String(50), default="UNVERIFIED")
     risk_tier = Column(String(20), default="LOW")
+    home_country = Column(String(64), nullable=True)
     created_at = Column(DateTime, default=timeutil.utcnow)
 
     accounts = relationship("Account", back_populates="customer")
@@ -129,7 +134,7 @@ class Device(Base):
     device_id = Column(String, primary_key=True, default=generate_uuid)
     tenant_id = Column(String(50), nullable=False, default="default_tenant", index=True)
     customer_id = Column(String, ForeignKey("customer.customer_id"))
-    _fingerprint = Column("fingerprint", String(255))
+    _fingerprint = Column("fingerprint", Text)
     os = Column(String(50))
     ip_address = Column(String(45))
 
@@ -367,107 +372,13 @@ def _auto_chain_audit_log(mapper, connection, target):
     if not target.timestamp:
         target.timestamp = timeutil.utcnow()
 
-    # If entry_hash already explicitly supplied by caller, track and respect it
-    if target.entry_hash:
-        if target.investigation_id:
-            connection.info.setdefault('last_audit_hashes', {})[target.investigation_id] = target.entry_hash
-        return
-
-    # Look up previous hash
-    prev_hash = target.previous_hash
-    if prev_hash is None and target.investigation_id:
-        last_hashes = connection.info.setdefault('last_audit_hashes', {})
-        if target.investigation_id in last_hashes:
-            prev_hash = last_hashes[target.investigation_id]
-        else:
-            stmt = select(AuditLog.entry_hash).where(
-                AuditLog.investigation_id == target.investigation_id
-            ).order_by(AuditLog.timestamp.desc(), AuditLog.log_id.desc()).limit(1)
-            row = connection.execute(stmt).first()
-            if row and row[0]:
-                prev_hash = row[0]
-
-    target.previous_hash = prev_hash
-    ts_str = target.timestamp.isoformat() if hasattr(target.timestamp, 'isoformat') else str(target.timestamp or "")
-    target.entry_hash = AuditLog.calculate_entry_hash(
-        target.previous_hash,
-        target.log_id,
-        target.action,
-        ts_str,
-        target.details or ""
-    )
-    if target.investigation_id:
-        connection.info.setdefault('last_audit_hashes', {})[target.investigation_id] = target.entry_hash
-
-    @classmethod
-    def verify_chain(cls, logs: Sequence[Any]) -> Tuple[bool, List[str]]:
-        """
-        Verifies the cryptographic integrity of an AuditLog hash chain.
-        Works on SQLAlchemy AuditLog instances, dicts, or objects with appropriate attributes.
-        Returns (True, []) if the chain is intact.
-        Returns (False, [error_reasons...]) if any tampering or broken link is found.
-        """
-        if not logs:
-            return True, []
-
-        errors = []
-        for i, log in enumerate(logs):
-            if isinstance(log, dict):
-                log_id = log.get("log_id")
-                action = log.get("action")
-                details = log.get("details")
-                previous_hash = log.get("previous_hash")
-                entry_hash = log.get("entry_hash")
-                raw_ts = log.get("timestamp")
-            else:
-                log_id = getattr(log, "log_id", None)
-                action = getattr(log, "action", None)
-                details = getattr(log, "details", None)
-                previous_hash = getattr(log, "previous_hash", None)
-                entry_hash = getattr(log, "entry_hash", None)
-                raw_ts = getattr(log, "timestamp", None)
-
-            ts_str = raw_ts.isoformat() if hasattr(raw_ts, "isoformat") else str(raw_ts or "")
-
-            # 1. Verify previous_hash linkage
-            if i == 0:
-                if previous_hash not in (None, "", "GENESIS"):
-                    errors.append(
-                        f"Genesis log '{log_id}' at index 0 has unexpected previous_hash '{previous_hash}' (expected None or 'GENESIS')"
-                    )
-            else:
-                pred = logs[i - 1]
-                pred_entry_hash = pred.get("entry_hash") if isinstance(pred, dict) else getattr(pred, "entry_hash", None)
-                if previous_hash != pred_entry_hash:
-                    errors.append(
-                        f"Broken chain link at index {i} (log '{log_id}'): previous_hash '{previous_hash}' does not match predecessor entry_hash '{pred_entry_hash}'"
-                    )
-
-            # 2. Verify entry_hash recalculation
-            expected_hash = cls.calculate_entry_hash(
-                previous_hash,
-                str(log_id or ""),
-                str(action or ""),
-                ts_str,
-                str(details or "")
-            )
-            if entry_hash != expected_hash:
-                errors.append(
-                    f"Tampered entry hash at index {i} (log '{log_id}'): stored entry_hash '{entry_hash}' does not match recalculated hash '{expected_hash}'"
-                )
-
-        return (len(errors) == 0, errors)
-
-@event.listens_for(AuditLog, 'before_insert')
-def _auto_chain_audit_log(mapper, connection, target):
-    """
-    Automatically links previous_hash and computes entry_hash for new AuditLog records
-    if not explicitly populated by the caller. Preserves explicit hashes set by test fixtures.
-    """
-    if not target.log_id:
-        target.log_id = generate_uuid()
-    if not target.timestamp:
-        target.timestamp = timeutil.utcnow()
+    # On PostgreSQL, serialise writers of the same investigation's chain for the rest of this
+    # transaction, so two connections cannot both read the same tail and fork the chain.
+    if target.investigation_id and connection.dialect.name == "postgresql":
+        connection.execute(
+            text("SELECT pg_advisory_xact_lock(hashtext(:k))"),
+            {"k": f"ffre-audit:{target.investigation_id}"},
+        )
 
     # If entry_hash already explicitly supplied by caller, track and respect it
     if target.entry_hash:
@@ -500,6 +411,26 @@ def _auto_chain_audit_log(mapper, connection, target):
     )
     if target.investigation_id:
         connection.info.setdefault('last_audit_hashes', {})[target.investigation_id] = target.entry_hash
+
+
+def _forget_audit_tail(connection):
+    """
+    The tail-hash cache above exists only so that several audit rows flushed in one batch chain to
+    each other. It must not outlive the transaction: after a commit another connection may have
+    appended to the chain, and after a rollback the cached hash belongs to a row that was never
+    written. Either way a stale entry forks the chain.
+    """
+    connection.info.pop('last_audit_hashes', None)
+
+
+event.listen(Engine, "commit", _forget_audit_tail)
+event.listen(Engine, "rollback", _forget_audit_tail)
+
+
+@event.listens_for(Pool, "checkin")
+def _forget_audit_tail_on_checkin(dbapi_connection, connection_record):
+    connection_record.info.pop('last_audit_hashes', None)
+
 
 class DeadLetterJob(Base):
     __tablename__ = "dead_letter_job"
@@ -611,3 +542,11 @@ class TenantInvitation(Base):
     is_used = Column(Boolean, default=False, nullable=False, index=True)
     used_at = Column(DateTime, nullable=True)
     used_by = Column(String(255), nullable=True)
+
+
+# Every table is now registered. If this module was imported before `database`, schema
+# initialisation was deferred until this point (see database._init_db_on_import).
+_MODELS_LOADED = True
+import database as _database  # noqa: E402
+
+_database._init_db_on_import()

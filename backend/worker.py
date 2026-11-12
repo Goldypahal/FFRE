@@ -16,21 +16,31 @@ except ImportError:
     redis = None
 
 VALID_STATES: Set[str] = {
-    "QUEUED", "RUNNING", "RETRYING", "WAITING_HUMAN", "ESCALATED", "COMPLETED", "FAILED", "CANCELLED"
+    "QUEUED", "RUNNING", "RETRYING", "WAITING_HUMAN", "ESCALATED", "COMPLETED", "FAILED", "CANCELLED",
+    "CLOSED_APPROVE", "CLOSED_REJECT", "ARCHIVED_DELETED",
+}
+
+# States a worker must never run again. A job that turns up in one of these is acknowledged and dropped.
+TERMINAL_STATES: Set[str] = {
+    "COMPLETED", "ESCALATED", "WAITING_HUMAN", "CANCELLED", "CLOSED_APPROVE", "CLOSED_REJECT", "ARCHIVED_DELETED",
 }
 
 VALID_TRANSITIONS: Dict[str, Set[str]] = {
     "QUEUED": {"RUNNING", "CANCELLED", "FAILED", "QUEUED"},
     "RUNNING": {"QUEUED", "RETRYING", "WAITING_HUMAN", "ESCALATED", "COMPLETED", "FAILED", "CANCELLED"},
     "RETRYING": {"RUNNING", "CANCELLED", "FAILED"},
-    "WAITING_HUMAN": {"RUNNING", "COMPLETED", "FAILED", "CANCELLED"},
-    "ESCALATED": {"RUNNING", "RETRYING", "COMPLETED", "FAILED", "CANCELLED"},
-    "COMPLETED": set(),
-    "FAILED": {"RETRYING"},
-    "CANCELLED": set()
+    "WAITING_HUMAN": {"RUNNING", "COMPLETED", "FAILED", "CANCELLED", "CLOSED_APPROVE", "CLOSED_REJECT"},
+    "ESCALATED": {"RUNNING", "RETRYING", "COMPLETED", "FAILED", "CANCELLED", "CLOSED_APPROVE", "CLOSED_REJECT"},
+    "COMPLETED": {"CLOSED_APPROVE", "CLOSED_REJECT", "ESCALATED"},
+    "FAILED": {"RETRYING", "QUEUED"},
+    "CANCELLED": set(),
+    "CLOSED_APPROVE": set(),
+    "CLOSED_REJECT": set(),
+    "ARCHIVED_DELETED": set(),
 }
 
 MAX_JOB_RETRIES = 3
+PROCESSING_STARTED_KEY = "ffre:worker:processing_started"
 
 class DurableWorkerQueue:
     """Task 17-19 & Task 23: Multi-backend durable worker queue supporting Redis and SQLite/in-memory brokers."""
@@ -112,6 +122,7 @@ class DurableWorkerQueue:
 
                 audit = models.AuditLog(
                     investigation_id=investigation_id,
+                    tenant_id=inv.tenant_id or "default_tenant",
                     action="WORKER_STATE_TRANSITION",
                     details=f"Status transitioned from {old_status} -> {new_status}"
                 )
@@ -167,8 +178,15 @@ class DurableWorkerQueue:
                     for raw_job in pending_jobs:
                         try:
                             job_data = json.loads(raw_job)
-                            enqueued_at = job_data.get("enqueued_at", now)
-                            if now - enqueued_at > max_age_seconds:
+                            # Age is measured from when a worker picked the job up, not from when it was
+                            # enqueued: a job that waited in the queue is not stale the moment it starts.
+                            started_raw = self._redis_client.hget(PROCESSING_STARTED_KEY, job_data.get("investigation_id", ""))
+                            if started_raw is not None:
+                                started_at = float(started_raw.decode() if isinstance(started_raw, bytes) else started_raw)
+                            else:
+                                started_at = job_data.get("enqueued_at", now)
+                            if now - started_at > max_age_seconds:
+                                self._redis_client.hdel(PROCESSING_STARTED_KEY, job_data.get("investigation_id", ""))
                                 self._redis_client.lrem("ffre:worker:processing", 1, raw_job)
                                 self._redis_client.rpush("ffre:worker:queue", raw_job)
                                 recovered_count += 1
@@ -184,21 +202,36 @@ class DurableWorkerQueue:
                 models.Investigation.updated_at <= cutoff
             ).all()
 
+            to_requeue = []
             for inv in stale_jobs:
                 inv.status = "RETRYING"
                 inv.updated_at = timeutil.utcnow()
                 audit = models.AuditLog(
                     investigation_id=inv.investigation_id,
+                    tenant_id=inv.tenant_id or "default_tenant",
                     action="WORKER_CRASH_RECOVERY",
-                    details=f"Recovered stale job {inv.investigation_id}. Status reset to RETRYING."
+                    details=f"Recovered stale job {inv.investigation_id}. Status reset to RETRYING and re-queued."
                 )
                 db.add(audit)
+                to_requeue.append((inv.investigation_id, inv.txn_id))
                 recovered_count += 1
 
             db.commit()
+            # Put the reset jobs back on the queue; resetting the status alone left them stuck in RETRYING.
+            for inv_id, txn_id in to_requeue:
+                try:
+                    self._requeue_job({
+                        "investigation_id": inv_id,
+                        "transaction_id": txn_id,
+                        "enqueued_at": time.time(),
+                        "retry_count": 1,
+                    })
+                except Exception as exc:
+                    print(f"Could not re-queue recovered job {inv_id}: {exc}")
             self.recovered_count += recovered_count
             return recovered_count
-        except Exception:
+        except Exception as exc:
+            print(f"Stale-job recovery failed: {exc}")
             db.rollback()
             return 0
         finally:
@@ -216,6 +249,7 @@ class DurableWorkerQueue:
             elif "_raw_str" in job:
                 try:
                     self._redis_client.lrem("ffre:worker:processing", 1, job["_raw_str"])
+                    self._redis_client.hdel(PROCESSING_STARTED_KEY, job.get("investigation_id", ""))
                 except Exception as e:
                     print(f"Redis ACK lrem failed: {e}")
 
@@ -264,6 +298,11 @@ class DurableWorkerQueue:
         inv_id = job["investigation_id"]
         txn_id = job["transaction_id"]
         retry_count = job.get("retry_count", 0)
+        if self._redis_client and not self.use_streams:
+            try:
+                self._redis_client.hset(PROCESSING_STARTED_KEY, inv_id, repr(time.time()))
+            except Exception:
+                pass
 
         should_close = False
         if not db:
@@ -275,11 +314,16 @@ class DurableWorkerQueue:
                 models.Investigation.investigation_id == inv_id
             ).first()
 
-            if inv and inv.status == "FAILED":
+            if inv is None or inv.status in TERMINAL_STATES:
+                # Already finished elsewhere (or deleted). Running it again would duplicate evidence
+                # and alerts, and COMPLETED -> RUNNING is not a legal transition. Drop the job.
+                self.ack_job(job)
+            elif inv.status == "FAILED":
                 retry_count += 1
                 if retry_count >= MAX_JOB_RETRIES:
                     audit = models.AuditLog(
                         investigation_id=inv_id,
+                        tenant_id=inv.tenant_id or "default_tenant",
                         action="DEAD_LETTER_QUEUE",
                         details=f"Job exceeded max retries ({MAX_JOB_RETRIES}). Sent to dead-letter queue."
                     )
@@ -305,11 +349,38 @@ class DurableWorkerQueue:
                 self.processed_count += 1
         except Exception as e:
             print(f"Worker execution failed for {inv_id}: {e}")
-            retry_count += 1
+            try:
+                db.rollback()
+                self._handle_job_failure(job, inv_id, txn_id, retry_count + 1, e, db)
+            except Exception as handler_exc:
+                # Never let a failure in the failure path escape: it would kill the worker thread.
+                print(f"Worker could not record failure for {inv_id}: {handler_exc}")
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                self.ack_job(job)
+                self.failed_count += 1
+        finally:
+            if should_close:
+                db.close()
+            try:
+                self._queue.task_done()
+            except ValueError:
+                pass
+        return True
+
+    def _handle_job_failure(self, job: Dict[str, Any], inv_id: str, txn_id: str, retry_count: int, e: Exception, db) -> None:
+        """Retry a failed job, or dead-letter it once it has used its retries."""
+        try:
+            tenant = db.query(models.Investigation.tenant_id).filter(
+                models.Investigation.investigation_id == inv_id
+            ).scalar() or "default_tenant"
             if retry_count >= MAX_JOB_RETRIES:
                 self.transition_job_state(inv_id, "FAILED", db=db)
                 audit = models.AuditLog(
                     investigation_id=inv_id,
+                    tenant_id=tenant,
                     action="DEAD_LETTER_QUEUE",
                     details=f"Job exceeded max retries ({MAX_JOB_RETRIES}). Sent to dead-letter queue."
                 )
@@ -327,17 +398,14 @@ class DurableWorkerQueue:
                 job["retry_count"] = retry_count
                 self.transition_job_state(inv_id, "RETRYING", db=db)
                 self._requeue_job(job)
-        finally:
-            if should_close:
-                db.close()
-            try:
-                self._queue.task_done()
-            except ValueError:
-                pass
-        return True
+                self.ack_job(job)  # the retry is a new queue entry; release the one being processed
+        except ValueError:
+            # The investigation is in a state that cannot be retried (for example it was cancelled).
+            self.ack_job(job)
 
     def _requeue_job(self, job: Dict[str, Any]):
         """Helper to requeue job into Redis or In-Memory queue."""
+        job = {k: v for k, v in job.items() if not k.startswith("_")}  # drop broker bookkeeping keys
         if self._redis_client:
             try:
                 if self.use_streams:
@@ -440,7 +508,12 @@ class DurableWorkerQueue:
 
         def _worker_loop():
             while self._is_running:
-                has_job = self.process_next_job()
+                try:
+                    has_job = self.process_next_job()
+                except Exception as exc:
+                    # One bad job must not stop the loop for every job after it.
+                    print(f"Worker loop error (continuing): {exc}")
+                    has_job = False
                 if not has_job:
                     time.sleep(0.5)
 

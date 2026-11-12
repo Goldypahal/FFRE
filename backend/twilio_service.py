@@ -78,22 +78,18 @@ class TwilioService:
         clean_to = to_number.strip()
         clean_body = body.strip()
 
-        # If test mode is active or dummy phone number is provided, use simulation mode immediately
+        # Simulation: under tests, when mock mode is switched on, or (outside production only) for
+        # the reserved fictional number ranges. In production a +1555 number is sent like any other,
+        # so nobody can enrol one to get a code that is never really delivered.
+        import security
+        production = security.is_production()
+        is_test_number = clean_to.startswith("+1555") or clean_to.startswith("+1500555")
         if (
             os.getenv("PYTEST_CURRENT_TEST")
             or os.getenv("TWILIO_MOCK_MODE", "false").lower() == "true"
-            or clean_to.startswith("+1555")
-            or clean_to.startswith("+1500555")
+            or (is_test_number and not production)
         ):
-            sim_sid = f"SM_sim_{secrets.token_hex(16)}"
-            logger.info(f"[SIMULATED TWILIO SMS] To: {clean_to} | Body: {clean_body}")
-            return {
-                "status": "delivered",
-                "sid": sim_sid,
-                "to": clean_to,
-                "simulated": True,
-                "body": clean_body,
-            }
+            return self._simulated(clean_to, clean_body, production)
 
         # If configured with credentials, attempt live HTTP transmission
         if self.is_configured():
@@ -132,18 +128,24 @@ class TwilioService:
                 return {"status": "error", "error": str(exc), "simulated": False}
 
         # Simulated fallback mode if not configured
-        if os.getenv("STRICT_ENTERPRISE_MODE", "false").lower() == "true":
+        if production:
             raise RuntimeError("STRICT_ENTERPRISE_MODE: Twilio API credentials not configured.")
+        return self._simulated(clean_to, clean_body, production)
 
+    @staticmethod
+    def _simulated(clean_to: str, clean_body: str, production: bool) -> Dict[str, Any]:
+        """
+        Pretend to send. The message text can contain a one-time code, so it is written to the log
+        and returned only outside production, where a developer has no other way to read it.
+        """
         sim_sid = f"SM_sim_{secrets.token_hex(16)}"
-        logger.info(f"[SIMULATED TWILIO SMS] To: {clean_to} | Body: {clean_body}")
-        return {
-            "status": "delivered",
-            "sid": sim_sid,
-            "to": clean_to,
-            "simulated": True,
-            "body": clean_body,
-        }
+        result = {"status": "delivered", "sid": sim_sid, "to": clean_to, "simulated": True}
+        if production:
+            logger.info(f"[SIMULATED TWILIO SMS] To: {clean_to} | SID: {sim_sid}")
+        else:
+            logger.info(f"[SIMULATED TWILIO SMS] To: {clean_to} | Body: {clean_body}")
+            result["body"] = clean_body
+        return result
 
     # -------------------------------------------------------------------------
     # Multi-Factor Authentication (MFA) OTP Lifecycle

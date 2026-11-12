@@ -27,6 +27,13 @@ KNOWN_INSECURE_SECRETS = {
     "12345678"
 }
 
+def is_production() -> bool:
+    """True when ENV or ENVIRONMENT declares production, or strict enterprise mode is on."""
+    for var in ("ENV", "ENVIRONMENT"):
+        if os.getenv(var, "").strip().lower() in ("production", "prod"):
+            return True
+    return os.getenv("STRICT_ENTERPRISE_MODE", "").strip().lower() in ("true", "1", "yes")
+
 def validate_production_secret(name: str, value: Optional[str], min_length: int = 32) -> str:
     """
     Enforces strict production secret hygiene (Phase 3).
@@ -35,8 +42,7 @@ def validate_production_secret(name: str, value: Optional[str], min_length: int 
     - Known development fallback secrets
     - Weak secrets under minimum character length
     """
-    env = os.getenv("ENV", "development").lower()
-    is_prod = env in ("production", "prod") or os.getenv("STRICT_ENTERPRISE_MODE", "").lower() == "true"
+    is_prod = is_production()
 
     if not value or value.strip() == "":
         if is_prod:
@@ -45,7 +51,7 @@ def validate_production_secret(name: str, value: Optional[str], min_length: int 
 
     val_clean = value.strip()
     if is_prod:
-        if val_clean.lower() in KNOWN_INSECURE_SECRETS:
+        if val_clean.lower() in KNOWN_INSECURE_SECRETS or val_clean.upper().startswith("REPLACE_"):
             raise ValueError(
                 f"CRITICAL SECURITY: Insecure development default '{val_clean}' detected for {name} in production mode! "
                 f"A unique, high-entropy secret must be provided."
@@ -194,31 +200,54 @@ def rotate_database_pii(db, old_secret: str, new_secret: str) -> dict:
     Supports Customer._name, Device._ip_address, and User.email.
     """
     import models
-    rotated_stats = {"customers": 0, "devices": 0, "users": 0}
+    rotated_stats = {"customers": 0, "devices": 0, "users": 0, "skipped": 0}
+
+    def _rotate(ciphertext: Optional[str]) -> Optional[str]:
+        """Re-encrypt one value. Returns None (and counts a skip) when it cannot be decrypted with the
+        old key, so a value is never encrypted a second time on top of its existing ciphertext."""
+        if not ciphertext:
+            return None
+        try:
+            plaintext = decrypt_aes256_gcm(ciphertext, secret_override=old_secret, fail_closed=True)
+        except DecryptionError:
+            rotated_stats["skipped"] += 1
+            return None
+        return encrypt_aes256_gcm(plaintext, secret_override=new_secret)
 
     # Customers
     for cust in db.query(models.Customer).all():
-        if cust._name:
-            plaintext = decrypt_aes256_gcm(cust._name, secret_override=old_secret, fail_closed=False)
-            cust._name = encrypt_aes256_gcm(plaintext, secret_override=new_secret)
+        rotated = _rotate(cust._name)
+        if rotated:
+            cust._name = rotated
             rotated_stats["customers"] += 1
 
     # Devices
     for dev in db.query(models.Device).all():
-        if dev._fingerprint:
-            plaintext = decrypt_aes256_gcm(dev._fingerprint, secret_override=old_secret, fail_closed=False)
-            dev._fingerprint = encrypt_aes256_gcm(plaintext, secret_override=new_secret)
+        rotated = _rotate(dev._fingerprint)
+        if rotated:
+            dev._fingerprint = rotated
             rotated_stats["devices"] += 1
 
-    # Users
+    # Users: name, email and phone, plus the email blind index, which is keyed by the same secret.
+    new_index_key = _derive_cached_fernet_key(new_secret, os.getenv("ENCRYPTION_SALT", "ffre-default-salt-v1"))
     for u in db.query(models.User).all():
-        if u.email:
+        touched = False
+        for col in ("_name", "_phone_number"):
+            rotated = _rotate(getattr(u, col))
+            if rotated:
+                setattr(u, col, rotated)
+                touched = True
+        if u._email:
             try:
-                plaintext = decrypt_aes256_gcm(u.email, secret_override=old_secret, fail_closed=True)
-                u.email = encrypt_aes256_gcm(plaintext, secret_override=new_secret)
-                rotated_stats["users"] += 1
-            except Exception:
-                pass
+                email_plain = decrypt_aes256_gcm(u._email, secret_override=old_secret, fail_closed=True)
+            except DecryptionError:
+                rotated_stats["skipped"] += 1
+            else:
+                u._email = encrypt_aes256_gcm(email_plain, secret_override=new_secret)
+                u.email_hash = hmac.new(new_index_key, email_plain.strip().lower().encode("utf-8"), hashlib.sha256).hexdigest()
+                touched = True
+        if touched:
+            rotated_stats["users"] += 1
 
     db.commit()
     return rotated_stats
@@ -298,7 +327,7 @@ class PIITokenizer:
     """
 
     PATTERNS = {
-        "EMAIL": re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'),
+        "EMAIL": re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b'),
         "SSN": re.compile(r'\b\d{3}-\d{2}-\d{4}\b'),
         "CREDIT_CARD": re.compile(r'\b(?:\d{4}[-\s]?){3}\d{4}\b'),
         "PHONE": re.compile(r'\b(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b'),
@@ -421,14 +450,46 @@ def get_verifier_keys():
         except Exception as e:
             raise RuntimeError(f"Failed to load VERIFIER_PRIVATE_KEY_PEM: {e}")
 
-    strict = (
-        os.getenv("STRICT_ENTERPRISE_MODE", "false").lower() == "true" or
-        os.getenv("ENVIRONMENT") == "production" or
-        os.getenv("ENV") == "production"
-    )
-    if strict:
+    if is_production():
         raise RuntimeError("STRICT_ENTERPRISE_MODE: VERIFIER_PRIVATE_KEY_PEM is required in production. Ephemeral dev keys are prohibited.")
 
-    _verifier_private_key = ed25519.Ed25519PrivateKey.generate()
+    _verifier_private_key = _load_or_create_dev_verifier_key()
     _verifier_public_key = _verifier_private_key.public_key()
     return _verifier_private_key, _verifier_public_key
+
+
+def _load_or_create_dev_verifier_key():
+    """
+    Development only. Every process (each Uvicorn worker, the queue worker) must sign with the same
+    key, or a snapshot signed by one fails verification in another. The key is therefore kept in a
+    file that all of them read. The first process to start creates it; O_EXCL makes that race safe.
+    """
+    key_path = os.getenv("VERIFIER_DEV_KEY_PATH") or os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "data", ".verifier_dev_key.pem"
+    )
+    if os.getenv("PYTEST_CURRENT_TEST") and not os.getenv("VERIFIER_DEV_KEY_PATH"):
+        return ed25519.Ed25519PrivateKey.generate()
+    try:
+        os.makedirs(os.path.dirname(key_path), exist_ok=True)
+        try:
+            fd = os.open(key_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError:
+            pass
+        else:
+            pem = ed25519.Ed25519PrivateKey.generate().private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption(),
+            )
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(pem)
+        for _ in range(20):
+            with open(key_path, "rb") as fh:
+                data = fh.read()
+            if data.strip().endswith(b"-----END PRIVATE KEY-----"):
+                return serialization.load_pem_private_key(data, password=None)
+            import time as _time
+            _time.sleep(0.05)
+    except Exception as exc:
+        print(f"WARNING: could not use shared dev verifier key at {key_path} ({exc}); using a per-process key.")
+    return ed25519.Ed25519PrivateKey.generate()
