@@ -64,10 +64,19 @@ def table_exists(conn: Connection, is_sqlite: bool, table: str) -> bool:
 
 
 def column_exists(conn: Connection, table: str, column: str) -> bool:
-    """Check if a column exists in a table (SQLite specific helper)."""
+    """Check if a column exists in a table. Works on SQLite and PostgreSQL."""
     clean_table = table.strip('"')
-    rows = conn.execute(text(f'PRAGMA table_info("{clean_table}")')).fetchall()
-    return column in [r[1] for r in rows]
+    if conn.dialect.name == "sqlite":
+        rows = conn.execute(text(f'PRAGMA table_info("{clean_table}")')).fetchall()
+        return column in [r[1] for r in rows]
+    r = conn.execute(
+        text(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_schema = current_schema() AND table_name = :t AND column_name = :c"
+        ),
+        {"t": clean_table, "c": column},
+    ).fetchone()
+    return r is not None
 
 
 def safe_add_column(conn: Connection, is_sqlite: bool, table: str, column: str, col_type: str):

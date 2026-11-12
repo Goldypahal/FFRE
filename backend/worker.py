@@ -160,6 +160,33 @@ class DurableWorkerQueue:
                 raise RuntimeError("STRICT_ENTERPRISE_MODE: Redis broker is not configured or unavailable. In-memory fallback is disabled in production.")
             self._queue.put(job)
         self.transition_job_state(investigation_id, "QUEUED", db=db)
+        self._record_enqueued(investigation_id, db=db)
+
+    def _record_enqueued(self, investigation_id: str, db=None) -> None:
+        """Write a WORKER_JOB_ENQUEUED audit row so the hand-off to the worker is on the record."""
+        should_close = False
+        if not db:
+            db = SessionLocal()
+            should_close = True
+        try:
+            inv = db.query(models.Investigation).filter(
+                models.Investigation.investigation_id == investigation_id
+            ).first()
+            if not inv:
+                return
+            db.add(models.AuditLog(
+                investigation_id=investigation_id,
+                tenant_id=inv.tenant_id or "default_tenant",
+                action="WORKER_JOB_ENQUEUED",
+                details=f"Job queued for worker processing via {self.get_broker_backend()} broker",
+            ))
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            if should_close:
+                db.close()
 
     def recover_stale_or_abandoned_jobs(self, db=None, max_age_seconds: int = 300) -> int:
         """Task 17, 19 & 23: Recover crashed/abandoned worker jobs stuck in RUNNING state or Redis pending queue."""
