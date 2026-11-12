@@ -96,7 +96,7 @@ export function Administration() {
   const [newUserName, setNewUserName] = useState("");
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserRole, setNewUserRole] = useState("Fraud Analyst");
-  const [newUserPassword, setNewUserPassword] = useState("FinSecure2026!");
+  const [newUserPassword, setNewUserPassword] = useState("");
 
   // Setting Edit Modal
   const [editingSetting, setEditingSetting] = useState<SystemSetting | null>(null);
@@ -178,6 +178,7 @@ export function Administration() {
       setIsAddUserOpen(false);
       setNewUserName("");
       setNewUserEmail("");
+      setNewUserPassword("");
       showNotification("success", `User ${created.name} registered`);
     } catch (err: any) {
       showNotification("error", err.message || "Failed to create user");
@@ -501,6 +502,9 @@ export function Administration() {
                   type="password"
                   value={newUserPassword}
                   onChange={(e) => setNewUserPassword(e.target.value)}
+                  autoComplete="new-password"
+                  minLength={8}
+                  placeholder="At least 8 characters"
                   required
                 />
               </div>

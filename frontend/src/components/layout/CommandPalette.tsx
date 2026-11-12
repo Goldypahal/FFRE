@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../store/useAuthStore";
+import { apiUrl } from "../../lib/api";
 import {
   Search,
   X,
@@ -217,7 +218,7 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
     const fetchRemote = async () => {
       try {
         const catParam = activeCategory !== "ALL" ? `&category=${activeCategory.toLowerCase()}` : "";
-        const res = await fetch(`/api/v1/search/universal?q=${encodeURIComponent(trimmed)}${catParam}`, {
+        const res = await fetch(apiUrl(`/search/universal?q=${encodeURIComponent(trimmed)}${catParam}`), {
           headers,
           signal: controller.signal,
         });

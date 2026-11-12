@@ -4,6 +4,24 @@ import "@fontsource-variable/bricolage-grotesque/opsz.css";
 import "@fontsource-variable/instrument-sans/wght.css";
 import "../Landing/landing.css";
 import { useAuthStore } from "../../store/useAuthStore";
+import { apiUrl } from "../../lib/api";
+
+interface LoginResponse {
+  access_token?: string;
+  refresh_token?: string;
+  role?: string;
+  user_id?: string;
+  name?: string;
+  mfa_required?: boolean;
+  mfa_ticket?: string;
+  masked_phone?: string;
+  user?: { id?: string; name?: string; role?: string };
+  detail?: unknown;
+}
+
+function errorText(data: LoginResponse, fallback: string): string {
+  return typeof data.detail === "string" ? data.detail : fallback;
+}
 
 export function Auth() {
   const [email, setEmail] = useState("");
@@ -11,8 +29,25 @@ export function Auth() {
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mfa, setMfa] = useState<{ ticket: string; maskedPhone: string } | null>(null);
+  const [code, setCode] = useState("");
   const { login } = useAuthStore();
   const navigate = useNavigate();
+
+  // Signs in with what the server says about the account, never with guessed defaults.
+  const finishSignIn = (data: LoginResponse) => {
+    const id = data.user_id ?? data.user?.id;
+    const role = data.role ?? data.user?.role;
+    if (!data.access_token || !id || !role) {
+      throw new Error("The server did not return a complete session. Try again.");
+    }
+    login(
+      data.access_token,
+      { id, name: data.name || data.user?.name || email.split("@")[0], email, role },
+      remember ? data.refresh_token ?? null : null,
+    );
+    navigate("/");
+  };
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,27 +58,47 @@ export function Auth() {
       body.append("username", email);
       body.append("password", password);
 
-      const res = await fetch("/api/v1/auth/login", {
+      const res = await fetch(apiUrl("/auth/login"), {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: body.toString(),
       });
-
+      const data: LoginResponse = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.detail || "Incorrect username or password");
+        throw new Error(errorText(data, "Incorrect username or password"));
       }
-
-      const data = await res.json();
-      login(data.access_token, {
-        id: data.user?.id || "1",
-        name: data.user?.name || email.split("@")[0],
-        email,
-        role: data.role || "investigator",
-      });
-      navigate("/");
+      if (data.mfa_required) {
+        if (!data.mfa_ticket) throw new Error("The server asked for a verification code but sent no ticket. Try again.");
+        setMfa({ ticket: data.mfa_ticket, maskedPhone: data.masked_phone || "your phone" });
+        setPassword("");
+        return;
+      }
+      finishSignIn(data);
     } catch (err: any) {
       setError(err.message || "Failed to authenticate");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMfaSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mfa) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(apiUrl("/auth/mfa/verify"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mfa_ticket: mfa.ticket, code: code.trim() }),
+      });
+      const data: LoginResponse = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(errorText(data, "That code did not match. Check it and try again."));
+      }
+      finishSignIn(data);
+    } catch (err: any) {
+      setError(err.message || "Failed to verify the code");
     } finally {
       setLoading(false);
     }
@@ -74,6 +129,26 @@ export function Auth() {
         <div className="au-card">
           <h1>FFIRE Login</h1>
           <p className="au-sub">Financial Fraud Intelligence &amp; Real-time Evaluation</p>
+          {mfa ? (
+          <form className="au-form" onSubmit={handleMfaSubmit}>
+            <p className="au-sub">Enter the code we sent to {mfa?.maskedPhone}.</p>
+            {error && (
+              <div role="alert" className="au-err">
+                {error}
+              </div>
+            )}
+            <div className="fl">
+              <label htmlFor="auth-code">Verification code</label>
+              <input id="auth-code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{4,8}" value={code} onChange={(e) => setCode(e.target.value)} required autoFocus />
+            </div>
+            <button className="au-btn" type="submit" disabled={loading}>
+              {loading ? "Verifying…" : "Verify and sign in"}
+            </button>
+            <button className="au-btn ghost" type="button" onClick={() => { setMfa(null); setCode(""); setError(null); }}>
+              Use a different account
+            </button>
+          </form>
+          ) : (
           <form className="au-form" onSubmit={handleAuthSubmit}>
             <button className="au-btn ghost" type="button" disabled title="Single sign-on is not configured for this deployment">
               Continue with SSO
@@ -102,6 +177,7 @@ export function Auth() {
               {loading ? "Signing in…" : "Sign in"}
             </button>
           </form>
+          )}
           <p className="au-fine">Access is restricted to authorized personnel. Activity is logged and audited.</p>
           <Link className="au-back" to="/landing">Back to the website</Link>
         </div>
