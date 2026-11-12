@@ -186,5 +186,10 @@ def test_langgraph_redaction_assertion_on_llm_prompts(monkeypatch):
 
         # ASSERTION 4: PII vault is preserved in investigation state
         assert state["pii_vault"] is not None
-        assert state["pii_vault"]["<CUSTOMER_NAME_1>"] == "Secret Customer Person"
-        assert state["pii_vault"]["<ACCOUNT_ID_1>"] == "acct_swiss_numbered_8888"
+        # The vault is encrypted in state (it is checkpointed to the database), so no plaintext value
+        # may appear in it; opening it returns the original mapping.
+        import security
+        assert "Secret Customer Person" not in str(state["pii_vault"])
+        vault = security.open_pii_vault(state["pii_vault"])
+        assert vault["<CUSTOMER_NAME_1>"] == "Secret Customer Person"
+        assert vault["<ACCOUNT_ID_1>"] == "acct_swiss_numbered_8888"

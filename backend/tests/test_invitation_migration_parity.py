@@ -156,7 +156,7 @@ def test_alembic_revision_hardens_legacy_invitations(tmp_path, monkeypatch, with
     command.upgrade(cfg, "head")
 
     with engine.connect() as conn:
-        assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar() == "e7f8a9b0c1d2"
+        assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar() == "f8a9b0c1d2e3"
     _assert_hardened(engine)
     engine.dispose()
 

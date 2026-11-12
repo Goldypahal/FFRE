@@ -33,6 +33,7 @@ engine_kwargs = {}
 if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
     engine_kwargs["connect_args"] = {"check_same_thread": False, "timeout": 60.0}
     engine_kwargs["poolclass"] = QueuePool
+    # SQLite has no server-side connection limit, so the local pool can stay generous.
     engine_kwargs["pool_size"] = int(os.getenv("DB_POOL_SIZE", "20"))
     engine_kwargs["max_overflow"] = int(os.getenv("DB_MAX_OVERFLOW", "10"))
 else:
@@ -40,8 +41,8 @@ else:
     # Calibrated production connection budget: default 10 connections + 5 overflow per worker
     # Across 4 Uvicorn workers: 4 * 15 = 60 max connections, comfortably within PostgreSQL 100-connection limit.
     engine_kwargs["poolclass"] = QueuePool
-    engine_kwargs["pool_size"] = int(os.getenv("DB_POOL_SIZE", "20"))
-    engine_kwargs["max_overflow"] = int(os.getenv("DB_MAX_OVERFLOW", "10"))
+    engine_kwargs["pool_size"] = int(os.getenv("DB_POOL_SIZE", "10"))
+    engine_kwargs["max_overflow"] = int(os.getenv("DB_MAX_OVERFLOW", "5"))
     engine_kwargs["pool_timeout"] = int(os.getenv("DB_POOL_TIMEOUT", "30"))
     engine_kwargs["pool_recycle"] = int(os.getenv("DB_POOL_RECYCLE", "1800"))
     engine_kwargs["pool_pre_ping"] = True
@@ -78,6 +79,9 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     migrations.run_migrations(engine)
 
+_db_initialized = False
+
+
 def _init_db_on_import():
     """
     Run schema initialization when this module is first imported.
@@ -90,9 +94,22 @@ def _init_db_on_import():
       * FFRE_DB_INIT_FAIL_OPEN=1: development-only escape hatch that logs the full
         traceback and continues. Rejected in production.
     """
+    global _db_initialized
+    if _db_initialized:
+        return
     if os.getenv("FFRE_SKIP_DB_INIT", "").strip().lower() in _TRUTHY:
         logger.warning("FFRE_SKIP_DB_INIT is set: skipping database initialization and migrations on import.")
+        _db_initialized = True
         return
+
+    # `models` imports this module. If `models` was imported first it is still half-loaded here and
+    # has registered no tables yet, so create_all would silently create nothing. Defer: models.py
+    # calls this function again as its last statement, once every table is defined.
+    import sys
+    _models = sys.modules.get("models")
+    if _models is not None and not getattr(_models, "_MODELS_LOADED", False):
+        return
+    _db_initialized = True
 
     fail_open = os.getenv("FFRE_DB_INIT_FAIL_OPEN", "").strip().lower() in _TRUTHY
     if fail_open and is_production_environment():

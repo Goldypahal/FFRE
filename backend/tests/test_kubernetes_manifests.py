@@ -57,7 +57,8 @@ def test_gateway_deployment_production_specs():
     assert "livenessProbe" in container
     assert container["livenessProbe"]["httpGet"]["path"] == "/api/v1/health"
     assert "readinessProbe" in container
-    assert container["readinessProbe"]["httpGet"]["path"] == "/api/v1/health"
+    # Readiness checks the database; liveness only checks that the process answers.
+    assert container["readinessProbe"]["httpGet"]["path"] == "/api/v1/ready"
 
     # Security Context
     assert container["securityContext"]["runAsNonRoot"] is True
@@ -74,3 +75,15 @@ def test_ingress_tls_security_standards():
     assert "TLSv1.2" in annotations["nginx.ingress.kubernetes.io/ssl-protocols"]
     assert "AES256" in annotations["nginx.ingress.kubernetes.io/ssl-ciphers"]
     assert "Strict-Transport-Security" in annotations["nginx.ingress.kubernetes.io/configuration-snippet"]
+
+
+def test_secret_template_provides_every_key_the_application_requires():
+    """The app reads SECRET_KEY; a secret named anything else leaves production pods unable to start."""
+    import os
+    import yaml
+    path = os.path.join(os.path.dirname(__file__), "..", "..", "k8s", "secrets.yaml")
+    with open(path, encoding="utf-8") as fh:
+        keys = set(yaml.safe_load(fh)["stringData"])
+    for required in ("SECRET_KEY", "ENCRYPTION_SECRET_KEY", "VERIFIER_PRIVATE_KEY_PEM", "BOOTSTRAP_SECRET_KEY", "DATABASE_URL"):
+        assert required in keys, f"k8s/secrets.yaml is missing {required}"
+    assert "JWT_SECRET_KEY" not in keys

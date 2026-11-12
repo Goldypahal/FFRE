@@ -1,6 +1,8 @@
 import React from "react";
-import { Search, Bell, Settings } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Search, Bell, Settings, LogOut } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuthStore } from "../../store/useAuthStore";
+import { signOut } from "../../lib/api";
 
 interface HeaderProps {
   title?: string;
@@ -10,6 +12,20 @@ interface HeaderProps {
 }
 
 export function Header({ title, onSearch, onOpenPalette, rightContent }: HeaderProps) {
+  const user = useAuthStore((s) => s.user);
+  const navigate = useNavigate();
+  const initials = (user?.name || "?")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/auth");
+  };
+
   return (
     <header className="h-16 flex items-center justify-between px-6 bg-[#081425] border-b border-[#45464d] shrink-0 font-sans w-full z-20">
       {/* Brand & Search */}
@@ -49,17 +65,27 @@ export function Header({ title, onSearch, onOpenPalette, rightContent }: HeaderP
         {/* User Profile */}
         <Link to="/profile" className="flex items-center gap-3 cursor-pointer group">
           <div className="text-right hidden sm:block">
-            <p className="font-label-md text-sm text-[#d8e3fb] font-semibold leading-none">Alex Chen</p>
+            <p className="font-label-md text-sm text-[#d8e3fb] font-semibold leading-none">{user?.name || "Signed in"}</p>
             <p className="font-label-sm text-[10px] text-[#728299] uppercase tracking-tighter mt-1 font-mono">
-              Sr. Investigator
+              {user?.role || ""}
             </p>
           </div>
-          <img
-            src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80"
-            alt="Alex Chen"
-            className="w-9 h-9 rounded-full object-cover border border-[#45464d] group-hover:border-[#FCD34D] transition-all"
-          />
+          <div
+            aria-hidden="true"
+            className="w-9 h-9 rounded-full border border-[#45464d] group-hover:border-[#FCD34D] transition-all flex items-center justify-center text-sm font-semibold text-[#d8e3fb]"
+          >
+            {initials}
+          </div>
         </Link>
+        <button
+          type="button"
+          onClick={handleSignOut}
+          className="text-[#c6c6cd] hover:text-white transition-colors p-1 cursor-pointer"
+          aria-label="Sign out"
+          title="Sign out"
+        >
+          <LogOut size={18} />
+        </button>
       </div>
     </header>
   );

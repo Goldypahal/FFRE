@@ -1,6 +1,23 @@
 from typing import Dict, Any, Tuple, List, Optional
 from collections import deque
 
+def _parse_ts(value: Any):
+    """Parse an ISO timestamp (or datetime) to a naive datetime; None when absent or unreadable."""
+    if value is None or value == "":
+        return None
+    from datetime import datetime, timezone
+    if isinstance(value, datetime):
+        dt = value
+    else:
+        try:
+            dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
+
 def check_velocity(transaction_history: list, current_txn: Dict[str, Any]) -> Tuple[float, str]:
     """
     Checks the velocity of transactions. 
@@ -8,6 +25,17 @@ def check_velocity(transaction_history: list, current_txn: Dict[str, Any]) -> Tu
     """
     if not transaction_history:
         return 0.0, ""
+
+    # When the entries carry timestamps, count only those in the hour up to the current
+    # transaction, so a week of history is not reported as "more than 3 in 1 hour".
+    anchor = _parse_ts(current_txn.get("timestamp"))
+    if anchor is not None and any(_parse_ts(t.get("timestamp")) is not None for t in transaction_history):
+        from datetime import timedelta
+        window_start = anchor - timedelta(hours=1)
+        transaction_history = [
+            t for t in transaction_history
+            if (ts := _parse_ts(t.get("timestamp"))) is not None and window_start <= ts <= anchor
+        ]
 
     curr_acct = (
         current_txn.get("account_id") 
@@ -37,7 +65,7 @@ def check_device(device_evidence: Dict[str, Any]) -> Tuple[float, str]:
     if device_evidence.get("new_device"):
         score += 0.2
         reasons.append("New device detected.")
-    if device_evidence.get("os") == "Unknown":
+    if str(device_evidence.get("os") or "").strip().lower() in ("unknown", "unknown os"):
         score += 0.1
         reasons.append("Unknown OS.")
     
@@ -50,13 +78,14 @@ def check_merchant(merchant_evidence: Dict[str, Any]) -> Tuple[float, str]:
     """
     rate = merchant_evidence.get("historical_fraud_rate", 0.0)
     if rate > 0.1:
-        return 0.2, f"Merchant has high historical fraud rate ({rate*100}%)."
+        return 0.2, f"Merchant has high historical fraud rate ({rate*100:.1f}%)."
     return 0.0, ""
 
-def check_geolocation(location_evidence: Dict[str, Any], customer_home: str = "US") -> Tuple[float, str]:
+def check_geolocation(location_evidence: Dict[str, Any], customer_home: Optional[str] = "US") -> Tuple[float, str]:
     """
     Checks for geolocation mismatch.
     Rule: If country does not match customer's home country, add risk.
+    No finding when the home country is unknown.
     """
     if not location_evidence:
         return 0.0, ""
@@ -209,7 +238,7 @@ def evaluate_rules(state: Dict[str, Any]) -> Tuple[float, list]:
             elif 10000.0 <= amt < 20000.0:
                 total_score += 0.55
                 triggered_rules.append(f"CTR reporting threshold transfer (${amt:,.2f} >= $10,000.00).")
-            elif 8000.0 <= amt <= 9999.0:
+            elif 8000.0 <= amt < 10000.0:
                 total_score += 0.65
                 triggered_rules.append(f"Structuring threshold pattern detected (${amt:,.2f} between $8,000 and $9,999; CTR avoidance heuristic proxy).")
         except (ValueError, TypeError):
@@ -230,8 +259,11 @@ def evaluate_rules(state: Dict[str, Any]) -> Tuple[float, list]:
     # Check Geolocation
     loc_ev = state.get("location_evidence")
     if loc_ev and loc_ev.get("country"):
-        cust_home = state.get("customer_evidence", {}).get("home_country") or state.get("customer_evidence", {}).get("country", "US")
-        l_score, l_reason = check_geolocation(loc_ev, cust_home)
+        # The customer's home country must come from the evidence. Assuming "US" when it is
+        # missing flagged every non-US transaction as a mismatch.
+        cust_ev = state.get("customer_evidence") or {}
+        cust_home = cust_ev.get("home_country") or cust_ev.get("country")
+        l_score, l_reason = check_geolocation(loc_ev, cust_home) if cust_home else (0.0, "")
         if l_score > 0:
             total_score += l_score
             triggered_rules.append(l_reason)

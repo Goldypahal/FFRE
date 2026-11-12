@@ -4,8 +4,9 @@ from main import app
 import models
 from auth import get_current_user
 
-def test_reports_listing_and_seeding(client):
-    """Verify reports listing auto-seeds default items and returns paginated list"""
+def test_reports_listing_and_seeding(client, monkeypatch):
+    """With FFRE_DEMO_SEED on, the listing seeds the sample reports and returns a paginated list"""
+    monkeypatch.setenv("FFRE_DEMO_SEED", "true")
     response = client.get("/api/v1/reports")
     assert response.status_code == 200
     data = response.json()
@@ -16,8 +17,9 @@ def test_reports_listing_and_seeding(client):
     assert "Daily Fraud & Risk Intelligence Summary" in titles
     assert "Chargeback Analysis Report Q1" in titles
 
-def test_reports_filtering(client):
+def test_reports_filtering(client, monkeypatch):
     """Verify filtering by status, report_type, and search term"""
+    monkeypatch.setenv("FFRE_DEMO_SEED", "true")
     # Filter by report_type
     resp_type = client.get("/api/v1/reports?report_type=SAR Regulatory Filing")
     assert resp_type.status_code == 200

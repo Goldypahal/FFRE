@@ -25,6 +25,7 @@ spec:
       terminationGracePeriodSeconds: 60
       containers:
         - name: ffre-worker
+          # Pin a released tag or digest in real deployments; "latest" makes rollouts and rollbacks unrepeatable.
           image: ffre-backend:latest
           imagePullPolicy: IfNotPresent
           command: ["python", "-m", "worker"]
@@ -42,7 +43,7 @@ spec:
               memory: "4096Mi"
           securityContext:
             runAsNonRoot: true
-            runAsUser: 1000
+            runAsUser: 1001  # the uid of ffireuser in the image, which owns /app/backend/data
             allowPrivilegeEscalation: false
             capabilities:
               drop:

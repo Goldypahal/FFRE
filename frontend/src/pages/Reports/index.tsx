@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { api } from "../../lib/api";
+import { api, authFetch } from "../../lib/api";
 import { useAuthStore } from "../../store/useAuthStore";
 import { Button } from "../../components/ui/Button";
 
@@ -94,14 +94,8 @@ export function Reports() {
   }
 
   function handleExport(report: ReportItem) {
-    const token = useAuthStore.getState().token || localStorage.getItem("ffre_token") || "";
-    const apiBase = import.meta.env.VITE_API_BASE_URL || "/api/v1";
-    const url = `${apiBase}/reports/${report.report_id}/download?format=${report.file_format}`;
-
-    // Fetch with auth to download blob
-    fetch(url, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
+    // Goes through the shared client so it uses the configured API base URL and session refresh.
+    authFetch(`/reports/${report.report_id}/download?format=${report.file_format}`)
       .then((res) => {
         if (!res.ok) throw new Error("Download failed");
         return res.blob();

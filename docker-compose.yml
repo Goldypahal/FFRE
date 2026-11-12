@@ -45,12 +45,19 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
+    volumes:
+      # Evidence files and the development signing key, shared with the worker and kept across restarts.
+      - ffire_backend_data:/app/backend/data
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-ffire_user}:${POSTGRES_PASSWORD:-ffire_dev_insecure_password}@db:5432/${POSTGRES_DB:-ffire_db}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - SECRET_KEY=${SECRET_KEY:-ffire-dev-secret-key-change-in-prod}
       - ENCRYPTION_SECRET_KEY=${ENCRYPTION_SECRET_KEY:-ffire-dev-encryption-key-change-in-prod}
       - ENV=${ENV:-development}
+      # The worker service below runs the investigations; the API only queues them.
+      - INVESTIGATION_EXECUTION=${INVESTIGATION_EXECUTION:-worker}
+      # nginx in the frontend container is the one proxy in front of the API.
+      - TRUSTED_PROXY_COUNT=${TRUSTED_PROXY_COUNT:-1}
       - RATE_LIMIT_ENABLED=${RATE_LIMIT_ENABLED:-true}
       - CONFIDENCE_THRESHOLD=${CONFIDENCE_THRESHOLD:-0.85}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
@@ -74,12 +81,17 @@ services:
     container_name: ffire_worker
     restart: unless-stopped
     command: ["python", "worker.py"]
+    volumes:
+      - ffire_backend_data:/app/backend/data
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-ffire_user}:${POSTGRES_PASSWORD:-ffire_dev_insecure_password}@db:5432/${POSTGRES_DB:-ffire_db}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - SECRET_KEY=${SECRET_KEY:-ffire-dev-secret-key-change-in-prod}
       - ENCRYPTION_SECRET_KEY=${ENCRYPTION_SECRET_KEY:-ffire-dev-encryption-key-change-in-prod}
-      - STRICT_ENTERPRISE_MODE=${STRICT_ENTERPRISE_MODE:-true}
+      # Same default as the backend. Strict mode rejects the development secrets above, so
+      # defaulting it to true here made this container exit on start. Turn it on, with real
+      # secrets, for both services together.
+      - STRICT_ENTERPRISE_MODE=${STRICT_ENTERPRISE_MODE:-false}
       - ENV=${ENV:-development}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
     depends_on:
@@ -116,4 +128,6 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  ffire_backend_data:
     driver: local

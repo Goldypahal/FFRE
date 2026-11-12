@@ -106,7 +106,9 @@ def test_bounded_critic_correction_loop_max_cycles():
     }
     decision_1 = should_retry_or_human_review(state_cycle_1)
     assert decision_1 == "risk_reasoning"
-    assert state_cycle_1["critic_cycle_count"] == 1
+    # The router must not count cycles itself: LangGraph discards changes a router makes to state,
+    # so a counter kept there never advances in a real run. critic_node owns the counter.
+    assert state_cycle_1["critic_cycle_count"] == 0
 
     state_cycle_max = {
         "investigation_id": "inv_b_max",

@@ -6,29 +6,87 @@ const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
   (typeof window !== "undefined" && window.location.port !== "5173" ? "/api/v1" : "http://127.0.0.1:8000/api/v1");
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = useAuthStore.getState().token;
-  const headers = new Headers(options.headers);
+/** Build a full URL for an API path such as "/reports/123/download". */
+export function apiUrl(path: string): string {
+  return `${API_BASE_URL}${path}`;
+}
 
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-  if (!headers.has("Content-Type") && !(options.body instanceof FormData)) {
-    headers.set("Content-Type", "application/json");
-  }
+let refreshInFlight: Promise<boolean> | null = null;
 
-  const config: RequestInit = {
-    ...options,
-    headers,
+/** Exchange the stored refresh token for a new pair. Concurrent callers share one request. */
+function refreshSession(): Promise<boolean> {
+  if (refreshInFlight) return refreshInFlight;
+  const refreshToken = useAuthStore.getState().refreshToken;
+  if (!refreshToken) return Promise.resolve(false);
+  refreshInFlight = fetch(apiUrl("/auth/refresh"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  })
+    .then(async (res) => {
+      if (!res.ok) return false;
+      const data = await res.json();
+      if (!data.access_token) return false;
+      useAuthStore.getState().setTokens(data.access_token, data.refresh_token);
+      return true;
+    })
+    .catch(() => false)
+    .finally(() => {
+      refreshInFlight = null;
+    });
+  return refreshInFlight;
+}
+
+/**
+ * fetch() against the API with the bearer token attached. On a 401 it refreshes the session once
+ * and retries; if that fails the local session is cleared, which sends the user to the sign-in page.
+ */
+export async function authFetch(path: string, options: RequestInit = {}): Promise<Response> {
+  const send = () => {
+    const token = useAuthStore.getState().token;
+    const headers = new Headers(options.headers);
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+    if (!headers.has("Content-Type") && options.body !== undefined && !(options.body instanceof FormData)) {
+      headers.set("Content-Type", "application/json");
+    }
+    return fetch(apiUrl(path), { ...options, headers });
   };
 
-  const response = await fetch(`${API_BASE_URL}${path}`, config);
+  let response = await send();
+  const hadSession = Boolean(useAuthStore.getState().token);
+  if (response.status === 401 && hadSession && !path.startsWith("/auth/")) {
+    if (await refreshSession()) {
+      response = await send();
+    }
+    if (response.status === 401) {
+      useAuthStore.getState().logout();
+    }
+  }
+  return response;
+}
+
+/** Revoke the session on the server, then clear it locally. Local sign-out happens even if the call fails. */
+export async function signOut(): Promise<void> {
+  const token = useAuthStore.getState().token;
+  try {
+    if (token) {
+      await fetch(apiUrl("/auth/logout"), { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+    }
+  } catch {
+    // Offline or server down: the local session is still cleared below.
+  } finally {
+    useAuthStore.getState().logout();
+  }
+}
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const response = await authFetch(path, options);
 
   if (!response.ok) {
     let errorDetail = "API Error";
     try {
       const errData = await response.json();
-      errorDetail = errData.detail || errorDetail;
+      if (typeof errData.detail === "string") errorDetail = errData.detail;
     } catch {
       // ignore
     }

@@ -151,16 +151,21 @@ class DistributedRateLimiter:
         self._redis = None
 
         self._redis_checked = False
-
+        self._redis_retry_at = 0.0
+        self._last_prune = 0.0
         self._lua_script = None
 
 
 
     def _redis_conn(self):
-
+        # A failed connection is retried every 30 seconds. Caching the failure for the life of the
+        # process meant one Redis blip at startup disabled the shared limiter until restart.
+        if self._redis_checked and self._redis is None and time.monotonic() >= self._redis_retry_at:
+            self._redis_checked = False
         if not self._redis_checked:
-
             self._redis = _get_redis_client()
+            if self._redis is None:
+                self._redis_retry_at = time.monotonic() + 30.0
 
             if self._redis is not None:
 
@@ -251,7 +256,11 @@ class DistributedRateLimiter:
         # 2. Resilient In-Memory Sliding-Window Fallback
 
         with self._lock:
-
+            # Drop buckets whose window has emptied, so the table cannot grow with every new client.
+            if now - self._last_prune > self.window_seconds:
+                self._last_prune = now
+                for stale_key in [k for k, ts in self._memory_requests.items() if not ts or ts[-1] < window_start]:
+                    del self._memory_requests[stale_key]
             timestamps = self._memory_requests[client_key]
 
             while timestamps and timestamps[0] < window_start:
@@ -314,6 +323,26 @@ rate_limiter = DistributedRateLimiter()
 
 
 
+def client_address(request: Request) -> str:
+    """
+    The caller's address. Behind a reverse proxy the socket peer is the proxy, which would put every
+    user in one bucket, so TRUSTED_PROXY_COUNT says how many proxies sit in front of the app and the
+    address that many hops from the right of X-Forwarded-For is used. With the default of 0 the header
+    is ignored, because a client could otherwise forge it to dodge the limit.
+    """
+    peer = request.client.host if request.client else "unknown"
+    try:
+        hops = int(os.getenv("TRUSTED_PROXY_COUNT", "0"))
+    except ValueError:
+        hops = 0
+    if hops <= 0:
+        return peer
+    forwarded = [p.strip() for p in request.headers.get("x-forwarded-for", "").split(",") if p.strip()]
+    if len(forwarded) >= hops:
+        return forwarded[-hops]
+    return peer
+
+
 class RateLimitMiddleware(BaseHTTPMiddleware):
 
     """FastAPI/Starlette middleware enforcing distributed sliding-window rate limits."""
@@ -354,7 +383,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
 
 
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = client_address(request)
 
 
 
@@ -384,7 +413,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
 
 
-        is_auth = path.startswith("/api/v1/auth/login") or path.startswith("/api/v1/auth/register") or path.startswith("/api/v1/auth/bootstrap")
+        is_auth = path.startswith((
+            "/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/bootstrap",
+            "/api/v1/auth/mfa/verify", "/api/v1/auth/mfa/setup",
+        ))
 
         limit = AUTH_RATE_LIMIT if is_auth else rate_limiter.default_limit
 

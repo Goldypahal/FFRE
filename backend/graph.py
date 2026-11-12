@@ -1,5 +1,4 @@
 import threading
-import threading
 from typing import Dict, List, Any, TypedDict, Optional
 from langgraph.graph import StateGraph, END
 import json
@@ -7,7 +6,6 @@ import time
 import datetime
 import timeutil
 import functools
-from decimal import Decimal
 from decimal import Decimal
 
 def time_function(func):
@@ -18,6 +16,7 @@ def time_function(func):
 
 from vector_db import vector_store
 from database import SessionLocal
+from security import open_pii_vault as security_open_pii_vault, seal_pii_vault as security_seal_pii_vault
 from models import AuditLog, Investigation, Transaction, Account, Customer, Merchant, Device, Location
 
 class SmartDatabaseLock:
@@ -70,6 +69,10 @@ MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
 from typing import Annotated
 import operator
 
+def _latest_value(current, new):
+    return new if new is not None else current
+
+
 class AgentState(TypedDict):
     investigation_id: str
     transaction_id: str
@@ -81,6 +84,7 @@ class AgentState(TypedDict):
     device_evidence: Dict[str, Any]
     location_evidence: Dict[str, Any]
     velocity_evidence: Dict[str, Any]
+    transaction_history: List[Dict[str, Any]]
     verified_evidence: Dict[str, Any]
     historical_cases: List[Dict[str, Any]]
     risk_score: Optional[float]
@@ -104,11 +108,9 @@ class AgentState(TypedDict):
     compliance_alerts: Optional[List[str]]
     has_typology_alert: Optional[bool]
     predicted_verdict: Optional[str]
-    workflow_status: Optional[str]
-    compliance_alerts: Optional[List[str]]
-    has_typology_alert: Optional[bool]
-    predicted_verdict: Optional[str]
-    workflow_status: Optional[str]
+    # Several retrieval nodes run in the same step and may each report a cancellation, so this
+    # key needs a reducer; the newest non-empty value wins.
+    workflow_status: Annotated[Optional[str], _latest_value]
     ml_risk_score: Optional[float]
     ml_calibrated_probability: Optional[float]
     ml_top_features: Optional[List[Dict[str, Any]]]
@@ -149,43 +151,7 @@ REPORT_PROMPT = DEFAULT_PROMPTS["reporter"]["template"]
 def _get_or_init_pii_tokenizer(state: AgentState):
     """Initializes or restores PIITokenizer and registers all known evidence PII."""
     from security import PIITokenizer
-    tokenizer = PIITokenizer(existing_vault=state.get("pii_vault"))
-
-    # Register customer PII
-    cust_ev = state.get("customer_evidence")
-    if isinstance(cust_ev, dict):
-        if cust_ev.get("name"):
-            tokenizer.register_pii("CUSTOMER_NAME", str(cust_ev["name"]))
-        if cust_ev.get("email"):
-            tokenizer.register_pii("EMAIL", str(cust_ev["email"]))
-        if cust_ev.get("customer_id"):
-            tokenizer.register_pii("CUSTOMER_ID", str(cust_ev["customer_id"]))
-
-    # Register transaction PII
-    txn_ev = state.get("transaction_evidence")
-    if isinstance(txn_ev, dict):
-        if txn_ev.get("account_id"):
-            tokenizer.register_pii("ACCOUNT_ID", str(txn_ev["account_id"]))
-        if txn_ev.get("counterparty"):
-            tokenizer.register_pii("COUNTERPARTY", str(txn_ev["counterparty"]))
-        if txn_ev.get("ip_address"):
-            tokenizer.register_pii("IP_ADDRESS", str(txn_ev["ip_address"]))
-
-    # Register device PII
-    dev_ev = state.get("device_evidence")
-    if isinstance(dev_ev, dict):
-        if dev_ev.get("fingerprint"):
-            tokenizer.register_pii("DEVICE_FINGERPRINT", str(dev_ev["fingerprint"]))
-        if dev_ev.get("ip_address"):
-            tokenizer.register_pii("IP_ADDRESS", str(dev_ev["ip_address"]))
-
-    return tokenizer
-
-
-def _get_or_init_pii_tokenizer(state: AgentState):
-    """Initializes or restores PIITokenizer and registers all known evidence PII."""
-    from security import PIITokenizer
-    tokenizer = PIITokenizer(existing_vault=state.get("pii_vault"))
+    tokenizer = PIITokenizer(existing_vault=security_open_pii_vault(state.get("pii_vault")))
 
     # Register customer PII
     cust_ev = state.get("customer_evidence")
@@ -304,7 +270,8 @@ def retrieve_customer_node(state: AgentState):
                                 "risk_tier": cust.risk_tier,
                                 "customer_id": cust.customer_id,
                                 "name": cust.name,
-                                "account_type": acct.account_type
+                                "account_type": acct.account_type,
+                                **({"home_country": cust.home_country} if cust.home_country else {}),
                             }
                         }
             return {
@@ -322,6 +289,51 @@ def retrieve_customer_node(state: AgentState):
             }
         finally:
             db.close()
+
+HISTORY_WINDOW_DAYS = 7
+HISTORY_MAX_ROWS = 500
+
+
+def _load_transaction_history(db, txn) -> List[Dict[str, Any]]:
+    """
+    Transactions in the tenant from the 7 days before `txn` that touch its account or counterparty,
+    followed outward for two more hops so short chains (A -> B -> C -> A) are visible to the cycle rule.
+    The transaction itself is left out. Capped at HISTORY_MAX_ROWS.
+    """
+    if not txn or not txn.account_id:
+        return []
+    anchor = txn.timestamp or timeutil.utcnow()
+    start = anchor - datetime.timedelta(days=HISTORY_WINDOW_DAYS)
+    frontier = {a for a in (txn.account_id, txn.counterparty) if a}
+    seen_accounts: set = set()
+    rows: Dict[str, Any] = {}
+    for _hop in range(3):
+        frontier -= seen_accounts
+        if not frontier or len(rows) >= HISTORY_MAX_ROWS:
+            break
+        seen_accounts |= frontier
+        found = db.query(Transaction).filter(
+            Transaction.tenant_id == txn.tenant_id,
+            Transaction.timestamp >= start,
+            Transaction.timestamp <= anchor,
+            Transaction.txn_id != txn.txn_id,
+            (Transaction.account_id.in_(frontier)) | (Transaction.counterparty.in_(frontier)),
+        ).order_by(Transaction.timestamp.desc()).limit(HISTORY_MAX_ROWS).all()
+        frontier = set()
+        for t in found:
+            if t.txn_id in rows or len(rows) >= HISTORY_MAX_ROWS:
+                continue
+            rows[t.txn_id] = {
+                "txn_id": t.txn_id,
+                "tenant_id": t.tenant_id,
+                "account_id": t.account_id,
+                "counterparty": t.counterparty,
+                "amount": float(t.amount) if t.amount is not None else 0.0,
+                "timestamp": t.timestamp.isoformat() if t.timestamp else None,
+            }
+            frontier.update(a for a in (t.account_id, t.counterparty) if a)
+    return list(rows.values())
+
 
 def retrieve_transaction_node(state: AgentState):
     with _audit_db_lock:
@@ -343,7 +355,10 @@ def retrieve_transaction_node(state: AgentState):
                         "counterparty": txn.counterparty,
                         "timestamp": txn.timestamp.isoformat() if txn.timestamp else None,
                         "txn_id": txn.txn_id,
-                    }
+                    },
+                    # Earlier transactions around this one. The cycle, scatter-gather and velocity
+                    # rules read this; without it they never ran in the pipeline.
+                    "transaction_history": _load_transaction_history(db, txn),
                 }
             return {
                 "transaction_evidence": {
@@ -520,12 +535,6 @@ def velocity_check_node(state: AgentState):
     """Multi-window velocity check, anomaly detection, and decoupled RiskSignal generation (Tasks 6-9)"""
     print("Performing multi-window transaction velocity analysis & anomaly pattern detection...")
     try:
-        now = timeutil.utcnow()
-        t_5m = now - datetime.timedelta(minutes=5)
-        t_1h = now - datetime.timedelta(hours=1)
-        t_24h = now - datetime.timedelta(hours=24)
-        t_7d = now - datetime.timedelta(days=7)
-
         txns_5m, txns_1h, txns_24h, txns_7d = [], [], [], []
         with _audit_db_lock:
             db = SessionLocal()
@@ -538,27 +547,26 @@ def velocity_check_node(state: AgentState):
                 account_id = txn.account_id if txn else None
                 tenant = txn.tenant_id if txn else (tenant_req or "default_tenant")
 
+                # The windows end at the transaction under investigation, not at the moment the
+                # investigation happens to run. Anchoring on the clock gave an older transaction no
+                # velocity at all, and made a replay of the same case return a different answer.
+                anchor = (txn.timestamp if txn and txn.timestamp else None) or timeutil.utcnow()
+                t_5m = anchor - datetime.timedelta(minutes=5)
+                t_1h = anchor - datetime.timedelta(hours=1)
+                t_24h = anchor - datetime.timedelta(hours=24)
+                t_7d = anchor - datetime.timedelta(days=7)
+
                 if account_id:
-                    txns_5m = db.query(Transaction).filter(
+                    window = db.query(Transaction).filter(
                         Transaction.tenant_id == tenant,
                         Transaction.account_id == account_id,
-                        Transaction.timestamp >= t_5m
+                        Transaction.timestamp >= t_7d,
+                        Transaction.timestamp <= anchor,
                     ).all()
-                    txns_1h = db.query(Transaction).filter(
-                        Transaction.tenant_id == tenant,
-                        Transaction.account_id == account_id,
-                        Transaction.timestamp >= t_1h
-                    ).all()
-                    txns_24h = db.query(Transaction).filter(
-                        Transaction.tenant_id == tenant,
-                        Transaction.account_id == account_id,
-                        Transaction.timestamp >= t_24h
-                    ).all()
-                    txns_7d = db.query(Transaction).filter(
-                        Transaction.tenant_id == tenant,
-                        Transaction.account_id == account_id,
-                        Transaction.timestamp >= t_7d
-                    ).all()
+                    txns_7d = window
+                    txns_24h = [t for t in window if t.timestamp >= t_24h]
+                    txns_1h = [t for t in window if t.timestamp >= t_1h]
+                    txns_5m = [t for t in window if t.timestamp >= t_5m]
 
                 # Extract decimal values before closing session to prevent detached-instance race conditions
                 s_5m_dec = sum([Decimal(str(t.amount)) for t in txns_5m], Decimal("0.00"))
@@ -587,7 +595,11 @@ def velocity_check_node(state: AgentState):
                 "evidence": {"window": "5m", "count": c_5m, "sum": s_5m}
             })
 
-        if s_1h >= (s_24h / max(c_24h, 1)) * 3.0 and c_1h > 1:
+        # Compare the last hour with the 23 hours before it. Measuring it against a 24-hour average
+        # that already contains it made any three transactions in one hour look like an escalation.
+        prior_count = c_24h - c_1h
+        prior_avg = (s_24h - s_1h) / prior_count if prior_count > 0 else 0.0
+        if prior_count > 0 and c_1h > 1 and s_1h >= prior_avg * 3.0:
             anomalies.append("RAPID_AMOUNT_ESCALATION")
             signals.append({
                 "signal": "RAPID_AMOUNT_ESCALATION_1H",
@@ -781,9 +793,9 @@ def rule_engine_node(state: AgentState):
     # Phase 4: Heterogeneous Graph Fraud & Suspicious Cluster Detection
     try:
         try:
-            from backend.graph_fraud.integration import analyze_graph_fraud_clusters
-        except ImportError:
             from graph_fraud.integration import analyze_graph_fraud_clusters
+        except ImportError:
+            from backend.graph_fraud.integration import analyze_graph_fraud_clusters
         graph_res = analyze_graph_fraud_clusters(state)
         state["graph_cluster_evidence"] = graph_res
         cluster_signals = graph_res.get("risk_signals", [])
@@ -851,9 +863,9 @@ def knowledge_lookup_node(state: AgentState):
     formatted_results = []
     try:
         try:
-            from backend.cases.hybrid_search import get_hybrid_search_engine, HybridSearchQuery
-        except ImportError:
             from cases.hybrid_search import get_hybrid_search_engine, HybridSearchQuery
+        except ImportError:
+            from backend.cases.hybrid_search import get_hybrid_search_engine, HybridSearchQuery
         engine = get_hybrid_search_engine()
         q = HybridSearchQuery(
             query_text=query,
@@ -926,6 +938,20 @@ def risk_reasoning_node(state: AgentState):
                 hist_scores.append(max(0.0, 1.0 - (dist / 2.0)))
     avg_hist_score = sum(hist_scores) / len(hist_scores) if hist_scores else 0.5
 
+    # Similarity says how alike a past case is, not how risky. Only likeness to cases that were
+    # fraud should raise the score; likeness to legitimate ones should not. Cases with no recorded
+    # outcome count as neutral.
+    hist_risks = []
+    for c, sim in zip([c for c in hist_cases if isinstance(c, dict) and any(k in c for k in ("hybrid_score", "similarity", "similarity_distance"))], hist_scores):
+        outcome = str(c.get("outcome") or "").upper()
+        if outcome == "FRAUD":
+            hist_risks.append(sim)
+        elif outcome == "LEGITIMATE":
+            hist_risks.append(0.0)
+        else:
+            hist_risks.append(0.5)
+    avg_hist_risk = sum(hist_risks) / len(hist_risks) if hist_risks else 0.5
+
     llm_risk_estimate = None
     reasoning_text = ""
 
@@ -943,7 +969,7 @@ def risk_reasoning_node(state: AgentState):
             raw_content = response.content if hasattr(response, "content") else str(response)
             content = tokenizer.rehydrate_text(raw_content)
             reasoning_text = content
-            state["pii_vault"] = tokenizer.export_vault()
+            state["pii_vault"] = security_seal_pii_vault(tokenizer.export_vault())
             metrics_collector.record_llm_call(
                 investigation_id=state.get("investigation_id", "unknown"),
                 node_name="reasoner",
@@ -1011,9 +1037,9 @@ def risk_reasoning_node(state: AgentState):
     ml_score = None
     try:
         try:
-            from backend.ml.inference import get_inference_service
-        except ImportError:
             from ml.inference import get_inference_service
+        except ImportError:
+            from backend.ml.inference import get_inference_service
         inf_svc = get_inference_service()
         ml_pred = inf_svc.predict_from_state(state)
         state["ml_risk_score"] = ml_pred.risk_score
@@ -1040,9 +1066,9 @@ def risk_reasoning_node(state: AgentState):
         state["degraded_reasons"] = deg_reasons
 
     if ml_score is not None:
-        base_combined = (0.25 * rule_score) + (0.30 * ml_score) + (0.30 * llm_risk_estimate) + (0.15 * avg_hist_score)
+        base_combined = (0.25 * rule_score) + (0.30 * ml_score) + (0.30 * llm_risk_estimate) + (0.15 * avg_hist_risk)
     else:
-        base_combined = (0.35 * rule_score) + (0.40 * llm_risk_estimate) + (0.25 * avg_hist_score)
+        base_combined = (0.35 * rule_score) + (0.40 * llm_risk_estimate) + (0.25 * avg_hist_risk)
 
     if rule_score >= 0.50 and has_typology_alert:
         combined_score = max(base_combined, rule_score)
@@ -1119,7 +1145,7 @@ def critic_node(state: AgentState):
             latency_ms = (time.time() - start_t) * 1000.0
             raw_resp = resp.content if hasattr(resp, "content") else str(resp)
             resp_text = tokenizer.rehydrate_text(raw_resp)
-            state["pii_vault"] = tokenizer.export_vault()
+            state["pii_vault"] = security_seal_pii_vault(tokenizer.export_vault())
             metrics_collector.record_llm_call(
                 investigation_id=state.get("investigation_id", "unknown"),
                 node_name="critic",
@@ -1150,6 +1176,10 @@ def critic_node(state: AgentState):
     state["critic_issues"] = issues_found
     state["critic_feedback"] = content
     state["critic_details"] = critic_details
+    if issues_found:
+        # Counted here, in a node, so the count is saved in the graph state. The router used to
+        # increment its own copy, which LangGraph discards, so the cycle limit was never reached.
+        state["critic_cycle_count"] = int(state.get("critic_cycle_count") or 0) + 1
     return state
 
 def validator_node(state: AgentState):
@@ -1239,7 +1269,7 @@ def report_generator_node(state: AgentState):
             latency_ms = (time.time() - start_t) * 1000.0
             raw_report = response.content if hasattr(response, "content") else str(response)
             report = tokenizer.rehydrate_text(raw_report)
-            state["pii_vault"] = tokenizer.export_vault()
+            state["pii_vault"] = security_seal_pii_vault(tokenizer.export_vault())
             metrics_collector.record_llm_call(
                 investigation_id=state.get("investigation_id", "unknown"),
                 node_name="reporter",
@@ -1258,14 +1288,20 @@ def report_generator_node(state: AgentState):
     state["workflow_status"] = "RESOLVED"
     return state
 
+CANCELLED_ROUTE = "cancelled"
+
+
 def should_retry_or_human_review(state: AgentState):
     """Complete 6-Source Targeted Retry & Bounded Critic Router (Task 4)"""
+    if state.get("workflow_status") == "CANCELLED":
+        return CANCELLED_ROUTE
+
     validated = state.get("validated", False)
     retry_count = state.get("retry_count", 0)
-    confidence = state.get("confidence", 0)
+    confidence = state.get("confidence") or 0.0
     failed_node = state.get("failed_target_node")
     critic_issues = state.get("critic_issues", False)
-    critic_cycles = state.get("critic_cycle_count", 0)
+    critic_cycles = int(state.get("critic_cycle_count") or 0)  # incremented by critic_node
     MAX_CRITIC_CYCLES = 2
 
     decision = ""
@@ -1282,9 +1318,8 @@ def should_retry_or_human_review(state: AgentState):
         reason = f"Evidence source(s) UNAVAILABLE ({', '.join(unavailable_sources)}), escalating immediately to human review"
     elif critic_issues and validated:
         if critic_cycles < MAX_CRITIC_CYCLES:
-            state["critic_cycle_count"] = critic_cycles + 1
             decision = "risk_reasoning"
-            reason = f"Critic check failed (cycle {critic_cycles + 1}/{MAX_CRITIC_CYCLES}), retrying risk_reasoning"
+            reason = f"Critic check failed (cycle {critic_cycles}/{MAX_CRITIC_CYCLES}), retrying risk_reasoning"
         else:
             decision = "human_review"
             reason = f"Critic correction cycle limit reached ({MAX_CRITIC_CYCLES}), escalating to human review"
@@ -1314,6 +1349,7 @@ def should_retry_or_human_review(state: AgentState):
                 if investigation_id:
                     audit_log = AuditLog(
                         investigation_id=investigation_id,
+                        tenant_id=state.get("tenant_id") or "default_tenant",
                         action=f"DECISION: {decision}",
                         details=reason
                     )
@@ -1343,12 +1379,15 @@ def with_audit_logger(node_func, node_name: str):
                             print(f"Investigation {investigation_id} is CANCELLED. Skipping {node_name} execution.")
                             audit_log = AuditLog(
                                 investigation_id=investigation_id,
+                                tenant_id=state.get("tenant_id") or inv.tenant_id or "default_tenant",
                                 action=f"NODE_CANCELLED_SKIPPED: {node_name}",
                                 details=f"Skipped execution of {node_name} due to cancellation"
                             )
                             db.add(audit_log)
                             db.commit()
-                            return {"execution_trace": [f"{node_name}_CANCELLED"]}
+                            # workflow_status tells the router to end the run. Without it the skipped
+                            # validator never advanced the retry counter and the graph looped.
+                            return {"execution_trace": [f"{node_name}_CANCELLED"], "workflow_status": "CANCELLED"}
                     finally:
                         db.close()
             except Exception as e:
@@ -1370,6 +1409,7 @@ def with_audit_logger(node_func, node_name: str):
                         try:
                             audit_log = AuditLog(
                                 investigation_id=investigation_id,
+                                tenant_id=state.get("tenant_id") or "default_tenant",
                                 action=f"NODE_EXECUTION: {node_name}",
                                 details=f"Successfully executed {node_name} in {execution_time_ms}ms"
                             )
@@ -1390,6 +1430,7 @@ def with_audit_logger(node_func, node_name: str):
                         try:
                             audit_log = AuditLog(
                                 investigation_id=investigation_id,
+                                tenant_id=state.get("tenant_id") or "default_tenant",
                                 action=f"NODE_ERROR: {node_name}",
                                 details=f"Failed to execute {node_name} after {execution_time_ms}ms: {str(e)[:500]}"
                             )
@@ -1462,7 +1503,8 @@ def build_graph(checkpointer=None):
             "retrieve_location": "retrieve_location",
             "velocity_check": "velocity_check",
             "human_review": "human_review",
-            "report_generator": "report_generator"
+            "report_generator": "report_generator",
+            CANCELLED_ROUTE: END,
         }
     )
 

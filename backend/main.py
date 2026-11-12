@@ -21,6 +21,8 @@ import hmac
 import secrets
 
 import os
+import html
+from decimal import Decimal
 
 import json
 
@@ -37,7 +39,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from sqlalchemy.orm import Session
 
-from sqlalchemy import desc, asc, func, or_
+from sqlalchemy import desc, asc, func, or_, text
 
 from sqlalchemy.exc import IntegrityError
 
@@ -132,6 +134,15 @@ app.add_middleware(
     allow_headers=["*"],
 
 )
+
+@app.get("/", include_in_schema=False)
+def root():
+    return {
+        "service": "Financial Fraud Investigation Reasoning Engine (FFIRE)",
+        "status": "online",
+        "docs_url": "/docs",
+        "frontend_url": "http://localhost:5173"
+    }
 
 
 
@@ -580,10 +591,12 @@ class Token(BaseModel):
     mfa_required: Optional[bool] = False
 
     mfa_ticket: Optional[str] = None
-
     masked_phone: Optional[str] = None
-
     message: Optional[str] = None
+    # Who signed in, so the client does not have to guess the role.
+    role: Optional[str] = None
+    user_id: Optional[str] = None
+    name: Optional[str] = None
 
 
 class MFALoginVerifyRequest(BaseModel):
@@ -593,6 +606,10 @@ class MFALoginVerifyRequest(BaseModel):
 
 class MFASetupRequest(BaseModel):
     phone_number: str
+    # Step-up proof, required when MFA is already on: the current password, or a code sent to the
+    # phone that is registered now.
+    password: Optional[str] = None
+    code: Optional[str] = None
 
 
 class MFACodeVerifyRequest(BaseModel):
@@ -981,6 +998,25 @@ graph_app = build_graph()
 
 
 
+# Exported HTML is a document to save, not a page of this application: it is sent as a download
+# with scripts, frames and outside requests switched off.
+SAFE_HTML_EXPORT_HEADERS = {
+    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox",
+    "X-Content-Type-Options": "nosniff",
+}
+
+
+def _safe_filename(name: str) -> str:
+    """Keep letters, digits, dot, dash and underscore; drop any directory part."""
+    base = os.path.basename(str(name or "").replace("\\", "/"))
+    cleaned = re.sub(r"[^A-Za-z0-9._-]", "_", base).lstrip(".")
+    return cleaned[:150] or "file"
+
+
+GRAPH_RECURSION_LIMIT = int(os.getenv("GRAPH_RECURSION_LIMIT", "60"))
+MAX_PAGE_SIZE = 500
+
+
 def run_investigation_task(investigation_id: str, transaction_id: str, db: Optional[Session] = None):
 
     start_time = time.time()
@@ -1043,16 +1079,21 @@ def run_investigation_task(investigation_id: str, transaction_id: str, db: Optio
 
         # Run graph with checkpoint thread config
 
-        config = {"configurable": {"thread_id": investigation_id}}
-
+        # recursion_limit bounds the run. The graph has about fifteen nodes and at most a handful of
+        # retries, so a run that needs more steps than this is looping and should fail fast.
+        config = {"configurable": {"thread_id": investigation_id}, "recursion_limit": GRAPH_RECURSION_LIMIT}
         result = graph_app.invoke(initial_state, config=config)
 
-
-
         # Update DB
-
+        db.expire_all()
         investigation = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
-
+        was_cancelled = result.get("workflow_status") == "CANCELLED" or (
+            investigation is not None and investigation.status in ("CANCELLED", "ARCHIVED_DELETED")
+        )
+        if investigation and was_cancelled:
+            # Cancelled (or deleted) while it ran. Leave the status as the user set it and store
+            # nothing from the partial run.
+            investigation = None
         if investigation:
 
             report_text = result.get("report") or ""
@@ -1128,6 +1169,18 @@ def run_investigation_task(investigation_id: str, transaction_id: str, db: Optio
 
             # Finding 3: Analytical pipeline degradation accounting (never silent fallback)
 
+            try:
+                from llm_gateway import get_llm_gateway
+                _offline = get_llm_gateway().is_offline()
+            except Exception:
+                _offline = False
+            if _offline and auth.is_strict_mode():
+                # In production an investigation reasoned by the built-in offline stub, because no
+                # model provider is configured or reachable, must say so on its face.
+                result["is_degraded"] = True
+                result["degraded_reasons"] = list(result.get("degraded_reasons") or []) + [
+                    "No LLM provider available: reasoning produced by the deterministic offline fallback"
+                ]
             is_degraded = bool(result.get("is_degraded", False))
 
             investigation.is_degraded = is_degraded
@@ -1165,19 +1218,17 @@ def run_investigation_task(investigation_id: str, transaction_id: str, db: Optio
             evidence_sources = ["customer_evidence", "transaction_evidence", "merchant_evidence", "device_evidence", "location_evidence"]
 
             for src in evidence_sources:
-
                 if result.get(src):
-
-                    snippet_text = str(result[src])
-
+                    snippet_source = result[src]
+                    if src == "customer_evidence" and isinstance(snippet_source, dict) and snippet_source.get("name"):
+                        # The customer's name is encrypted in its own table; do not copy it here in clear.
+                        snippet_source = {**snippet_source, "name": "[stored encrypted]"}
+                    snippet_text = str(snippet_source)
                     ev = models.Evidence(
-
                         investigation_id=investigation_id,
-
+                        tenant_id=tenant_id,
                         source=src,
-
                         snippet=snippet_text
-
                     )
 
                     db.add(ev)
@@ -1216,12 +1267,12 @@ def run_investigation_task(investigation_id: str, transaction_id: str, db: Optio
 
         investigation = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
 
-        if investigation:
-
+        if investigation and investigation.status not in ("CANCELLED", "ARCHIVED_DELETED"):
+            logging.getLogger("ffire.pipeline").exception("Investigation %s failed", investigation_id)
             investigation.status = "FAILED"
-
-            investigation.report = f"Internal error: {e}"
-
+            # The report is shown to users, so it names the kind of failure but not the raw error
+            # text, which can contain SQL, file paths or connection strings. The detail is in the log.
+            investigation.report = f"Internal error: {type(e).__name__}. See server logs for investigation {investigation_id}."
             db.commit()
 
 
@@ -1466,7 +1517,8 @@ def verify_mfa_login(payload: MFALoginVerifyRequest, db: Session = Depends(get_d
     user = db.query(models.User).filter(models.User.user_id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User account not found.")
-
+    if not auth.is_active_user(user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is not active")
     tenant = getattr(user, "tenant_id", "default_tenant")
     access_token_expires = datetime.timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = auth.create_access_token(
@@ -1480,7 +1532,10 @@ def verify_mfa_login(payload: MFALoginVerifyRequest, db: Session = Depends(get_d
         refresh_token=refresh_token,
         token_type="bearer",
         tenant_id=tenant,
-        mfa_required=False
+        mfa_required=False,
+        role=user.role,
+        user_id=user.user_id,
+        name=user.name,
     )
 
 
@@ -1508,6 +1563,22 @@ def setup_user_mfa(
     clean_phone = payload.phone_number.strip()
     
     user_record = db.query(models.User).filter(models.User.user_id == current_user.user_id).first()
+
+    # With MFA already on, the phone number is the second factor. Replacing it needs more than the
+    # bearer token, or a stolen session could redirect the codes to the attacker and then turn MFA off.
+    existing = user_record or current_user
+    if getattr(existing, "mfa_enabled", False):
+        stepped_up = False
+        if payload.password:
+            stepped_up = auth.verify_password(payload.password, existing.hashed_password)
+        elif payload.code:
+            stepped_up = twilio_service.verify_mfa_code(existing.user_id, payload.code)
+        if not stepped_up:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Step-up authentication required to change the MFA phone number. Provide the current password or an SMS verification code."
+            )
+
     if user_record:
         user_record.phone_number = clean_phone
     else:
@@ -1593,14 +1664,15 @@ def test_twilio_sms_alert(
     current_user: models.User = Depends(auth.get_current_user)
 ):
     """Test administrative dispatch of Twilio SMS notifications."""
-    if getattr(current_user, "role", "") not in ("admin", "administrator"):
+    if getattr(current_user, "role", "") not in auth.ADMIN_ROLES:
         raise HTTPException(status_code=403, detail="Administrative privileges required.")
 
     from twilio_service import twilio_service
     target = payload.recipient_phone or twilio_service.alert_phone or "+15005550006"
     msg = payload.message or "[FFIRE TEST ALERT] Verification of Twilio SMS alerting connectivity."
     res = twilio_service.send_sms(target, msg)
-    return {"status": "success", "result": res}
+    # Report delivery only; the message text is not echoed back.
+    return {"status": "success", "result": {k: v for k, v in res.items() if k != "body"}}
 
 
 
@@ -1685,13 +1757,17 @@ def bootstrap_initial_admin(
 
     tenant = payload.tenant_id.strip() if payload.tenant_id else "tenant_prime"
 
+    # The first account is the installation's operator: the one role that may cross tenant
+    # boundaries. Administrators invited afterwards are confined to their own tenant.
+    bootstrap_role = auth.PLATFORM_ADMIN_ROLE
+
     admin_user = models.User(
 
         name=payload.name,
 
         email=norm_email,
 
-        role="admin",
+        role=bootstrap_role,
 
         hashed_password=auth.get_password_hash(payload.password),
 
@@ -1711,7 +1787,7 @@ def bootstrap_initial_admin(
 
     access_token = auth.create_access_token(
 
-        data={"sub": norm_email, "role": "admin", "tenant_id": tenant},
+        data={"sub": norm_email, "role": bootstrap_role, "tenant_id": tenant},
 
         expires_delta=access_token_expires
 
@@ -1719,7 +1795,7 @@ def bootstrap_initial_admin(
 
     refresh_token = auth.create_refresh_token(
 
-        data={"sub": norm_email, "role": "admin", "tenant_id": tenant}
+        data={"sub": norm_email, "role": bootstrap_role, "tenant_id": tenant}
 
     )
 
@@ -1749,7 +1825,7 @@ def create_tenant_invitation(
 
     user_role = getattr(current_user, "role", "")
 
-    if user_role not in ("admin", "administrator"):
+    if user_role not in auth.ADMIN_ROLES:
 
         raise HTTPException(
 
@@ -1853,7 +1929,7 @@ def list_tenant_invitations(
 
     user_role = getattr(current_user, "role", "")
 
-    if user_role not in ("admin", "administrator"):
+    if user_role not in auth.ADMIN_ROLES:
 
         raise HTTPException(
 
@@ -1919,7 +1995,7 @@ def revoke_tenant_invitation(
 
     user_role = getattr(current_user, "role", "")
 
-    if user_role not in ("admin", "administrator"):
+    if user_role not in auth.ADMIN_ROLES:
 
         raise HTTPException(
 
@@ -1957,11 +2033,14 @@ def revoke_tenant_invitation(
 
 def logout_user(token: str = Depends(auth.oauth2_scheme), current_user: models.User = Depends(auth.get_current_user)):
 
-    """Revoke JWT access token and register in Redis distributed blocklist (Finding in Section 3)."""
-
+    """
+    End the session: revoke this access token and every token issued to the user up to now,
+    refresh tokens included. Revoking the access token alone left the refresh token able to mint
+    new ones, so logging out did not log anyone out.
+    """
     auth.revoke_token(token)
-
-    return {"status": "success", "message": "Successfully logged out. Access token revoked."}
+    auth.revoke_user_sessions(current_user.email)
+    return {"status": "success", "message": "Successfully logged out. Access and refresh tokens revoked."}
 
 
 
@@ -1980,10 +2059,11 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
             detail="Incorrect username or password",
 
             headers={"WWW-Authenticate": "Bearer"},
-
         )
-
-    tenant = getattr(user, "tenant_id", "default_tenant")    # SMS Multi-Factor Authentication check (Strict Fail-Closed Enforcement)
+    if not auth.is_active_user(user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is not active")
+    tenant = getattr(user, "tenant_id", "default_tenant")
+    # SMS Multi-Factor Authentication check (Strict Fail-Closed Enforcement)
     if getattr(user, "mfa_enabled", False):
         if not getattr(user, "phone_number", None):
             raise HTTPException(
@@ -2021,8 +2101,10 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
 
     )
 
-    return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer", "tenant_id": tenant}
-
+    return {
+        "access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer", "tenant_id": tenant,
+        "role": user.role, "user_id": user.user_id, "name": user.name,
+    }
 
 
 @app.post("/api/v1/auth/refresh", response_model=Token)
@@ -2044,8 +2126,9 @@ def refresh_access_token(payload: RefreshTokenRequest, db: Session = Depends(get
     user = auth.get_user_by_email(db, email)
 
     if not user:
-
         raise HTTPException(status_code=401, detail="User associated with refresh token no longer exists")
+    if not auth.is_active_user(user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is not active")
 
 
 
@@ -2066,17 +2149,20 @@ def refresh_access_token(payload: RefreshTokenRequest, db: Session = Depends(get
     new_refresh_token = auth.create_refresh_token(
         data={"sub": user.email, "role": user.role, "tenant_id": tenant, "mfa_verified": mfa_verified}
     )
-
+    # Rotation: the token just used is spent. Without this an old refresh token stayed valid for
+    # its full seven days after being exchanged.
+    try:
+        auth.revoke_token(payload.refresh_token, ttl_seconds=auth.REFRESH_TOKEN_EXPIRE_DAYS * 86400)
+    except RuntimeError:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Token revocation registry unavailable")
     return {
-
         "access_token": new_access_token,
-
         "refresh_token": new_refresh_token,
-
         "token_type": "bearer",
-
-        "tenant_id": tenant
-
+        "tenant_id": tenant,
+        "role": user.role,
+        "user_id": user.user_id,
+        "name": user.name,
     }
 
 
@@ -2171,7 +2257,7 @@ def enforce_tenant_isolation(current_user: models.User, inv: models.Investigatio
 
     """
 
-    if getattr(current_user, "role", "") == "admin":
+    if auth.is_platform_admin(current_user):
 
         return
 
@@ -2199,6 +2285,55 @@ def enforce_tenant_isolation(current_user: models.User, inv: models.Investigatio
 
         )
 
+
+
+def investigation_execution_mode() -> str:
+    """
+    "worker": a separate worker process takes jobs from the Redis queue and runs them.
+    "inline": this API process runs each investigation as a background task.
+
+    Exactly one of the two runs a given investigation. Doing both (as the code once did) ran every
+    investigation twice whenever a worker was deployed. INVESTIGATION_EXECUTION sets the mode;
+    left unset it is "worker" when a Redis broker is connected and "inline" otherwise. Set it to
+    "inline" if you run Redis but no worker.
+    """
+    configured = os.getenv("INVESTIGATION_EXECUTION", "").strip().lower()
+    if configured in ("worker", "inline"):
+        return configured
+    from worker import worker_queue
+    return "inline" if worker_queue.get_broker_backend() == "in_memory" else "worker"
+
+
+def _dispatch_investigation(investigation_id: str, transaction_id: str, background_tasks: BackgroundTasks) -> None:
+    from worker import worker_queue
+    if investigation_execution_mode() == "worker":
+        worker_queue.enqueue(investigation_id, transaction_id)
+    else:
+        worker_queue.transition_job_state(investigation_id, "QUEUED")
+        background_tasks.add_task(run_investigation_task, investigation_id, transaction_id)
+
+
+EVIDENCE_MAX_BYTES = int(os.getenv("EVIDENCE_MAX_BYTES", str(25 * 1024 * 1024)))
+
+
+def demo_seeding_enabled() -> bool:
+    """Sample evidence, reports and audit entries are created only when FFRE_DEMO_SEED is switched on."""
+    return os.getenv("FFRE_DEMO_SEED", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _require_same_tenant(current_user: models.User, record_tenant: Optional[str], what: str = "Record") -> None:
+    """403 unless the record is in the caller's tenant. A caller with no tenant is refused, not waved through."""
+    if auth.is_platform_admin(current_user):
+        return
+    user_tenant = getattr(current_user, "tenant_id", None)
+    if not user_tenant or record_tenant != user_tenant:
+        raise HTTPException(status_code=403, detail=f"Access denied: {what} belongs to another tenant")
+
+
+# Roles that work cases (administrators are always allowed as well).
+CASE_WORKER_ROLES = ("investigator", "analyst", "compliance_officer")
+CANCELLABLE_STATUSES = {"QUEUED", "RUNNING", "RETRYING", "WAITING_HUMAN", "ESCALATED", "FAILED"}
+REVIEWABLE_STATUSES = {"COMPLETED", "ESCALATED", "WAITING_HUMAN", "FAILED"}
 
 
 # --- Protected Investigation Routes ---
@@ -2273,9 +2408,24 @@ def create_investigation(
         if existing_inv:
             if (existing_inv.request_fingerprint and existing_inv.request_fingerprint != payload_fp) or existing_inv.txn_id != request.transaction_id:
                 raise HTTPException(status_code=409, detail="Idempotency key reused with different payload")
+            if existing_inv.status == "FAILED":
+                # A failed run is not a result worth caching: asking again retries it. Returning the
+                # failure as a cache hit made the transaction impossible to investigate ever again.
+                existing_inv.status = "QUEUED"
+                existing_inv.report = None
+                existing_inv.updated_at = timeutil.utcnow()
+                db.add(models.AuditLog(
+                    investigation_id=existing_inv.investigation_id,
+                    action="Investigation Retried",
+                    details="Previous run failed; re-queued on a repeated request.",
+                    tenant_id=user_tenant,
+                ))
+                db.commit()
+                _dispatch_investigation(existing_inv.investigation_id, request.transaction_id, background_tasks)
+                response.headers["X-Cache-Hit"] = "false"
+                return build_investigation_response(existing_inv, db)
             response.headers["X-Cache-Hit"] = "true"
             return build_investigation_response(existing_inv, db)
-
         # Verify transaction exists under caller's tenant (Task T0.2 / Finding V1)
         txn = db.query(models.Transaction).filter(
             models.Transaction.txn_id == request.transaction_id,
@@ -2323,14 +2473,7 @@ def create_investigation(
 
 
 
-    from worker import worker_queue
-
-    worker_queue.enqueue(inv.investigation_id, request.transaction_id)
-
-    background_tasks.add_task(run_investigation_task, inv.investigation_id, request.transaction_id)
-
-
-
+    _dispatch_investigation(inv.investigation_id, request.transaction_id, background_tasks)
     response.headers["X-Cache-Hit"] = "false"
 
     return build_investigation_response(inv, db)
@@ -2381,10 +2524,8 @@ async def ingest_transactions(
 
         file_obj = form.get("file")
 
-        if not file_obj:
-
+        if not file_obj or not hasattr(file_obj, "read"):
             raise HTTPException(status_code=400, detail="Missing file in multipart/form-data upload")
-
         content_bytes = await file_obj.read()
 
         text = content_bytes.decode("utf-8", errors="replace")
@@ -2437,20 +2578,19 @@ async def ingest_transactions(
 
 
 
-    total_records = len(raw_records)
-
-    ingested = 0
-
-    quarantined = 0
-
-    skipped_duplicates = 0
-
-    quarantine_reasons = []
-
-
-
+    if not isinstance(raw_records, list):
+        raise HTTPException(status_code=400, detail="'transactions' must be an array of records")
+    if len(raw_records) > INGEST_MAX_ROWS:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Batch too large: {len(raw_records)} records. Send at most {INGEST_MAX_ROWS} per request."
+        )
     return await run_in_threadpool(_sync_process_transactions, db, raw_records, user_tenant, current_user.role)
 
+
+
+MAX_TRANSACTION_AMOUNT = Decimal("10000000000")  # NUMERIC(12, 2) holds values below 10^10
+INGEST_MAX_ROWS = int(os.getenv("INGEST_MAX_ROWS", "10000"))
 
 
 def _sync_process_transactions(db: Session, raw_records: List[Dict[str, Any]], user_tenant: str, caller_role: str) -> TransactionIngestResponse:
@@ -2472,7 +2612,16 @@ def _sync_process_transactions(db: Session, raw_records: List[Dict[str, Any]], u
 
 
     for idx, row in enumerate(raw_records, start=1):
-
+        if not isinstance(row, dict):
+            # A batch entry that is not an object (a bare string or number) has no fields to read.
+            quarantined += 1
+            quarantine_reasons.append(QuarantineReason(
+                row_index=idx,
+                txn_id=None,
+                reason="Malformed record: each entry must be a JSON object",
+                record={"raw": str(row)[:200]}
+            ))
+            continue
         txn_id = row.get("txn_id")
 
         if txn_id and isinstance(txn_id, str):
@@ -2495,7 +2644,7 @@ def _sync_process_transactions(db: Session, raw_records: List[Dict[str, Any]], u
 
             row_tenant_str = str(row_tenant).strip()
 
-            if caller_role != "admin" and row_tenant_str != user_tenant:
+            if caller_role != auth.PLATFORM_ADMIN_ROLE and row_tenant_str != user_tenant:
 
                 quarantined += 1
 
@@ -2567,7 +2716,7 @@ def _sync_process_transactions(db: Session, raw_records: List[Dict[str, Any]], u
 
         acct_tenant = getattr(acct, "tenant_id", "default_tenant")
 
-        if caller_role != "admin" and acct_tenant != effective_tenant:
+        if caller_role != auth.PLATFORM_ADMIN_ROLE and acct_tenant != effective_tenant:
 
             quarantined += 1
 
@@ -2610,10 +2759,12 @@ def _sync_process_transactions(db: Session, raw_records: List[Dict[str, Any]], u
             continue
 
         try:
-
-            amount_val = float(raw_amt)
-
-        except (ValueError, TypeError):
+            # Decimal, not float: the column is NUMERIC(12, 2), and float() happily parses "nan"
+            # and "inf", which pass a "<= 0" test and then poison every sum they take part in.
+            amount_val = Decimal(str(raw_amt).strip())
+            if not amount_val.is_finite():
+                raise ValueError("non-finite amount")
+        except (ValueError, TypeError, ArithmeticError):
 
             quarantined += 1
 
@@ -2644,12 +2795,19 @@ def _sync_process_transactions(db: Session, raw_records: List[Dict[str, Any]], u
                 txn_id=txn_id,
 
                 reason=f"Invalid amount {amount_val}: amount must be strictly positive",
-
                 record=row
-
             ))
-
             continue
+        if amount_val >= MAX_TRANSACTION_AMOUNT:
+            quarantined += 1
+            quarantine_reasons.append(QuarantineReason(
+                row_index=idx,
+                txn_id=txn_id,
+                reason=f"Invalid amount {amount_val}: exceeds the supported maximum of {MAX_TRANSACTION_AMOUNT}",
+                record=row
+            ))
+            continue
+        amount_val = amount_val.quantize(Decimal("0.01"))
 
 
 
@@ -2752,8 +2910,11 @@ def _sync_process_transactions(db: Session, raw_records: List[Dict[str, Any]], u
                 continue
 
         elif isinstance(raw_ts, datetime.datetime):
-
             timestamp_val = raw_ts
+        # Stored timestamps are naive UTC. Convert an offset-aware value instead of dropping its
+        # offset, which would record 10:00+05:30 as 10:00 UTC.
+        if timestamp_val.tzinfo is not None:
+            timestamp_val = timestamp_val.astimezone(datetime.timezone.utc).replace(tzinfo=None)
 
 
 
@@ -2829,7 +2990,7 @@ def _sync_process_transactions(db: Session, raw_records: List[Dict[str, Any]], u
 
                 txn_id=assigned_txn_id,
 
-                reason=f"Database commit error: {str(e)}",
+                reason="Database rejected the record (for example a duplicate transaction id or an unknown merchant)",
 
                 record=row
 
@@ -2868,12 +3029,13 @@ def list_transactions(
 ):
 
     """List transactions scoped to the caller's tenant."""
-
+    limit = max(1, min(limit, MAX_PAGE_SIZE))
+    offset = max(0, offset)
     user_tenant = getattr(current_user, "tenant_id", "default_tenant") or "default_tenant"
 
     query = db.query(models.Transaction)
 
-    if current_user.role != "admin":
+    if not auth.is_platform_admin(current_user):
 
         query = query.filter(models.Transaction.tenant_id == user_tenant)
 
@@ -2903,7 +3065,7 @@ def get_transaction_by_id(
 
     user_tenant = getattr(current_user, "tenant_id", "default_tenant")
 
-    if current_user.role != "admin" and getattr(txn, "tenant_id", None) != user_tenant:
+    if not auth.is_platform_admin(current_user) and getattr(txn, "tenant_id", None) != user_tenant:
 
         raise HTTPException(status_code=403, detail="Access denied: Resource belongs to another tenant")
 
@@ -3299,42 +3461,67 @@ def get_investigation_graph(
 
 
 
+    # Replace the placeholder figures above with what was actually recorded. The pipeline writes one
+    # audit entry per node run ("NODE_EXECUTION: <node>", "... in <n>ms"), so timings and completion
+    # come from there. Token counts are not recorded per node, so they are reported as unmeasured
+    # (zero, with "measured": false) instead of an invented number.
+    display_to_pipeline = {
+        "evidence_aggregator": ["evidence_verifier", "velocity_check", "rule_engine", "knowledge_lookup"],
+        "evidence_validator": ["validator"],
+        "reasoner": ["risk_reasoning"],
+        "confidence_calculator": ["validator"],
+        "reporter": ["report_generator", "human_review"],
+    }
+    recorded_ms: Dict[str, int] = {}
+    for entry in inv.audit_logs:
+        action = entry.action or ""
+        if not action.startswith("NODE_EXECUTION: "):
+            continue
+        timing = re.search(r" in (\d+)ms", entry.details or "")
+        if timing:
+            node_key = action.split(": ", 1)[1].strip()
+            recorded_ms[node_key] = recorded_ms.get(node_key, 0) + int(timing.group(1))
+    for node in nodes:
+        sources = display_to_pipeline.get(node["id"], [node["id"]])
+        ran = [s for s in sources if s in recorded_ms]
+        node["measured"] = bool(ran)
+        node["duration_ms"] = sum(recorded_ms[s] for s in ran)
+        node["tokens"] = 0
+        node["prompt_version"] = None
+        if ran:
+            node["status"] = "completed"
+        elif is_completed:
+            node["status"] = "skipped"
+        elif node["status"] == "completed":
+            node["status"] = "running" if is_running else "pending"
+        outputs = node.get("outputs") or {}
+        if outputs.get("transaction_evidence") == "Anomaly score 0.82":
+            outputs["transaction_evidence"] = None
+        outputs.pop("contradictions", None)
+        outputs.pop("corroborated", None)
+        if "preliminary_verdict" in outputs:
+            outputs["preliminary_verdict"] = None
+        if "final_confidence" in outputs:
+            outputs["final_confidence"] = float(inv.confidence) if inv.confidence is not None else None
+
     total_duration = sum(n["duration_ms"] for n in nodes if n["status"] == "completed")
-
-    total_tokens = sum(n["tokens"] for n in nodes if n["status"] == "completed")
-
-
-
+    usage = metrics_collector.get_investigation_token_usage(investigation_id) if hasattr(metrics_collector, "get_investigation_token_usage") else None
     return {
-
         "investigation_id": inv.investigation_id,
-
         "status": inv.status,
-
         "graph_version": "v2.4.0-langgraph",
-
         "nodes": nodes,
-
         "metrics": {
-
             "total_runtime_ms": total_duration,
-
-            "average_node_runtime_ms": round(total_duration / max(1, len(nodes)), 1),
-
-            "total_tokens": total_tokens,
-
-            "prompt_tokens": int(total_tokens * 0.65),
-
-            "completion_tokens": int(total_tokens * 0.35),
-
-            "estimated_cost_usd": round((total_tokens / 1000) * 0.002, 4),
-
+            "average_node_runtime_ms": round(total_duration / max(1, sum(1 for n in nodes if n["status"] == "completed")), 1),
+            "total_tokens": (usage or {}).get("total_tokens", 0),
+            "prompt_tokens": (usage or {}).get("prompt_tokens", 0),
+            "completion_tokens": (usage or {}).get("completion_tokens", 0),
+            "estimated_cost_usd": (usage or {}).get("cost_usd", 0.0),
+            "tokens_measured": usage is not None,
             "completed_nodes": sum(1 for n in nodes if n["status"] == "completed"),
-
             "total_nodes": len(nodes)
-
         }
-
     }
 
 
@@ -3360,23 +3547,17 @@ def cancel_investigation(
         raise HTTPException(status_code=404, detail="Investigation not found")
 
     enforce_tenant_isolation(current_user, inv)
-
-    if inv.status in ("COMPLETED", "REJECTED"):
-
+    auth.require_role(current_user, *CASE_WORKER_ROLES)
+    # Only work that is still open can be cancelled. A finished or human-closed case must not be
+    # flipped to CANCELLED, which would erase its outcome.
+    if inv.is_deleted or inv.status not in CANCELLABLE_STATUSES:
         raise HTTPException(status_code=400, detail=f"Cannot cancel investigation in status {inv.status}")
-
-
-
     inv.status = "CANCELLED"
-
     audit_log = models.AuditLog(
-
         investigation_id=inv.investigation_id,
-
+        tenant_id=getattr(inv, "tenant_id", None) or "default_tenant",
         action="INVESTIGATION_CANCELLED",
-
         details=f"Cancelled by user {getattr(current_user, 'email', current_user.user_id)}"
-
     )
 
     db.add(audit_log)
@@ -3424,11 +3605,10 @@ def review_investigation(
         raise HTTPException(status_code=404, detail="Investigation not found")
 
     enforce_tenant_isolation(current_user, inv)
-
-
-
-    if inv.status not in ["COMPLETED", "ESCALATED", "FAILED", "RUNNING"]:
-
+    auth.require_role(current_user, *CASE_WORKER_ROLES)
+    # A case is reviewed once the pipeline has finished with it. Reviewing one that is still running
+    # let the pipeline overwrite the analyst's decision when it completed.
+    if inv.is_deleted or inv.status not in REVIEWABLE_STATUSES:
         raise HTTPException(status_code=400, detail=f"Cannot review investigation in status {inv.status}")
 
 
@@ -3441,18 +3621,10 @@ def review_investigation(
 
 
 
+    # The analyst's decision is recorded in the status, the report and the audit log. The model's
+    # risk score is left as computed: overwriting it with 0.10 or 0.95 destroyed the very number
+    # the decision was made against.
     inv.status = f"CLOSED_{action_type}"
-
-    if action_type == "APPROVE":
-
-        inv.risk_score = 0.10
-
-    else:
-
-        inv.risk_score = 0.95
-
-
-
     notes_str = f"Analyst Review ({action_type}) by {current_user.name}: {review_action.notes or 'No additional notes provided'}"
 
     if inv.report:
@@ -3545,7 +3717,7 @@ def list_investigations(
 
     query = db.query(models.Investigation)
 
-    if current_user.role != "admin":
+    if not auth.is_platform_admin(current_user):
 
         user_tenant = getattr(current_user, "tenant_id", None)
 
@@ -3557,10 +3729,12 @@ def list_investigations(
 
 
 
+    # Deleted investigations are hidden unless they are asked for by status.
+    if status != "ARCHIVED_DELETED":
+        query = query.filter(models.Investigation.is_deleted.is_(False))
+
     # Apply filters
-
     if status:
-
         query = query.filter(models.Investigation.status == status)
 
     if txn_id:
@@ -3767,29 +3941,34 @@ def export_investigation_report(
 
     elif format == "html":
 
+        # Every value below comes from the database: report text, analyst notes, audit details.
+        # All of it is escaped, so none of it can run as script in the reader's browser.
+        def esc(value) -> str:
+            return html.escape("" if value is None else str(value))
+
         html_content = f"""<!DOCTYPE html>
 
 <html>
 
-<head><title>FFRE Investigation Report - {inv.investigation_id}</title><style>body{{font-family:sans-serif;margin:40px;color:#1e293b;}} h1{{color:#0f172a;}} table{{border-collapse:collapse;width:100%;margin-top:20px;}} th,td{{border:1px solid #cbd5e1;padding:8px;text-align:left;}} th{{background-color:#f1f5f9;}} .badge{{padding:4px 8px;border-radius:4px;font-weight:bold;background-color:#e2e8f0;}}</style></head>
+<head><title>FFRE Investigation Report - {esc(inv.investigation_id)}</title><style>body{{font-family:sans-serif;margin:40px;color:#1e293b;}} h1{{color:#0f172a;}} table{{border-collapse:collapse;width:100%;margin-top:20px;}} th,td{{border:1px solid #cbd5e1;padding:8px;text-align:left;}} th{{background-color:#f1f5f9;}} .badge{{padding:4px 8px;border-radius:4px;font-weight:bold;background-color:#e2e8f0;}}</style></head>
 
 <body>
 
 <h1>Financial Fraud Investigation Report</h1>
 
-<p><strong>Investigation ID:</strong> {inv.investigation_id} | <strong>Transaction ID:</strong> {inv.txn_id}</p>
+<p><strong>Investigation ID:</strong> {esc(inv.investigation_id)} | <strong>Transaction ID:</strong> {esc(inv.txn_id)}</p>
 
-<p><strong>Status:</strong> <span class="badge">{inv.status}</span> | <strong>Risk Score:</strong> {inv.risk_score or 'N/A'} | <strong>Confidence:</strong> {inv.confidence or 'N/A'}</p>
+<p><strong>Status:</strong> <span class="badge">{esc(inv.status)}</span> | <strong>Risk Score:</strong> {inv.risk_score or 'N/A'} | <strong>Confidence:</strong> {inv.confidence or 'N/A'}</p>
 
 <h2>Executive Summary & Findings</h2>
 
-<pre>{inv.report or 'No detailed report available.'}</pre>
+<pre>{esc(inv.report or 'No detailed report available.')}</pre>
 
 <h2>Audit Trail</h2>
 
 <table><tr><th>Timestamp</th><th>Action</th><th>Details</th></tr>
 
-{''.join([f"<tr><td>{log['timestamp']}</td><td>{log['action']}</td><td>{log['details']}</td></tr>" for log in audit_trail])}
+{''.join([f"<tr><td>{esc(log['timestamp'])}</td><td>{esc(log['action'])}</td><td>{esc(log['details'])}</td></tr>" for log in audit_trail])}
 
 </table>
 
@@ -3797,7 +3976,11 @@ def export_investigation_report(
 
 </html>"""
 
-        return Response(content=html_content, media_type="text/html")
+        return Response(
+            content=html_content,
+            media_type="text/html",
+            headers=SAFE_HTML_EXPORT_HEADERS | {"Content-Disposition": f'attachment; filename="report_{_safe_filename(investigation_id)}.html"'},
+        )
 
     else:
 
@@ -4032,7 +4215,7 @@ def generate_replay_snapshot(inv: models.Investigation, db: Session) -> Tuple[Di
             })
 
     vault_items = db.query(models.EvidenceVaultItem).filter(
-
+        models.EvidenceVaultItem.tenant_id == (inv.tenant_id or "default_tenant"),
         models.EvidenceVaultItem.investigation_id == inv.investigation_id
 
     ).all()
@@ -4283,7 +4466,7 @@ def verify_replay_snapshot(
 
     snap_tenant = snapshot.get("tenant_id")
 
-    if snap_tenant and getattr(current_user, "role", "") != "admin" and snap_tenant != user_tenant:
+    if snap_tenant and not auth.is_platform_admin(current_user) and snap_tenant != user_tenant:
 
         raise HTTPException(status_code=403, detail="Cross-tenant replay verification forbidden")
 
@@ -4355,29 +4538,13 @@ def verify_replay_snapshot(
 
         pre_repr = json.dumps(pre_copy, sort_keys=True, separators=(',', ':'))
 
-        sig_algo = snapshot.get("signature_algorithm")
-
-        if sig_algo == "Ed25519" or len(provided_sig) == 128:
-
-            try:
-
-                _, verifier_pub = get_verifier_keys()
-
-                verifier_pub.verify(bytes.fromhex(provided_sig), pre_repr.encode("utf-8"))
-
-            except Exception as e:
-
-                mismatches.append(f"Ed25519 digital signature validation failed: {e}")
-
-        else:
-
-            signing_key = os.getenv("REPLAY_SIGNING_KEY", os.getenv("SECRET_KEY", "ffre-replay-signing-root-key"))
-
-            computed_sig = hmac.new(signing_key.encode("utf-8"), pre_repr.encode("utf-8"), hashlib.sha256).hexdigest()
-
-            if not hmac.compare_digest(provided_sig, computed_sig):
-
-                mismatches.append("Digital signature validation failed: bundle has been modified or resigned with unauthorized key")
+        # Ed25519 only. The snapshot itself must not be able to choose a weaker check: the old
+        # fallback verified an HMAC keyed by SECRET_KEY, or by a constant when that was unset.
+        try:
+            _, verifier_pub = get_verifier_keys()
+            verifier_pub.verify(bytes.fromhex(str(provided_sig)), pre_repr.encode("utf-8"))
+        except Exception as e:
+            mismatches.append(f"Ed25519 digital signature validation failed: {e or type(e).__name__}")
 
 
 
@@ -4588,15 +4755,25 @@ async def update_investigation(
                 status_code=400,
 
                 detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}"
-
             )
-
+        # A manual change follows the same state machine as the worker. Without this an
+        # investigator could set any status from any other, for example re-open a closed case
+        # as RUNNING or close one that had never been reviewed.
+        from worker import VALID_TRANSITIONS
+        if getattr(inv, "is_deleted", False):
+            raise HTTPException(status_code=404, detail="Investigation not found")
+        if status != inv.status and status not in VALID_TRANSITIONS.get(inv.status, set()):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Invalid status transition: {inv.status} -> {status}"
+            )
+        previous_status = inv.status
         inv.status = status
 
 
 
         # Trigger Twilio SMS alert on escalation
-        if status == "ESCALATED":
+        if status == "ESCALATED" and previous_status != "ESCALATED":
             try:
                 from twilio_service import twilio_service
                 twilio_service.send_critical_escalation_alert(
@@ -4670,11 +4847,11 @@ def toggle_legal_hold(
         raise HTTPException(status_code=404, detail="Investigation not found")
 
     enforce_tenant_isolation(current_user, inv)
-
-
-
+    # Anyone who works cases may place a hold. Lifting one is a compliance decision: if an
+    # investigator could release it, the hold would not protect the record from deletion.
+    if not payload.legal_hold and getattr(inv, "legal_hold", False):
+        auth.require_role(current_user, "compliance_officer")
     inv.legal_hold = payload.legal_hold
-
     inv.legal_hold_reason = payload.reason
 
     action = "LEGAL_HOLD_APPLIED" if payload.legal_hold else "LEGAL_HOLD_RELEASED"
@@ -4757,7 +4934,7 @@ def delete_investigation(
 
     inv.is_deleted = True
 
-    inv.deleted_at = datetime.datetime.now(datetime.timezone.utc)
+    inv.deleted_at = timeutil.utcnow()
 
     inv.status = "ARCHIVED_DELETED"
 
@@ -4800,6 +4977,10 @@ def delete_investigation(
 
 
 def seed_default_evidence_if_empty(db: Session, tenant_id: str):
+    # Sample records are for demonstrations only. Writing invented "verified" evidence into a real
+    # tenant's vault on first visit is not acceptable for a system of record.
+    if not demo_seeding_enabled():
+        return
 
     count = db.query(models.EvidenceVaultItem).filter(models.EvidenceVaultItem.tenant_id == tenant_id).count()
 
@@ -5031,7 +5212,7 @@ def list_evidence_vault(
 
     query = db.query(models.EvidenceVaultItem)
 
-    if current_user.role != "admin":
+    if not auth.is_platform_admin(current_user):
 
         query = query.filter(models.EvidenceVaultItem.tenant_id == tenant)
 
@@ -5125,24 +5306,27 @@ async def upload_evidence(
 
     """Ingest evidence file or metadata artifact into digital vault with SHA-256 integrity verification."""
 
-    tenant = getattr(current_user, "tenant_id", "default_tenant")
-
+    auth.require_role(current_user, *CASE_WORKER_ROLES)
+    tenant = getattr(current_user, "tenant_id", None) or "default_tenant"
     item_id = str(uuid.uuid4())
 
-    
+    # Evidence may only be attached to an investigation of the caller's own tenant. Accepting any
+    # id let one tenant write into another tenant's case file and audit chain.
+    if investigation_id:
+        linked = db.query(models.Investigation).filter(models.Investigation.investigation_id == investigation_id).first()
+        if not linked or getattr(linked, "is_deleted", False):
+            raise HTTPException(status_code=404, detail="Investigation not found")
+        enforce_tenant_isolation(current_user, linked)
+        tenant = linked.tenant_id or tenant
 
-    vault_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "vault", tenant)
-
+    vault_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "vault", _safe_filename(tenant))
     os.makedirs(vault_dir, exist_ok=True)
-
-    
-
     if file:
-
-        file_bytes = await file.read()
-
-        file_name = file.filename or "evidence.bin"
-
+        file_bytes = await file.read(EVIDENCE_MAX_BYTES + 1)
+        if len(file_bytes) > EVIDENCE_MAX_BYTES:
+            raise HTTPException(status_code=413, detail=f"File too large. The limit is {EVIDENCE_MAX_BYTES // (1024 * 1024)} MB.")
+        # The client's file name is untrusted: keep its base name only, with safe characters.
+        file_name = _safe_filename(file.filename or "evidence.bin")
     else:
 
         file_bytes = None
@@ -5283,10 +5467,10 @@ def _sync_store_evidence(
 
         risk_level=risk_level.upper(),
 
-        is_verified=True,
-
-        verification_method="Cryptographic SHA-256 Digest Verified",
-
+        # The digest is recorded now. "Verified" is set by the verify endpoint, which re-reads the
+        # stored file and compares it with this digest.
+        is_verified=False,
+        verification_method="SHA-256 digest recorded at ingestion",
         description=description or f"Uploaded by {user_name} for tenant {tenant}",
 
         storage_path=storage_path,
@@ -5312,13 +5496,8 @@ def _sync_store_evidence(
     )
 
     db.add(audit_log)
-
     db.commit()
-
-    return item
-
     db.refresh(item)
-
     return item
 
 
@@ -5343,20 +5522,32 @@ def verify_evidence(
 
         raise HTTPException(status_code=404, detail="Evidence item not found")
 
-    if current_user.role != "admin" and getattr(current_user, "tenant_id", None):
+    _require_same_tenant(current_user, item.tenant_id, "Evidence")
+    auth.require_role(current_user, *CASE_WORKER_ROLES)
 
-        if item.tenant_id != current_user.tenant_id:
-
-            raise HTTPException(status_code=403, detail="Access denied: Evidence belongs to another tenant")
-
-    
+    # Verification means what it says: read the stored file again and compare its SHA-256 with the
+    # digest recorded at ingestion. Nothing is "signed by an HSM" here, so nothing claims to be.
+    path = item.storage_path
+    if not path or not os.path.isfile(path):
+        raise HTTPException(status_code=409, detail="Cannot verify: no stored file exists for this evidence item")
+    digest = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            digest.update(chunk)
+    if not hmac.compare_digest(digest.hexdigest(), item.sha256_hash or ""):
+        item.is_verified = False
+        item.verification_method = "FAILED: stored file does not match the recorded SHA-256 digest"
+        db.add(models.AuditLog(
+            investigation_id=item.investigation_id,
+            action="EVIDENCE_VERIFICATION_FAILED",
+            details=f"Item {item.item_id}: stored file hash {digest.hexdigest()} does not match recorded {item.sha256_hash}",
+            tenant_id=item.tenant_id
+        ))
+        db.commit()
+        raise HTTPException(status_code=409, detail="Integrity check failed: the stored file does not match its recorded SHA-256 digest")
 
     item.is_verified = True
-
-    item.verification_method = f"Hardware Security Module (HSM) Signed by {current_user.name}"
-
-    
-
+    item.verification_method = f"SHA-256 digest re-verified against stored file by {current_user.name}"
     audit = models.AuditLog(
 
         investigation_id=item.investigation_id,
@@ -5399,18 +5590,16 @@ def delete_evidence(
 
         raise HTTPException(status_code=404, detail="Evidence item not found")
 
-    if current_user.role != "admin" and getattr(current_user, "tenant_id", None):
-
-        if item.tenant_id != current_user.tenant_id:
-
-            raise HTTPException(status_code=403, detail="Access denied: Evidence belongs to another tenant")
-
-    
-
+    _require_same_tenant(current_user, item.tenant_id, "Evidence")
+    # Removing evidence is not something a read-only user may do, and never while the case it
+    # belongs to is under legal hold.
+    auth.require_role(current_user, "compliance_officer", "investigator")
+    if item.investigation_id:
+        held = db.query(models.Investigation).filter(models.Investigation.investigation_id == item.investigation_id).first()
+        if held is not None and getattr(held, "legal_hold", False):
+            raise HTTPException(status_code=409, detail="Evidence belongs to an investigation under legal hold and cannot be deleted")
     audit = models.AuditLog(
-
         investigation_id=item.investigation_id,
-
         action="EVIDENCE_DELETED",
 
         details=f"Evidence {item.title} ({item.item_id}) deleted by {current_user.name}",
@@ -5434,6 +5623,8 @@ def delete_evidence(
 
 
 def seed_default_reports_if_empty(db: Session, tenant_id: str):
+    if not demo_seeding_enabled():
+        return
 
     count = db.query(models.ReportRecord).filter(models.ReportRecord.tenant_id == tenant_id).count()
 
@@ -5603,7 +5794,7 @@ def list_reports(
 
     query = db.query(models.ReportRecord)
 
-    if current_user.role != "admin":
+    if not auth.is_platform_admin(current_user):
 
         query = query.filter(models.ReportRecord.tenant_id == tenant)
 
@@ -5675,25 +5866,27 @@ def generate_report(
 
     tenant = getattr(current_user, "tenant_id", "default_tenant")
 
+    auth.require_role(current_user, *CASE_WORKER_ROLES)
+    report_format = (request_data.file_format or "pdf").strip().lower()
+    if report_format not in ("pdf", "html", "json", "csv", "txt"):
+        raise HTTPException(status_code=400, detail="file_format must be one of: pdf, html, json, csv, txt")
     report_id = str(uuid.uuid4())
-
-
-
     inv_details = ""
 
     if request_data.investigation_id:
-
         inv = db.query(models.Investigation).filter(models.Investigation.investigation_id == request_data.investigation_id).first()
-
-        if inv:
-
-            inv_details = f"\nLinked Investigation: {inv.investigation_id} | Status: {inv.status} | Risk: {inv.risk_score}"
+        if not inv or getattr(inv, "is_deleted", False):
+            raise HTTPException(status_code=404, detail="Investigation not found")
+        # The report quotes the investigation's status and risk score, so the caller must be
+        # allowed to read that investigation.
+        enforce_tenant_isolation(current_user, inv)
+        inv_details = f"\nLinked Investigation: {inv.investigation_id} | Status: {inv.status} | Risk: {inv.risk_score}"
 
 
 
     content = f"FFIRE Regulatory & Executive Dossier: {request_data.title}\nReport Type: {request_data.report_type}\nGenerated By: {current_user.name}\nTenant: {tenant}{inv_details}\nDescription: {request_data.description or 'No description provided.'}\nGenerated At: {timeutil.utcnow().isoformat()}"
 
-    file_size = len(content.encode("utf-8")) + 102400
+    file_size = len(content.encode("utf-8"))
 
 
 
@@ -5713,7 +5906,7 @@ def generate_report(
 
         status="Completed",
 
-        file_format=request_data.file_format.lower(),
+        file_format=report_format,
 
         file_size=file_size,
 
@@ -5773,11 +5966,7 @@ def download_report(
 
         raise HTTPException(status_code=404, detail="Report not found")
 
-    if current_user.role != "admin" and getattr(current_user, "tenant_id", None):
-
-        if report.tenant_id != current_user.tenant_id:
-
-            raise HTTPException(status_code=403, detail="Access denied: Report belongs to another tenant")
+    _require_same_tenant(current_user, report.tenant_id, "Report")
 
 
 
@@ -5805,9 +5994,16 @@ def download_report(
 
     elif fmt == "html":
 
-        html = f"""<!DOCTYPE html><html><head><title>{report.title}</title><style>body{{font-family:sans-serif;margin:40px;color:#0f172a;}} h1{{color:#1e293b;}} pre{{background:#f1f5f9;padding:16px;border-radius:6px;}}</style></head><body><h1>{report.title}</h1><p><strong>Type:</strong> {report.report_type} | <strong>Status:</strong> {report.status} | <strong>Author:</strong> {report.generated_by}</p><pre>{report.content_json or report.description}</pre></body></html>"""
+        def esc(value) -> str:
+            return html.escape("" if value is None else str(value))
 
-        return Response(content=html, media_type="text/html")
+        html_doc = f"""<!DOCTYPE html><html><head><title>{esc(report.title)}</title><style>body{{font-family:sans-serif;margin:40px;color:#0f172a;}} h1{{color:#1e293b;}} pre{{background:#f1f5f9;padding:16px;border-radius:6px;}}</style></head><body><h1>{esc(report.title)}</h1><p><strong>Type:</strong> {esc(report.report_type)} | <strong>Status:</strong> {esc(report.status)} | <strong>Author:</strong> {esc(report.generated_by)}</p><pre>{esc(report.content_json or report.description)}</pre></body></html>"""
+
+        return Response(
+            content=html_doc,
+            media_type="text/html",
+            headers=SAFE_HTML_EXPORT_HEADERS | {"Content-Disposition": f'attachment; filename="report_{_safe_filename(report.report_id)}.html"'},
+        )
 
     else:
 
@@ -5899,11 +6095,8 @@ def delete_report(
 
         raise HTTPException(status_code=404, detail="Report not found")
 
-    if current_user.role != "admin" and getattr(current_user, "tenant_id", None):
-
-        if report.tenant_id != current_user.tenant_id:
-
-            raise HTTPException(status_code=403, detail="Access denied: Report belongs to another tenant")
+    _require_same_tenant(current_user, report.tenant_id, "Report")
+    auth.require_role(current_user, "compliance_officer", "investigator")
 
 
 
@@ -5952,10 +6145,15 @@ def universal_search(
     """Chapter 41: Global Search & Universal Command Palette search provider across tenant resources."""
 
     tenant = getattr(current_user, "tenant_id", "default_tenant")
-
     results = []
-
     q_lower = q.strip().lower()
+    limit = max(1, min(limit, 100))
+    # Match in the database with a row limit. Loading every row of four tables into memory for
+    # each search did not scale past a demo data set.
+    like = "%" + q_lower.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+
+    def matches(*columns):
+        return or_(*[func.lower(col).like(like, escape="\\") for col in columns])
 
 
 
@@ -5964,10 +6162,10 @@ def universal_search(
     if not category or category in ["all", "investigations", "cases"]:
 
         invs = db.query(models.Investigation).filter(
-
-            models.Investigation.tenant_id == tenant
-
-        ).all()
+            models.Investigation.tenant_id == tenant,
+            models.Investigation.is_deleted.is_(False),
+            matches(models.Investigation.investigation_id, models.Investigation.txn_id, models.Investigation.report),
+        ).limit(limit).all()
 
         for inv in invs:
 
@@ -6002,10 +6200,10 @@ def universal_search(
     if not category or category in ["all", "evidence"]:
 
         ev_items = db.query(models.EvidenceVaultItem).filter(
-
-            models.EvidenceVaultItem.tenant_id == tenant
-
-        ).all()
+            models.EvidenceVaultItem.tenant_id == tenant,
+            matches(models.EvidenceVaultItem.title, models.EvidenceVaultItem.description,
+                    models.EvidenceVaultItem.tag, models.EvidenceVaultItem.sha256_hash),
+        ).limit(limit).all()
 
         for it in ev_items:
 
@@ -6042,10 +6240,9 @@ def universal_search(
     if not category or category in ["all", "reports"]:
 
         reports = db.query(models.ReportRecord).filter(
-
-            models.ReportRecord.tenant_id == tenant
-
-        ).all()
+            models.ReportRecord.tenant_id == tenant,
+            matches(models.ReportRecord.title, models.ReportRecord.description, models.ReportRecord.report_type),
+        ).limit(limit).all()
 
         for rep in reports:
 
@@ -6080,10 +6277,9 @@ def universal_search(
     if not category or category in ["all", "transactions"]:
 
         txns = db.query(models.Transaction).filter(
-
-            models.Transaction.tenant_id == tenant
-
-        ).all()
+            models.Transaction.tenant_id == tenant,
+            matches(models.Transaction.txn_id, models.Transaction.counterparty),
+        ).limit(limit).all()
 
         for t in txns:
 
@@ -6569,7 +6765,7 @@ def get_analytics_summary(
 
     inv_query = db.query(models.Investigation)
 
-    if current_user.role != "admin":
+    if not auth.is_platform_admin(current_user):
 
         inv_query = inv_query.filter(models.Investigation.tenant_id == tenant)
 
@@ -6613,7 +6809,7 @@ def get_analytics_summary(
 
     rep_query = db.query(models.ReportRecord)
 
-    if current_user.role != "admin":
+    if not auth.is_platform_admin(current_user):
 
         ev_query = ev_query.filter(models.EvidenceVaultItem.tenant_id == tenant)
 
@@ -6743,7 +6939,7 @@ class AdminUserCreate(BaseModel):
 
     role: str = "investigator"
 
-    password: Optional[str] = "P@ssword123!"
+    password: Optional[str] = None
 
     status: str = "active"
 
@@ -6787,13 +6983,55 @@ class IntegrationUpdate(BaseModel):
 
 
 
+PROCESS_STARTED_AT = time.time()
+
+
+def _measured_llm_p95_ms() -> float:
+    """95th-percentile model latency recorded by this process; 0 before any call was made."""
+    try:
+        stats = metrics_collector.get_llm_observability_stats()
+        return round(float((stats.get("latency_stats_ms") or {}).get("p95") or 0.0), 1)
+    except Exception:
+        return 0.0
+
+
+MIN_PASSWORD_LENGTH = 8
+ACCOUNT_STATUSES = {"active", "suspended", "inactive", "pending"}
+# Names the admin screen shows, mapped to the roles the permission checks understand.
+_ROLE_ALIASES = {
+    "fraud_analyst": "analyst",
+    "senior_investigator": "investigator",
+    "compliance": "compliance_officer",
+    "read_only": "viewer",
+}
+
+
+def _normalise_role(raw: Optional[str]) -> str:
+    """Return a role from auth.VALID_ROLES, or raise 400. platform_admin cannot be granted here."""
+    key = re.sub(r"[\s-]+", "_", (raw or "").strip().lower())
+    key = _ROLE_ALIASES.get(key, key)
+    if key not in auth.VALID_ROLES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid role '{raw}'. Permitted roles: {', '.join(sorted(auth.VALID_ROLES))}"
+        )
+    return key
+
+
+def _normalise_account_status(raw: Optional[str]) -> str:
+    key = (raw or "active").strip().lower()
+    if key not in ACCOUNT_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Invalid status '{raw}'. Permitted: {', '.join(sorted(ACCOUNT_STATUSES))}")
+    return key
+
+
 @app.get("/api/v1/admin/users")
 
 def get_admin_users(
 
     db: Session = Depends(get_db),
 
-    current_user: models.User = Depends(auth.get_current_user)
+    current_user: models.User = Depends(auth.get_admin_user)
 
 ):
 
@@ -6802,12 +7040,8 @@ def get_admin_users(
     tenant = getattr(current_user, "tenant_id", "default_tenant")
 
     users = db.query(models.User).filter(models.User.tenant_id == tenant).all()
-
-
-
-    if not users:
-
-        # Auto-seed standard enterprise roles
+    if not users and demo_seeding_enabled():
+        # Demo mode only: sample accounts with a published password must never appear in a real tenant.
 
         seed_data = [
 
@@ -6887,34 +7121,27 @@ def create_admin_user(
 
     db: Session = Depends(get_db),
 
-    current_user: models.User = Depends(auth.get_current_user)
+    current_user: models.User = Depends(auth.get_admin_user)
 
 ):
 
     """Create a new user with blind indexing, encrypted PII, and role assignments."""
 
     tenant = getattr(current_user, "tenant_id", "default_tenant")
-
+    role = _normalise_role(payload.role)
+    account_status = _normalise_account_status(payload.status)
+    # No default password: an account created with a well-known one is an open door.
+    if not payload.password or len(payload.password) < MIN_PASSWORD_LENGTH:
+        raise HTTPException(status_code=400, detail=f"A password of at least {MIN_PASSWORD_LENGTH} characters is required")
     existing = auth.get_user_by_email(db, payload.email)
-
     if existing:
-
         raise HTTPException(status_code=400, detail="User with this email already exists")
-
-
-
     new_user = models.User(
-
         tenant_id=tenant,
-
-        role=payload.role,
-
-        status=payload.status,
-
-        hashed_password=auth.get_password_hash(payload.password or "P@ssword123!"),
-
+        role=role,
+        status=account_status,
+        hashed_password=auth.get_password_hash(payload.password),
         created_at=timeutil.utcnow()
-
     )
 
     new_user.name = payload.name
@@ -6961,7 +7188,7 @@ def update_admin_user(
 
     db: Session = Depends(get_db),
 
-    current_user: models.User = Depends(auth.get_current_user)
+    current_user: models.User = Depends(auth.get_admin_user)
 
 ):
 
@@ -6975,22 +7202,26 @@ def update_admin_user(
 
         raise HTTPException(status_code=404, detail="User not found")
 
-    if current_user.role != "admin" and u.tenant_id != tenant:
+    if not auth.is_platform_admin(current_user) and u.tenant_id != tenant:
 
         raise HTTPException(status_code=403, detail="Cross-tenant access forbidden")
 
 
 
+    is_self = u.user_id == getattr(current_user, "user_id", None)
     if payload.role:
-
-        u.role = payload.role
-
+        new_role = _normalise_role(payload.role)
+        if is_self and new_role != u.role:
+            raise HTTPException(status_code=400, detail="You cannot change your own role")
+        if u.role == auth.PLATFORM_ADMIN_ROLE and not auth.is_platform_admin(current_user):
+            raise HTTPException(status_code=403, detail="Only a platform administrator can change this account")
+        u.role = new_role
     if payload.status:
-
-        u.status = payload.status
-
+        new_status = _normalise_account_status(payload.status)
+        if is_self and new_status != "active":
+            raise HTTPException(status_code=400, detail="You cannot deactivate your own account")
+        u.status = new_status
     if payload.name:
-
         u.name = payload.name
 
 
@@ -7029,7 +7260,7 @@ def delete_admin_user(
 
     db: Session = Depends(get_db),
 
-    current_user: models.User = Depends(auth.get_current_user)
+    current_user: models.User = Depends(auth.get_admin_user)
 
 ):
 
@@ -7043,12 +7274,12 @@ def delete_admin_user(
 
         raise HTTPException(status_code=404, detail="User not found")
 
-    if current_user.role != "admin" and u.tenant_id != tenant:
-
+    if not auth.is_platform_admin(current_user) and u.tenant_id != tenant:
         raise HTTPException(status_code=403, detail="Cross-tenant access forbidden")
-
-
-
+    if u.user_id == getattr(current_user, "user_id", None):
+        raise HTTPException(status_code=400, detail="You cannot delete your own account")
+    if u.role == auth.PLATFORM_ADMIN_ROLE and not auth.is_platform_admin(current_user):
+        raise HTTPException(status_code=403, detail="Only a platform administrator can remove this account")
     db.delete(u)
 
     db.commit()
@@ -7063,7 +7294,7 @@ def get_system_settings(
 
     db: Session = Depends(get_db),
 
-    current_user: models.User = Depends(auth.get_current_user)
+    current_user: models.User = Depends(auth.get_admin_user)
 
 ):
 
@@ -7157,7 +7388,7 @@ def create_system_setting(
 
     db: Session = Depends(get_db),
 
-    current_user: models.User = Depends(auth.get_current_user)
+    current_user: models.User = Depends(auth.get_admin_user)
 
 ):
 
@@ -7247,7 +7478,7 @@ def update_system_setting(
 
     db: Session = Depends(get_db),
 
-    current_user: models.User = Depends(auth.get_current_user)
+    current_user: models.User = Depends(auth.get_admin_user)
 
 ):
 
@@ -7261,7 +7492,7 @@ def update_system_setting(
 
         raise HTTPException(status_code=404, detail="Setting not found")
 
-    if current_user.role != "admin" and s.tenant_id != tenant:
+    if not auth.is_platform_admin(current_user) and s.tenant_id != tenant:
 
         raise HTTPException(status_code=403, detail="Cross-tenant access forbidden")
 
@@ -7303,7 +7534,7 @@ def get_integrations(
 
     db: Session = Depends(get_db),
 
-    current_user: models.User = Depends(auth.get_current_user)
+    current_user: models.User = Depends(auth.get_admin_user)
 
 ):
 
@@ -7316,17 +7547,14 @@ def get_integrations(
 
 
     if not integrations:
-
+        # The catalogue of connectors. None of them is connected until someone configures it, so
+        # they are listed as such: showing "connected" with a recent sync time would be untrue.
+        demo = demo_seeding_enabled()
         default_ints = [
-
-            ("Salesforce CRM", "salesforce", "connected", 5),
-
-            ("Experian Credit Bureau", "experian", "connected", 3),
-
-            ("Dark Web Monitor", "darkweb-api", "error", 2),
-
-            ("Chainalysis Oracle", "chainalysis", "connected", 4)
-
+            ("Salesforce CRM", "salesforce", "connected" if demo else "not_configured", 5 if demo else 0),
+            ("Experian Credit Bureau", "experian", "connected" if demo else "not_configured", 3 if demo else 0),
+            ("Dark Web Monitor", "darkweb-api", "error" if demo else "not_configured", 2 if demo else 0),
+            ("Chainalysis Oracle", "chainalysis", "connected" if demo else "not_configured", 4 if demo else 0)
         ]
 
         created = []
@@ -7344,9 +7572,7 @@ def get_integrations(
                 status=status_val,
 
                 config_count=count,
-
-                last_sync=timeutil.utcnow() - datetime.timedelta(hours=2)
-
+                last_sync=(timeutil.utcnow() - datetime.timedelta(hours=2)) if demo else None
             )
 
             db.add(item)
@@ -7391,7 +7617,7 @@ def sync_integration(
 
     db: Session = Depends(get_db),
 
-    current_user: models.User = Depends(auth.get_current_user)
+    current_user: models.User = Depends(auth.get_admin_user)
 
 ):
 
@@ -7405,14 +7631,17 @@ def sync_integration(
 
         raise HTTPException(status_code=404, detail="Integration not found")
 
-    if current_user.role != "admin" and i.tenant_id != tenant:
+    if not auth.is_platform_admin(current_user) and i.tenant_id != tenant:
 
         raise HTTPException(status_code=403, detail="Cross-tenant access forbidden")
-
-
-
+    if not demo_seeding_enabled():
+        # No connector code exists behind these entries yet. Reporting a successful sync would
+        # be a made-up result, so the request is refused instead.
+        raise HTTPException(
+            status_code=501,
+            detail=f"No connector is installed for '{i.provider}'. Nothing was synchronised."
+        )
     i.status = "connected"
-
     i.last_sync = timeutil.utcnow()
 
     db.commit()
@@ -7449,7 +7678,7 @@ def toggle_integration(
 
     db: Session = Depends(get_db),
 
-    current_user: models.User = Depends(auth.get_current_user)
+    current_user: models.User = Depends(auth.get_admin_user)
 
 ):
 
@@ -7463,7 +7692,7 @@ def toggle_integration(
 
         raise HTTPException(status_code=404, detail="Integration not found")
 
-    if current_user.role != "admin" and i.tenant_id != tenant:
+    if not auth.is_platform_admin(current_user) and i.tenant_id != tenant:
 
         raise HTTPException(status_code=403, detail="Cross-tenant access forbidden")
 
@@ -7501,7 +7730,7 @@ def get_admin_audit_logs(
 
     db: Session = Depends(get_db),
 
-    current_user: models.User = Depends(auth.get_current_user)
+    current_user: models.User = Depends(auth.get_admin_user)
 
 ):
 
@@ -7513,8 +7742,7 @@ def get_admin_audit_logs(
 
 
 
-    if not logs:
-
+    if not logs and demo_seeding_enabled():
         default_logs = [
 
             ("investigation.created", "Created new investigation for transaction T-78491", "INV-78491"),
@@ -7539,8 +7767,7 @@ def get_admin_audit_logs(
 
                 details=det,
 
-                investigation_id=inv_ref if inv_ref.startswith("INV") else None,
-
+                investigation_id=None,  # the sample ids do not exist, and the column is a foreign key
                 timestamp=timeutil.utcnow() - datetime.timedelta(minutes=15)
 
             )
@@ -7563,7 +7790,9 @@ def get_admin_audit_logs(
 
             "timestamp": l.timestamp.isoformat() + "Z" if l.timestamp else timeutil.utcnow().isoformat() + "Z",
 
-            "user": "alex.johnson@company.com" if "user" in l.action else "System",
+            # The audit table does not record an acting user or address as separate fields, so
+            # none is invented here; the details text carries the actor where one was written.
+            "user": "System",
 
             "action": l.action,
 
@@ -7571,7 +7800,7 @@ def get_admin_audit_logs(
 
             "details": l.details or "",
 
-            "ipAddress": "192.168.1.100" if "user" in l.action else "127.0.0.1"
+            "ipAddress": None
 
         }
 
@@ -7587,7 +7816,7 @@ def get_system_health(
 
     db: Session = Depends(get_db),
 
-    current_user: models.User = Depends(auth.get_current_user)
+    current_user: models.User = Depends(auth.get_admin_user)
 
 ):
 
@@ -7599,24 +7828,39 @@ def get_system_health(
 
 
 
+    # Everything below is measured at request time; nothing is a fixed display value.
+    db_status = "connected"
+    try:
+        db.execute(text("SELECT 1"))
+    except Exception:
+        db_status = "unreachable"
+    pool = engine.pool
+    active_connections = pool.checkedout() if hasattr(pool, "checkedout") else None
+    pool_size = pool.size() if hasattr(pool, "size") else None
+
+    uptime_s = int(time.time() - PROCESS_STARTED_AT)
+    days, rem = divmod(uptime_s, 86400)
+    hours, rem = divmod(rem, 3600)
+    try:
+        cpu_pct = round(os.getloadavg()[0] / max(1, os.cpu_count() or 1) * 100, 1)
+    except (OSError, AttributeError):
+        cpu_pct = 0.0
+    try:
+        import resource
+        memory_mb = round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024, 1)  # KiB on Linux
+    except Exception:
+        memory_mb = 0.0
+
+    overall = "healthy" if db_status == "connected" and worker_health["status"] == "healthy" else "degraded"
     return {
-
-        "status": "healthy",
-
-        "uptime": "14d 6h 32m",
-
-        "cpu_usage_pct": 24.5,
-
-        "memory_usage_mb": 642,
-
+        "status": overall,
+        "uptime": f"{days}d {hours}h {rem // 60}m",
+        "cpu_usage_pct": cpu_pct,
+        "memory_usage_mb": memory_mb,
         "database": {
-
-            "status": "connected",
-
-            "active_connections": 8,
-
-            "pool_size": 20
-
+            "status": db_status,
+            "active_connections": active_connections,
+            "pool_size": pool_size
         },
 
         "cache_worker": {
@@ -7635,8 +7879,7 @@ def get_system_health(
 
         },
 
-        "model_latency_p95_ms": 142
-
+        "model_latency_p95_ms": _measured_llm_p95_ms()
     }
 
 
@@ -7728,13 +7971,64 @@ def health_check():
     return {"status": "healthy", "version": "1.0"}
 
 
+@app.get("/api/v1/ready")
+def readiness_check(response: Response, db: Session = Depends(get_db)):
+    """
+    Readiness: can this instance serve requests right now? Unlike /health (which only says the
+    process is alive), this checks the database, and Redis when the deployment depends on it.
+    Returns 503 when a dependency is down, so a load balancer stops sending traffic here.
+    """
+    checks: Dict[str, str] = {}
+    try:
+        db.execute(text("SELECT 1"))
+        checks["database"] = "ok"
+    except Exception:
+        checks["database"] = "unreachable"
+    if os.getenv("REDIS_URL") and (auth.is_strict_mode() or investigation_execution_mode() == "worker"):
+        try:
+            import redis as _redis
+            _redis.Redis.from_url(os.getenv("REDIS_URL"), socket_timeout=1).ping()
+            checks["redis"] = "ok"
+        except Exception:
+            checks["redis"] = "unreachable"
+    ready = all(v == "ok" for v in checks.values())
+    if not ready:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    return {"status": "ready" if ready else "not_ready", "checks": checks}
+
+
+def _llm_stats_for(current_user: models.User) -> dict:
+    """LLM usage for the caller's tenant. Only a platform administrator sees every tenant's cost."""
+    if auth.is_platform_admin(current_user):
+        return metrics_collector.get_llm_observability_stats()
+    tenant = getattr(current_user, "tenant_id", None) or "default_tenant"
+    stats = dict(metrics_collector.get_llm_observability_stats(tenant_id=tenant))
+    stats["cost_by_tenant"] = {tenant: (stats.get("cost_by_tenant") or {}).get(tenant, 0.0)}
+    stats["recent_calls"] = [
+        c for c in (stats.get("recent_calls") or [])
+        if not isinstance(c, dict) or c.get("tenant_id") in (None, tenant)
+    ]
+    return stats
+
+
+def require_metrics_scrape_access(request: Request) -> None:
+    """
+    Guard for the Prometheus endpoint, which a scraper calls without a user session. When
+    METRICS_TOKEN is set the scraper must send it as a bearer token. In production the endpoint is
+    closed until a token is configured; in development it stays open.
+    """
+    expected = os.getenv("METRICS_TOKEN", "").strip()
+    if expected:
+        supplied = request.headers.get("authorization", "")
+        if not hmac.compare_digest(supplied, f"Bearer {expected}"):
+            raise HTTPException(status_code=401, detail="Invalid or missing metrics token")
+    elif auth.is_strict_mode():
+        raise HTTPException(status_code=403, detail="Metrics scraping is disabled until METRICS_TOKEN is configured")
+
 
 @app.get("/api/v1/metrics")
-
-def get_metrics():
-
+def get_metrics(current_user: models.User = Depends(auth.get_current_user)):
     """Endpoint to retrieve performance metrics for monitoring."""
-
     return {
 
         "investigation_duration_stats": metrics_collector.get_investigation_duration_stats(),
@@ -7747,8 +8041,7 @@ def get_metrics():
 
         "investment_outcome_counts": metrics_collector.get_investment_outcome_counts(),
 
-        "llm_observability": metrics_collector.get_llm_observability_stats()
-
+        "llm_observability": _llm_stats_for(current_user)
     }
 
 
@@ -7765,14 +8058,14 @@ def get_ai_cost_metrics(
 
     """Retrieve token usage, model economics, and LLM cost intelligence telemetry."""
 
-    effective_tenant = tenant_id or getattr(current_user, "tenant_id", "default_tenant")
+    # tenant_id is honoured for platform administrators only; anyone else sees their own tenant.
+    if tenant_id and auth.is_platform_admin(current_user):
+        return metrics_collector.get_llm_observability_stats(tenant_id=tenant_id)
+    return _llm_stats_for(current_user)
 
-    return metrics_collector.get_llm_observability_stats(tenant_id=effective_tenant)
 
 
-
-@app.get("/metrics")
-
+@app.get("/metrics", dependencies=[Depends(require_metrics_scrape_access)])
 def get_prometheus_metrics():
 
     """Endpoint to export performance metrics in standard Prometheus text exposition format."""
@@ -7947,6 +8240,42 @@ class VerifierResponse(BaseModel):
 
 
 
+def attestation_canonical(
+    narrative_hash: str,
+    evidence_digest: str,
+    tenant: Optional[str],
+    model_version: Optional[str],
+    prompt_version: Optional[str],
+    grounding_score: float,
+    verdict: Optional[str],
+    evaluated_at: Optional[str],
+) -> str:
+    """
+    The exact text that is signed for an attestation.
+
+    It is canonical JSON: every field is a separately quoted value, so no field can spill into
+    the next. The earlier format joined the fields with "|", and one of them (the vendor name) is
+    free text from the caller. A vendor containing "|" shifted the fields, which let a signature
+    issued for a failing narrative also verify as a PASSED one.
+    """
+    return json.dumps(
+        {
+            "v": 2,
+            "narrative_sha256": str(narrative_hash),
+            "evidence_sha256": str(evidence_digest),
+            "tenant_id": "" if tenant is None else str(tenant),
+            "model_version": "" if model_version is None else str(model_version),
+            "prompt_version": "" if prompt_version is None else str(prompt_version),
+            "grounding_score": f"{float(grounding_score):.4f}",
+            "verification_status": "" if verdict is None else str(verdict),
+            "evaluated_at": "" if evaluated_at is None else str(evaluated_at),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    )
+
+
 class VerifyAttestationRequest(BaseModel):
 
     narrative: str
@@ -8069,7 +8398,7 @@ def evaluate_narrative_verifier(
 
         tenant = getattr(current_user, "tenant_id", "default_tenant") or "default_tenant"
 
-        canonical = f"V1|{narrative_hash}|{evidence_digest}|{tenant}|{payload.vendor or 'generic'}|guardrails-v1.0|0.0000|REJECTED_EMPTY|{eval_time}"
+        canonical = attestation_canonical(narrative_hash, evidence_digest, tenant, payload.vendor or "generic", "guardrails-v1.0", 0.0, "REJECTED_EMPTY", eval_time)
 
         sig = priv_key.sign(canonical.encode("utf-8")).hex()
 
@@ -8121,7 +8450,7 @@ def evaluate_narrative_verifier(
 
         tenant = getattr(current_user, "tenant_id", "default_tenant") or "default_tenant"
 
-        canonical = f"V1|{narrative_hash}|{evidence_digest}|{tenant}|{payload.vendor or 'generic'}|guardrails-v1.0|0.0000|REJECTED_EMPTY|{eval_time}"
+        canonical = attestation_canonical(narrative_hash, evidence_digest, tenant, payload.vendor or "generic", "guardrails-v1.0", 0.0, "REJECTED_EMPTY", eval_time)
 
         sig = priv_key.sign(canonical.encode("utf-8")).hex()
 
@@ -8181,16 +8510,14 @@ def evaluate_narrative_verifier(
 
 
 
-        if is_supported or c.get("status") == "VERIFIED":
-
+        # The verifier labels each claim itself. Guessing from the word "contradict" in the reason
+        # text counted currency, device and identity conflicts as merely ungrounded.
+        explicit_status = c.get("status") or guardrails.claim_status(bool(is_supported), str(c_reason or ""))
+        if is_supported or explicit_status == "VERIFIED":
             c_status = "VERIFIED"
-
             verified += 1
-
-        elif "contradict" in str(c_reason).lower() or c.get("status") == "CONTRADICTED":
-
+        elif explicit_status == "CONTRADICTED":
             c_status = "CONTRADICTED"
-
             contradicted += 1
 
         else:
@@ -8251,7 +8578,7 @@ def evaluate_narrative_verifier(
 
     prompt_version = "guardrails-v1.0"
 
-    canonical = f"V1|{narrative_hash}|{evidence_digest}|{tenant}|{model_version}|{prompt_version}|{grounding_score:.4f}|{verdict}|{eval_time}"
+    canonical = attestation_canonical(narrative_hash, evidence_digest, tenant, model_version, prompt_version, grounding_score, verdict, eval_time)
 
 
 
@@ -8321,7 +8648,7 @@ def verify_verifier_attestation(payload: VerifyAttestationRequest):
 
     prompt_version = payload.prompt_version or "guardrails-v1.0"
 
-    canonical = f"V1|{narrative_hash}|{evidence_digest}|{payload.tenant_id}|{model_version}|{prompt_version}|{payload.grounding_score:.4f}|{payload.verification_status}|{payload.evaluated_at}"
+    canonical = attestation_canonical(narrative_hash, evidence_digest, payload.tenant_id, model_version, prompt_version, payload.grounding_score, payload.verification_status, payload.evaluated_at)
 
 
 

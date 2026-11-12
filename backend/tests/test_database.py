@@ -47,12 +47,19 @@ def test_alembic_migrations_configuration():
     script_dir = ScriptDirectory.from_config(alembic_cfg)
     head_rev = script_dir.get_current_head()
     assert head_rev is not None
-    assert head_rev == "e7f8a9b0c1d2"
+    assert head_rev == "f8a9b0c1d2e3"
 
 def test_production_postgres_pool_configuration():
     """Verify PostgreSQL engine initialization respects enterprise pooling parameters."""
     import os
-    from database import engine_kwargs
-    # Check that sqlite has QueuePool configured with pool_size >= 20
+    from database import engine_kwargs, SQLALCHEMY_DATABASE_URL
     assert "pool_size" in engine_kwargs
-    assert engine_kwargs["pool_size"] >= 20
+    if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
+        # SQLite has no server-side connection limit, so the local pool stays generous.
+        assert engine_kwargs["pool_size"] >= 20
+    elif not os.getenv("DB_POOL_SIZE"):
+        # PostgreSQL: 10 + 5 overflow per process keeps 4 workers (60 connections) under the
+        # server's default limit of 100.
+        assert engine_kwargs["pool_size"] == 10
+        assert engine_kwargs["max_overflow"] == 5
+        assert engine_kwargs["pool_pre_ping"] is True
