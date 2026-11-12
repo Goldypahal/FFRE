@@ -127,12 +127,23 @@ def test_multitenancy_isolation(client, db_session):
     )
     assert review_beta_resp.status_code == 403
 
-    # Switch to admin user: can access cross-tenant
+    # An administrator of another tenant is still confined to that tenant.
     app.dependency_overrides[get_current_user] = lambda: models.User(
         user_id="user_admin",
         name="Admin User",
         email="admin@example.com",
         role="admin",
+        tenant_id="admin_tenant"
+    )
+    tenant_admin_get_resp = client.get(f"/api/v1/investigations/{inv_id}")
+    assert tenant_admin_get_resp.status_code == 403
+
+    # Only the platform operator role may cross tenant boundaries.
+    app.dependency_overrides[get_current_user] = lambda: models.User(
+        user_id="user_platform",
+        name="Platform Operator",
+        email="operator@example.com",
+        role="platform_admin",
         tenant_id="admin_tenant"
     )
     admin_get_resp = client.get(f"/api/v1/investigations/{inv_id}")
