@@ -35,10 +35,11 @@ yarn-error.log*
 
 # Environment variables & secrets
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+!*.example
+!**/*.example
+**/.env
+**/.env.*
 *.key
 *.pem
 backend/data/vault/*

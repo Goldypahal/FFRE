@@ -27,6 +27,14 @@ FFIRE solves this by acting as a **vendor-neutral verification and investigation
 > - **In Scope**: Post-transaction fraud reasoning, multi-agent LangGraph analysis, universal claim-grounding verification sidecar, SHA-256 audit chaining, offline replay verification CLI, and FinCEN SAR audit dossier preparation with human review.
 > - **Out of Scope**: Real-time inline payment switch blocking (FFIRE operates as an advisory post-transaction intelligence engine); direct autonomous electronic filing with FinCEN without human compliance officer authorization.
 
+> [!NOTE]
+> ### Independent Evaluation & FFIRE-Bench Initiative
+> To guarantee objective, empirical rigor and avoid marketing claims ahead of evidence:
+> - **Vendor Neutrality**: The FFIRE product is evaluated as an ordinary submitter to **FFIRE-Bench** under the exact same public and private rules as external models (`CHARTER.md` and `GOVERNANCE.md`).
+> - **Public Leaderboard**: View independent verified scores, confidence intervals, and slice analyses in [docs/LEADERBOARD.md](file:///D:/Desktop/FFRE/docs/LEADERBOARD.md).
+> - **Technical Report & Datasheet**: Read [docs/technical_report_v0.1.md](file:///D:/Desktop/FFRE/docs/technical_report_v0.1.md) and [docs/DATASHEET.md](file:///D:/Desktop/FFRE/docs/DATASHEET.md).
+> - **Credibility Reset**: Historical held-out evaluation statuses have been converted from hard-coded strings to dynamic, honest thresholds. See [CHANGELOG.md](file:///D:/Desktop/FFRE/CHANGELOG.md) and [data/benchmarks/held_out_100_evaluation_report.md](file:///D:/Desktop/FFRE/data/benchmarks/held_out_100_evaluation_report.md).
+
 ---
 
 ## Table of Contents

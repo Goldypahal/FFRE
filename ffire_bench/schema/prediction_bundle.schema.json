@@ -1,0 +1,244 @@
+{
+  "$defs": {
+    "CaseDisposition": {
+      "enum": [
+        "ALLOW",
+        "CLOSE",
+        "FLAG",
+        "ESCALATE",
+        "NEED_MORE_INFO"
+      ],
+      "title": "CaseDisposition",
+      "type": "string"
+    },
+    "ClaimLabel": {
+      "enum": [
+        "SUPPORTED",
+        "CONTRADICTED",
+        "UNSUPPORTED",
+        "NOT_CHECKABLE"
+      ],
+      "title": "ClaimLabel",
+      "type": "string"
+    },
+    "ErrorCode": {
+      "enum": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8",
+        "E9",
+        "E10",
+        "E11",
+        "E12"
+      ],
+      "title": "ErrorCode",
+      "type": "string"
+    },
+    "PredictionCase": {
+      "properties": {
+        "case_id": {
+          "title": "Case Id",
+          "type": "string"
+        },
+        "predicted_safe_to_file": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Predicted Safe To File"
+        },
+        "predicted_disposition": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CaseDisposition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "predicted_confidence": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 1.0,
+          "title": "Predicted Confidence"
+        },
+        "claims": {
+          "items": {
+            "$ref": "#/$defs/PredictionClaim"
+          },
+          "title": "Claims",
+          "type": "array"
+        },
+        "predicted_error_spans": {
+          "items": {
+            "$ref": "#/$defs/PredictionErrorSpan"
+          },
+          "title": "Predicted Error Spans",
+          "type": "array"
+        }
+      },
+      "required": [
+        "case_id"
+      ],
+      "title": "PredictionCase",
+      "type": "object"
+    },
+    "PredictionClaim": {
+      "properties": {
+        "claim_id": {
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "predicted_label": {
+          "$ref": "#/$defs/ClaimLabel"
+        },
+        "cited_evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Cited Evidence Ids",
+          "type": "array"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 1.0,
+          "title": "Confidence"
+        }
+      },
+      "required": [
+        "claim_id",
+        "predicted_label"
+      ],
+      "title": "PredictionClaim",
+      "type": "object"
+    },
+    "PredictionErrorSpan": {
+      "properties": {
+        "span": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Span",
+          "type": "array"
+        },
+        "error_code": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ErrorCode"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "severity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Severity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "span"
+      ],
+      "title": "PredictionErrorSpan",
+      "type": "object"
+    },
+    "Severity": {
+      "enum": [
+        "critical",
+        "major",
+        "minor"
+      ],
+      "title": "Severity",
+      "type": "string"
+    },
+    "Track": {
+      "enum": [
+        "T1",
+        "T2",
+        "T3",
+        "T4",
+        "T5",
+        "T6"
+      ],
+      "title": "Track",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "benchmark_version": {
+      "default": "0.1.0",
+      "title": "Benchmark Version",
+      "type": "string"
+    },
+    "model_name": {
+      "title": "Model Name",
+      "type": "string"
+    },
+    "track": {
+      "$ref": "#/$defs/Track"
+    },
+    "submission_timestamp": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Submission Timestamp"
+    },
+    "predictions": {
+      "items": {
+        "$ref": "#/$defs/PredictionCase"
+      },
+      "title": "Predictions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "model_name",
+    "track",
+    "predictions"
+  ],
+  "title": "PredictionBundle",
+  "type": "object"
+}

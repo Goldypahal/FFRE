@@ -1,0 +1,388 @@
+{
+  "benchmark_version": "0.1.0",
+  "model_name": "Baseline-Random",
+  "track": "T1",
+  "submission_timestamp": null,
+  "predictions": [
+    {
+      "case_id": "FB-T1-000001",
+      "predicted_safe_to_file": true,
+      "predicted_disposition": "NEED_MORE_INFO",
+      "predicted_confidence": 0.17,
+      "claims": [
+        {
+          "claim_id": "CL-1",
+          "predicted_label": "SUPPORTED",
+          "cited_evidence_ids": [
+            "EV-1"
+          ],
+          "confidence": 0.69
+        },
+        {
+          "claim_id": "CL-2",
+          "predicted_label": "CONTRADICTED",
+          "cited_evidence_ids": [
+            "EV-1"
+          ],
+          "confidence": 0.21
+        }
+      ],
+      "predicted_error_spans": []
+    },
+    {
+      "case_id": "FB-T1-000002",
+      "predicted_safe_to_file": true,
+      "predicted_disposition": "CLOSE",
+      "predicted_confidence": 0.5,
+      "claims": [
+        {
+          "claim_id": "CL-1",
+          "predicted_label": "NOT_CHECKABLE",
+          "cited_evidence_ids": [
+            "EV-1"
+          ],
+          "confidence": 0.12
+        }
+      ],
+      "predicted_error_spans": []
+    },
+    {
+      "case_id": "FB-T1-000003",
+      "predicted_safe_to_file": false,
+      "predicted_disposition": "CLOSE",
+      "predicted_confidence": 0.46,
+      "claims": [
+        {
+          "claim_id": "CL-1",
+          "predicted_label": "SUPPORTED",
+          "cited_evidence_ids": [
+            "EV-1"
+          ],
+          "confidence": 0.67
+        }
+      ],
+      "predicted_error_spans": []
+    },
+    {
+      "case_id": "FB-T1-000004",
+      "predicted_safe_to_file": true,
+      "predicted_disposition": "ESCALATE",
+      "predicted_confidence": 0.37,
+      "claims": [
+        {
+          "claim_id": "CL-1",
+          "predicted_label": "UNSUPPORTED",
+          "cited_evidence_ids": [
+            "EV-1"
+          ],
+          "confidence": 0.71
+        }
+      ],
+      "predicted_error_spans": []
+    },
+    {
+      "case_id": "FB-T1-000005",
+      "predicted_safe_to_file": false,
+      "predicted_disposition": "ALLOW",
+      "predicted_confidence": 0.17,
+      "claims": [
+        {
+          "claim_id": "CL-1",
+          "predicted_label": "CONTRADICTED",
+          "cited_evidence_ids": [
+            "EV-1"
+          ],
+          "confidence": 0.87
+        }
+      ],
+      "predicted_error_spans": []
+    },
+    {
+      "case_id": "FB-T1-000006",
+      "predicted_safe_to_file": false,
+      "predicted_disposition": "ALLOW",
+      "predicted_confidence": 0.68,
+      "claims": [
+        {
+          "claim_id": "CL-1",
+          "predicted_label": "SUPPORTED",
+          "cited_evidence_ids": [
+            "EV-2"
+          ],
+          "confidence": 0.78
+        }
+      ],
+      "predicted_error_spans": []
+    },
+    {
+      "case_id": "FB-T1-000007",
+      "predicted_safe_to_file": false,
+      "predicted_disposition": "NEED_MORE_INFO",
+      "predicted_confidence": 0.81,
+      "claims": [
+        {
+          "claim_id": "CL-1",
+          "predicted_label": "SUPPORTED",
+          "cited_evidence_ids": [
+            "EV-2"
+          ],
+          "confidence": 0.16
+        }
+      ],
+      "predicted_error_spans": []
+    },
+    {
+      "case_id": "FB-T1-000008",
+      "predicted_safe_to_file": true,
+      "predicted_disposition": "CLOSE",
+      "predicted_confidence": 0.79,
+      "claims": [
+        {
+          "claim_id": "CL-1",
+          "predicted_label": "UNSUPPORTED",
+          "cited_evidence_ids": [
+            "EV-1"
+          ],
+          "confidence": 0.66
+        },
+        {
+          "claim_id": "CL-2",
+          "predicted_label": "SUPPORTED",
+          "cited_evidence_ids": [
+            "EV-1"
+          ],
+          "confidence": 0.72
+        }
+      ],
+      "predicted_error_spans": []
+    },
+    {
+      "case_id": "FB-T1-000009",
+      "predicted_safe_to_file": true,
+      "predicted_disposition": "FLAG",
+      "predicted_confidence": 0.66,
+      "claims": [
+        {
+          "claim_id": "CL-1",
+          "predicted_label": "NOT_CHECKABLE",
+          "cited_evidence_ids": [
+            "EV-2"
+          ],
+          "confidence": 0.46
+        },
+        {
+          "claim_id": "CL-2",
+          "predicted_label": "UNSUPPORTED",
+          "cited_evidence_ids": [
+            "EV-1"
+          ],
+          "confidence": 0.4
+        }
+      ],
+      "predicted_error_spans": []
+    },
+    {
+      "case_id": "FB-T1-000010",
+      "predicted_safe_to_file": true,
+      "predicted_disposition": "CLOSE",
+      "predicted_confidence": 0.47,
+      "claims": [
+        {
+          "claim_id": "CL-1",
+          "predicted_label": "SUPPORTED",
+          "cited_evidence_ids": [
+            "EV-1"
+          ],
+          "confidence": 0.53
+        }
+      ],
+      "predicted_error_spans": []
+    },
+    {
+      "case_id": "FB-T1-000011",
+      "predicted_safe_to_file": true,
+      "predicted_disposition": "CLOSE",
+      "predicted_confidence": 0.76,
+      "claims": [
+        {
+          "claim_id": "CL-1",
+          "predicted_label": "UNSUPPORTED",
+          "cited_evidence_ids": [
+            "EV-1"
+          ],
+          "confidence": 0.65
+        }
+      ],
+      "predicted_error_spans": []
+    },
+    {
+      "case_id": "FB-T1-000012",
+      "predicted_safe_to_file": true,
+      "predicted_disposition": "NEED_MORE_INFO",
+      "predicted_confidence": 0.8,
+      "claims": [
+        {
+          "claim_id": "CL-1",
+          "predicted_label": "UNSUPPORTED",
+          "cited_evidence_ids": [
+            "EV-2"
+          ],
+          "confidence": 0.31
+        }
+      ],
+      "predicted_error_spans": []
+    },
+    {
+      "case_id": "FB-T1-000013",
+      "predicted_safe_to_file": false,
+      "predicted_disposition": "ESCALATE",
+      "predicted_confidence": 0.21,
+      "claims": [
+        {
+          "claim_id": "CL-1",
+          "predicted_label": "UNSUPPORTED",
+          "cited_evidence_ids": [
+            "EV-1"
+          ],
+          "confidence": 0.62
+        }
+      ],
+      "predicted_error_spans": []
+    },
+    {
+      "case_id": "FB-T1-000014",
+      "predicted_safe_to_file": false,
+      "predicted_disposition": "NEED_MORE_INFO",
+      "predicted_confidence": 0.44,
+      "claims": [
+        {
+          "claim_id": "CL-1",
+          "predicted_label": "CONTRADICTED",
+          "cited_evidence_ids": [
+            "EV-1"
+          ],
+          "confidence": 0.7
+        }
+      ],
+      "predicted_error_spans": []
+    },
+    {
+      "case_id": "FB-T1-000015",
+      "predicted_safe_to_file": true,
+      "predicted_disposition": "NEED_MORE_INFO",
+      "predicted_confidence": 0.49,
+      "claims": [
+        {
+          "claim_id": "CL-1",
+          "predicted_label": "NOT_CHECKABLE",
+          "cited_evidence_ids": [
+            "EV-2"
+          ],
+          "confidence": 0.28
+        }
+      ],
+      "predicted_error_spans": []
+    },
+    {
+      "case_id": "FB-T1-000016",
+      "predicted_safe_to_file": false,
+      "predicted_disposition": "ESCALATE",
+      "predicted_confidence": 0.58,
+      "claims": [
+        {
+          "claim_id": "CL-1",
+          "predicted_label": "SUPPORTED",
+          "cited_evidence_ids": [
+            "EV-1"
+          ],
+          "confidence": 0.22
+        },
+        {
+          "claim_id": "CL-2",
+          "predicted_label": "CONTRADICTED",
+          "cited_evidence_ids": [
+            "EV-2"
+          ],
+          "confidence": 0.58
+        }
+      ],
+      "predicted_error_spans": []
+    },
+    {
+      "case_id": "FB-T1-000017",
+      "predicted_safe_to_file": false,
+      "predicted_disposition": "FLAG",
+      "predicted_confidence": 0.19,
+      "claims": [
+        {
+          "claim_id": "CL-1",
+          "predicted_label": "NOT_CHECKABLE",
+          "cited_evidence_ids": [
+            "EV-2"
+          ],
+          "confidence": 0.88
+        },
+        {
+          "claim_id": "CL-2",
+          "predicted_label": "SUPPORTED",
+          "cited_evidence_ids": [
+            "EV-1"
+          ],
+          "confidence": 0.65
+        }
+      ],
+      "predicted_error_spans": []
+    },
+    {
+      "case_id": "FB-T1-000018",
+      "predicted_safe_to_file": false,
+      "predicted_disposition": "NEED_MORE_INFO",
+      "predicted_confidence": 0.71,
+      "claims": [
+        {
+          "claim_id": "CL-1",
+          "predicted_label": "NOT_CHECKABLE",
+          "cited_evidence_ids": [
+            "EV-1"
+          ],
+          "confidence": 0.46
+        }
+      ],
+      "predicted_error_spans": []
+    },
+    {
+      "case_id": "FB-T1-000019",
+      "predicted_safe_to_file": true,
+      "predicted_disposition": "CLOSE",
+      "predicted_confidence": 0.4,
+      "claims": [
+        {
+          "claim_id": "CL-1",
+          "predicted_label": "SUPPORTED",
+          "cited_evidence_ids": [
+            "EV-2"
+          ],
+          "confidence": 0.77
+        }
+      ],
+      "predicted_error_spans": []
+    },
+    {
+      "case_id": "FB-T1-000020",
+      "predicted_safe_to_file": false,
+      "predicted_disposition": "ALLOW",
+      "predicted_confidence": 0.19,
+      "claims": [
+        {
+          "claim_id": "CL-1",
+          "predicted_label": "CONTRADICTED",
+          "cited_evidence_ids": [
+            "EV-1"
+          ],
+          "confidence": 0.58
+        }
+      ],
+      "predicted_error_spans": []
+    }
+  ]
+}

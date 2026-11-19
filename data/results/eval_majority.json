@@ -1,0 +1,127 @@
+{
+  "model_name": "Baseline-Majority",
+  "track": "T1",
+  "benchmark_version": "0.1.0",
+  "evaluated_cases_count": 20,
+  "evaluated_claims_count": 25,
+  "metrics": {
+    "t1": {
+      "macro_f1": 0.1875,
+      "micro_accuracy": 0.6,
+      "total_claims": 25,
+      "citation_metrics": {
+        "citation_precision": 0.72,
+        "citation_recall": 0.72,
+        "citation_f1": 0.72,
+        "correct_citations": 18,
+        "gold_citations": 25,
+        "pred_citations": 25
+      },
+      "per_class": {
+        "SUPPORTED": {
+          "precision": 0.6,
+          "recall": 1.0,
+          "f1": 0.75,
+          "support": 15
+        },
+        "CONTRADICTED": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 10
+        },
+        "UNSUPPORTED": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 0
+        },
+        "NOT_CHECKABLE": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 0
+        }
+      }
+    },
+    "t2": {
+      "safe_to_file_accuracy": 50.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "specificity": 100.0,
+      "f1": 0.0,
+      "critical_error_recall": 0.0,
+      "confusion_matrix": {
+        "true_unsafe": 0,
+        "false_unsafe": 0,
+        "true_safe": 10,
+        "false_safe": 10
+      },
+      "total_cases": 20
+    },
+    "t3": {
+      "raw_accuracy": 0.0,
+      "cost_weighted_accuracy": 1.1,
+      "total_penalty_cost": 180.0,
+      "brier_score": 0.1,
+      "ece_15_bins": 0.1,
+      "abstention_recall": 0.0,
+      "total_cases": 20
+    },
+    "confidence_intervals": {
+      "t1_macro_f1_95ci": [
+        0.1515,
+        0.2128
+      ],
+      "t2_safe_to_file_acc_95ci": [
+        33.33,
+        66.67
+      ]
+    }
+  },
+  "evaluations": {
+    "macro_f1": {
+      "value": 0.1875,
+      "threshold": 0.75,
+      "operator": ">=",
+      "label": ">= 0.75 target",
+      "status": "FAIL"
+    },
+    "citation_f1": {
+      "value": 0.72,
+      "threshold": 0.8,
+      "operator": ">=",
+      "label": ">= 0.80 target",
+      "status": "FAIL"
+    }
+  },
+  "overall_status": "FAIL",
+  "targets_passed": 0,
+  "targets_total": 2,
+  "slices": {
+    "by_typology": {
+      "rapid_movement": 0.0,
+      "funnel_accounts": 100.0,
+      "account_takeover": 0.0,
+      "mule_network": 100.0,
+      "trade_based_ml": 0.0,
+      "elder_exploitation": 100.0,
+      "sanctions_adjacent": 0.0,
+      "structuring": 100.0
+    },
+    "by_difficulty": {
+      "medium": 70.0,
+      "hard": 42.86,
+      "easy": 0.0
+    },
+    "by_narrative_source": {
+      "llm:synthetic_generator_v1": 50.0
+    },
+    "by_error_code": {
+      "E2": 0.0,
+      "E4": 0.0,
+      "E8": 0.0,
+      "E9": 0.0
+    }
+  }
+}

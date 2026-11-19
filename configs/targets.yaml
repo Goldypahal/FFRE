@@ -1,0 +1,114 @@
+# FFIRE-Bench Evaluation Targets and Metric Thresholds
+# All benchmark pass/fail statuses MUST be computed dynamically against these rules.
+# Never hard-code or type a status string directly.
+
+held_out_100:
+  accuracy:
+    threshold: 85.0
+    operator: ">="
+    label: ">= 85.0% target"
+    description: "Overall decision classification accuracy across all 6 archetypes"
+  precision:
+    threshold: 85.0
+    operator: ">="
+    label: ">= 85.0% target"
+    description: "Positive predictive value for fraud identification"
+  recall:
+    threshold: 90.0
+    operator: ">="
+    label: ">= 90.0% target"
+    description: "Sensitivity / Fraud detection rate"
+  specificity:
+    threshold: 80.0
+    operator: ">="
+    label: ">= 80.0% target"
+    description: "True negative rate for legitimate transactions"
+  f1_score:
+    threshold: 0.8500
+    operator: ">="
+    label: ">= 0.85 target"
+    description: "Harmonic mean of precision and recall"
+  false_positive_rate:
+    threshold: 5.0
+    operator: "<="
+    label: "< 5.0% target"
+    description: "Proportion of legitimate transactions improperly flagged/escalated"
+  false_negative_rate:
+    threshold: 2.0
+    operator: "<="
+    label: "< 2.0% target"
+    description: "Proportion of fraudulent transactions erroneously allowed"
+  brier_score:
+    threshold: 0.1000
+    operator: "<="
+    label: "< 0.10 target"
+    description: "Mean squared error of probabilistic risk calibration"
+  evidence_grounding:
+    threshold: 100.0
+    operator: ">="
+    label: "100% target"
+    description: "Proportion of claims/decisions backed by valid source and snippet"
+  kyc_escalation_rate:
+    threshold: 100.0
+    operator: ">="
+    label: "100% target"
+    description: "Fail-closed rate for accounts with insufficient evidence or missing KYC"
+
+# FFIRE-Bench Public Tracks
+tracks:
+  t1_claim_verification:
+    macro_f1:
+      threshold: 0.75
+      operator: ">="
+      label: ">= 0.75 target"
+      description: "Macro-F1 across SUPPORTED, CONTRADICTED, UNSUPPORTED, NOT_CHECKABLE"
+    citation_f1:
+      threshold: 0.80
+      operator: ">="
+      label: ">= 0.80 target"
+      description: "Precision/recall on cited evidence IDs vs gold evidence IDs"
+
+  t2_narrative_error_detection:
+    safe_to_file_accuracy:
+      threshold: 80.0
+      operator: ">="
+      label: ">= 80.0% target"
+      description: "Accuracy of binary safe_to_file decision"
+    critical_error_recall:
+      threshold: 85.0
+      operator: ">="
+      label: ">= 85.0% target"
+      description: "Recall of critical narrative errors (E1-E12 critical severity)"
+    error_span_recall_at_90_prec:
+      threshold: 70.0
+      operator: ">="
+      label: ">= 70.0% target"
+      description: "Character-level error span recall at 90% precision"
+
+  t3_disposition_abstention:
+    cost_weighted_accuracy:
+      threshold: 85.0
+      operator: ">="
+      label: ">= 85.0% target"
+      description: "Cost-weighted accuracy (10x penalty for false negative on fraud)"
+    risk_coverage_auc:
+      threshold: 0.85
+      operator: ">="
+      label: ">= 0.85 target"
+      description: "Area under selective risk-coverage curve under abstention"
+    brier_score:
+      threshold: 0.10
+      operator: "<="
+      label: "< 0.10 target"
+      description: "Brier calibration score across probabilistic dispositions"
+    ece_15_bins:
+      threshold: 0.08
+      operator: "<="
+      label: "<= 0.08 target"
+      description: "Expected Calibration Error across 15 equal-frequency bins"
+
+# Difficulty calibration gates (Section 2.8)
+calibration_gates:
+  max_best_system_score: 0.80
+  max_trivial_baseline_score: 0.40
+  min_human_expert_score: 0.90

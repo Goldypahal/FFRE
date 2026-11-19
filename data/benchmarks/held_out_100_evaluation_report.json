@@ -1236,5 +1236,80 @@
       "evidence_count": 0,
       "evidence_grounded": true
     }
-  ]
+  ],
+  "overall_status": "FAIL",
+  "targets_passed": 6,
+  "targets_total": 10,
+  "evaluations": {
+    "accuracy": {
+      "value": 87.0,
+      "target_label": ">= 85.0% target",
+      "status": "PASS",
+      "threshold": 85.0,
+      "operator": ">="
+    },
+    "precision": {
+      "value": 86.21,
+      "target_label": ">= 85.0% target",
+      "status": "PASS",
+      "threshold": 85.0,
+      "operator": ">="
+    },
+    "recall": {
+      "value": 90.91,
+      "target_label": ">= 90.0% target",
+      "status": "PASS",
+      "threshold": 90.0,
+      "operator": ">="
+    },
+    "specificity": {
+      "value": 82.22,
+      "target_label": ">= 80.0% target",
+      "status": "PASS",
+      "threshold": 80.0,
+      "operator": ">="
+    },
+    "f1_score": {
+      "value": 0.885,
+      "target_label": ">= 0.85 target",
+      "status": "PASS",
+      "threshold": 0.85,
+      "operator": ">="
+    },
+    "false_positive_rate": {
+      "value": 17.78,
+      "target_label": "< 5.0% target",
+      "status": "FAIL",
+      "threshold": 5.0,
+      "operator": "<="
+    },
+    "false_negative_rate": {
+      "value": 9.09,
+      "target_label": "< 2.0% target",
+      "status": "FAIL",
+      "threshold": 2.0,
+      "operator": "<="
+    },
+    "brier_score": {
+      "value": 0.1589,
+      "target_label": "< 0.10 target",
+      "status": "FAIL",
+      "threshold": 0.1,
+      "operator": "<="
+    },
+    "evidence_grounding": {
+      "value": 100.0,
+      "target_label": "100% target",
+      "status": "PASS",
+      "threshold": 100.0,
+      "operator": ">="
+    },
+    "kyc_escalation_rate": {
+      "value": 0.0,
+      "target_label": "100% target",
+      "status": "FAIL",
+      "threshold": 100.0,
+      "operator": ">="
+    }
+  }
 }
