@@ -18,7 +18,8 @@ from ffire_bench.runners import (
     RandomBaselineRunner,
     HeuristicRuleRunner,
     LLMPromptRunner,
-    FFIREVerifierRunner
+    FFIREVerifierRunner,
+    make_caller
 )
 
 
@@ -55,17 +56,30 @@ def cmd_benchmark(args):
         data = json.load(f)
     cases = [Case(**c) for c in data]
 
+    def make_llm():
+        if not args.model:
+            raise ValueError("--model is required for the llm runner (e.g. --provider openai --model gpt-4o)")
+        caller = make_caller(args.provider, args.model, base_url=args.base_url)
+        return LLMPromptRunner(model_name=f"{args.provider}:{args.model}", api_caller=caller)
+
+    # Factories, so runners that need an API key or a live backend are only
+    # built when selected.
     runner_map = {
-        "majority": MajorityBaselineRunner(),
-        "random": RandomBaselineRunner(seed=args.seed),
-        "heuristic": HeuristicRuleRunner(),
-        "llm": LLMPromptRunner(model_name="llm-zero-shot"),
-        "ffire": FFIREVerifierRunner()
+        "majority": lambda: MajorityBaselineRunner(),
+        "random": lambda: RandomBaselineRunner(seed=args.seed),
+        "heuristic": lambda: HeuristicRuleRunner(),
+        "llm": make_llm,
+        "ffire": lambda: FFIREVerifierRunner(endpoint_url=args.ffire_url),
     }
 
-    runner = runner_map.get(args.runner.lower())
-    if not runner:
+    factory = runner_map.get(args.runner.lower())
+    if not factory:
         print(f"[!] Unknown runner '{args.runner}'. Choose from: {list(runner_map.keys())}")
+        sys.exit(1)
+    try:
+        runner = factory()
+    except ValueError as exc:
+        print(f"[!] {exc}")
         sys.exit(1)
 
     track_enum = Track(args.track)
@@ -189,6 +203,13 @@ def main():
     p_bench.add_argument("--output", type=str, required=True, help="Path to output predictions JSON")
     p_bench.add_argument("--track", type=str, default="T1")
     p_bench.add_argument("--seed", type=int, default=42)
+    p_bench.add_argument("--provider", type=str, default="openai", choices=["openai", "anthropic"],
+                         help="llm runner: 'openai' = any OpenAI-compatible API, 'anthropic' = Anthropic API")
+    p_bench.add_argument("--model", type=str, default=None, help="llm runner: model name, e.g. gpt-4o")
+    p_bench.add_argument("--base-url", type=str, default=None,
+                         help="llm runner: OpenAI-compatible base URL (default OPENAI_BASE_URL or api.openai.com)")
+    p_bench.add_argument("--ffire-url", type=str, default=None,
+                         help="ffire runner: FFIRE backend URL (default FFIRE_VERIFIER_URL)")
     p_bench.set_defaults(func=cmd_benchmark)
 
     # Eval

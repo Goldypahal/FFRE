@@ -6,7 +6,11 @@
   "evaluated_claims_count": 25,
   "metrics": {
     "t1": {
-      "macro_f1": 0.1875,
+      "macro_f1": 0.375,
+      "macro_f1_labels": [
+        "SUPPORTED",
+        "CONTRADICTED"
+      ],
       "micro_accuracy": 0.6,
       "total_claims": 25,
       "citation_metrics": {
@@ -70,8 +74,8 @@
     },
     "confidence_intervals": {
       "t1_macro_f1_95ci": [
-        0.1515,
-        0.2128
+        0.303,
+        0.4255
       ],
       "t2_safe_to_file_acc_95ci": [
         33.33,
@@ -81,7 +85,7 @@
   },
   "evaluations": {
     "macro_f1": {
-      "value": 0.1875,
+      "value": 0.375,
       "threshold": 0.75,
       "operator": ">=",
       "label": ">= 0.75 target",
@@ -115,7 +119,7 @@
       "easy": 0.0
     },
     "by_narrative_source": {
-      "llm:synthetic_generator_v1": 50.0
+      "template:ffire_gen_v1": 50.0
     },
     "by_error_code": {
       "E2": 0.0,

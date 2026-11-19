@@ -3,12 +3,17 @@ One-Command Leaderboard & Benchmark Reproduction Script for FFIRE-Bench v0.1.0.
 
 Executes the entire end-to-end evaluation lifecycle:
 1. Generates 20 gold-standard cases across 8 typologies.
-2. Runs 5 baseline runners (Majority, Random, Heuristic, LLM, FFIRE).
+2. Runs the offline baselines (Majority, Random, Heuristic). The LLM and FFIRE
+   runners only run when configured, because they need a real model / backend:
+     FFIRE_BENCH_LLM_PROVIDER=openai|anthropic  FFIRE_BENCH_LLM_MODEL=<model>
+     (plus OPENAI_API_KEY / OPENAI_BASE_URL or ANTHROPIC_API_KEY)
+     FFIRE_VERIFIER_URL=http://localhost:8000   FFIRE_API_TOKEN=<token>
 3. Evaluates all model predictions against configured targets with bootstrap CIs.
 4. Generates public leaderboard artifacts (docs/LEADERBOARD.md and docs/leaderboard.html).
 5. Asserts difficulty calibration gates (§2.8).
 """
 
+import os
 import sys
 import json
 from pathlib import Path
@@ -24,7 +29,8 @@ from ffire_bench.runners import (
     RandomBaselineRunner,
     HeuristicRuleRunner,
     LLMPromptRunner,
-    FFIREVerifierRunner
+    FFIREVerifierRunner,
+    make_caller
 )
 from ffire_bench.scoring.evaluator import BenchmarkEvaluator
 from ffire_bench.leaderboard.generator import LeaderboardGenerator
@@ -55,14 +61,22 @@ def main():
     print(f"  -> Generated {len(gold_cases)} cases saved to {gold_path}")
 
     # 2. Run Baseline Models
-    print("\n[2/4] Executing 5 Baseline Runners...")
+    print("\n[2/4] Executing Runners...")
     runners = [
         ("majority", MajorityBaselineRunner()),
         ("random", RandomBaselineRunner(seed=42)),
         ("heuristic", HeuristicRuleRunner()),
-        ("llm", LLMPromptRunner(model_name="llm-zero-shot")),
-        ("ffire", FFIREVerifierRunner())
     ]
+    provider = os.environ.get("FFIRE_BENCH_LLM_PROVIDER")
+    model = os.environ.get("FFIRE_BENCH_LLM_MODEL")
+    if provider and model:
+        runners.append(("llm", LLMPromptRunner(model_name=f"{provider}:{model}", api_caller=make_caller(provider, model))))
+    else:
+        print("  -> Skipping LLM runner (set FFIRE_BENCH_LLM_PROVIDER and FFIRE_BENCH_LLM_MODEL to run a real model)")
+    if os.environ.get("FFIRE_VERIFIER_URL"):
+        runners.append(("ffire", FFIREVerifierRunner()))
+    else:
+        print("  -> Skipping FFIRE runner (set FFIRE_VERIFIER_URL to a running FFIRE backend)")
 
     results_dir = REPO_ROOT / "data" / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
@@ -105,7 +119,7 @@ def main():
 
     print(f"  - Floor Guard:   Trivial Majority F1 = {maj_score:.4f} (Target <= 0.40) -> {'PASS' if maj_score <= 0.40 else 'FAIL'}")
     print(f"  - Ceiling Guard: Top Baseline F1     = {top_score:.4f} (Target <= 0.80) -> {'PASS' if top_score <= 0.80 else 'FAIL'}")
-    print(f"  - Human Ceiling: Expert Baseline     = 0.9420 (Target >= 0.90) -> PASS")
+    print("  - Human Ceiling: NOT MEASURED (no human annotation has been done yet)")
 
     assert maj_score <= 0.40, "Trivial baseline exceeded floor guard"
     assert top_score <= 0.80, "Top baseline exceeded ceiling guard"

@@ -74,7 +74,7 @@
 
 ## 4. Prior Vendor Benchmark Review (2025–2026)
 
-During 2025–2026, several enterprise AML copilot vendors released whitepapers touting copilot productivity gains (e.g., "80% reduction in narrative drafting time"). However, an audit of these vendor announcements reveals critical gaps:
+During 2025–2026, several enterprise AML copilot vendors released material describing copilot productivity gains. Based on publicly available descriptions (not a systematic audit, and to be re-checked before publication), common gaps include:
 1. **Proprietary & Unreproducible**: Datasets are kept private, preventing independent peer-review or third-party replication.
 2. **Cherry-Picked Generative Metrics**: Vendors measure ROUGE, BLEU, or subjective internal Likert scales ("Is the narrative fluent?"), completely ignoring fine-grained claim hallucination rates and critical regulatory contradictions.
 3. **Absence of Adversarial Perturbations**: None of the surveyed vendor benchmarks test whether their copilot detects subtly poisoned facts (e.g., altering a wire destination country or flipping debit/credit roles).

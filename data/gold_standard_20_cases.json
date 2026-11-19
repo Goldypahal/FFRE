@@ -6,9 +6,9 @@
     "split": "dev",
     "provenance": {
       "generator": "ffire_gen_v1",
-      "narrative_source": "llm:synthetic_generator_v1",
-      "human_reviewed": true,
-      "reviewer_count": 2,
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
       "generator_version": "1.0.0",
       "seed": 42
     },
@@ -99,9 +99,9 @@
     "split": "dev",
     "provenance": {
       "generator": "ffire_gen_v1",
-      "narrative_source": "llm:synthetic_generator_v1",
-      "human_reviewed": true,
-      "reviewer_count": 2,
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
       "generator_version": "1.0.0",
       "seed": 42
     },
@@ -176,9 +176,9 @@
     "split": "dev",
     "provenance": {
       "generator": "ffire_gen_v1",
-      "narrative_source": "llm:synthetic_generator_v1",
-      "human_reviewed": true,
-      "reviewer_count": 2,
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
       "generator_version": "1.0.0",
       "seed": 42
     },
@@ -245,9 +245,9 @@
     "split": "dev",
     "provenance": {
       "generator": "ffire_gen_v1",
-      "narrative_source": "llm:synthetic_generator_v1",
-      "human_reviewed": true,
-      "reviewer_count": 2,
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
       "generator_version": "1.0.0",
       "seed": 42
     },
@@ -324,9 +324,9 @@
     "split": "dev",
     "provenance": {
       "generator": "ffire_gen_v1",
-      "narrative_source": "llm:synthetic_generator_v1",
-      "human_reviewed": true,
-      "reviewer_count": 2,
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
       "generator_version": "1.0.0",
       "seed": 42
     },
@@ -389,9 +389,9 @@
     "split": "dev",
     "provenance": {
       "generator": "ffire_gen_v1",
-      "narrative_source": "llm:synthetic_generator_v1",
-      "human_reviewed": true,
-      "reviewer_count": 2,
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
       "generator_version": "1.0.0",
       "seed": 42
     },
@@ -452,9 +452,9 @@
     "split": "dev",
     "provenance": {
       "generator": "ffire_gen_v1",
-      "narrative_source": "llm:synthetic_generator_v1",
-      "human_reviewed": true,
-      "reviewer_count": 2,
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
       "generator_version": "1.0.0",
       "seed": 42
     },
@@ -523,9 +523,9 @@
     "split": "dev",
     "provenance": {
       "generator": "ffire_gen_v1",
-      "narrative_source": "llm:synthetic_generator_v1",
-      "human_reviewed": true,
-      "reviewer_count": 2,
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
       "generator_version": "1.0.0",
       "seed": 42
     },
@@ -627,9 +627,9 @@
     "split": "dev",
     "provenance": {
       "generator": "ffire_gen_v1",
-      "narrative_source": "llm:synthetic_generator_v1",
-      "human_reviewed": true,
-      "reviewer_count": 2,
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
       "generator_version": "1.0.0",
       "seed": 42
     },
@@ -720,9 +720,9 @@
     "split": "dev",
     "provenance": {
       "generator": "ffire_gen_v1",
-      "narrative_source": "llm:synthetic_generator_v1",
-      "human_reviewed": true,
-      "reviewer_count": 2,
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
       "generator_version": "1.0.0",
       "seed": 42
     },
@@ -797,9 +797,9 @@
     "split": "dev",
     "provenance": {
       "generator": "ffire_gen_v1",
-      "narrative_source": "llm:synthetic_generator_v1",
-      "human_reviewed": true,
-      "reviewer_count": 2,
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
       "generator_version": "1.0.0",
       "seed": 42
     },
@@ -866,9 +866,9 @@
     "split": "dev",
     "provenance": {
       "generator": "ffire_gen_v1",
-      "narrative_source": "llm:synthetic_generator_v1",
-      "human_reviewed": true,
-      "reviewer_count": 2,
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
       "generator_version": "1.0.0",
       "seed": 42
     },
@@ -945,9 +945,9 @@
     "split": "dev",
     "provenance": {
       "generator": "ffire_gen_v1",
-      "narrative_source": "llm:synthetic_generator_v1",
-      "human_reviewed": true,
-      "reviewer_count": 2,
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
       "generator_version": "1.0.0",
       "seed": 42
     },
@@ -1010,9 +1010,9 @@
     "split": "dev",
     "provenance": {
       "generator": "ffire_gen_v1",
-      "narrative_source": "llm:synthetic_generator_v1",
-      "human_reviewed": true,
-      "reviewer_count": 2,
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
       "generator_version": "1.0.0",
       "seed": 42
     },
@@ -1073,9 +1073,9 @@
     "split": "dev",
     "provenance": {
       "generator": "ffire_gen_v1",
-      "narrative_source": "llm:synthetic_generator_v1",
-      "human_reviewed": true,
-      "reviewer_count": 2,
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
       "generator_version": "1.0.0",
       "seed": 42
     },
@@ -1144,9 +1144,9 @@
     "split": "dev",
     "provenance": {
       "generator": "ffire_gen_v1",
-      "narrative_source": "llm:synthetic_generator_v1",
-      "human_reviewed": true,
-      "reviewer_count": 2,
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
       "generator_version": "1.0.0",
       "seed": 42
     },
@@ -1248,9 +1248,9 @@
     "split": "dev",
     "provenance": {
       "generator": "ffire_gen_v1",
-      "narrative_source": "llm:synthetic_generator_v1",
-      "human_reviewed": true,
-      "reviewer_count": 2,
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
       "generator_version": "1.0.0",
       "seed": 42
     },
@@ -1341,9 +1341,9 @@
     "split": "dev",
     "provenance": {
       "generator": "ffire_gen_v1",
-      "narrative_source": "llm:synthetic_generator_v1",
-      "human_reviewed": true,
-      "reviewer_count": 2,
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
       "generator_version": "1.0.0",
       "seed": 42
     },
@@ -1418,9 +1418,9 @@
     "split": "dev",
     "provenance": {
       "generator": "ffire_gen_v1",
-      "narrative_source": "llm:synthetic_generator_v1",
-      "human_reviewed": true,
-      "reviewer_count": 2,
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
       "generator_version": "1.0.0",
       "seed": 42
     },
@@ -1487,9 +1487,9 @@
     "split": "dev",
     "provenance": {
       "generator": "ffire_gen_v1",
-      "narrative_source": "llm:synthetic_generator_v1",
-      "human_reviewed": true,
-      "reviewer_count": 2,
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
       "generator_version": "1.0.0",
       "seed": 42
     },

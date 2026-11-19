@@ -50,7 +50,7 @@ class FFIREGenerator:
         inject_error: bool = True,
         track: Track = Track.T1,
         split: Split = Split.DEV,
-        narrative_source: str = "llm:synthetic_generator_v1"
+        narrative_source: str = "template:ffire_gen_v1"
     ) -> Case:
         """Generate a complete evidentiary case bundle with narrative and claim annotations."""
         if typology is None:
@@ -168,8 +168,8 @@ class FFIREGenerator:
             provenance=Provenance(
                 generator="ffire_gen_v1",
                 narrative_source=narrative_source,
-                human_reviewed=True,
-                reviewer_count=2,
+                human_reviewed=False,
+                reviewer_count=0,
                 seed=self.seed
             ),
             typology="structuring",
@@ -272,8 +272,8 @@ class FFIREGenerator:
             provenance=Provenance(
                 generator="ffire_gen_v1",
                 narrative_source=narrative_source,
-                human_reviewed=True,
-                reviewer_count=2,
+                human_reviewed=False,
+                reviewer_count=0,
                 seed=self.seed
             ),
             typology="rapid_movement",
@@ -367,8 +367,8 @@ class FFIREGenerator:
             provenance=Provenance(
                 generator="ffire_gen_v1",
                 narrative_source=narrative_source,
-                human_reviewed=True,
-                reviewer_count=2,
+                human_reviewed=False,
+                reviewer_count=0,
                 seed=self.seed
             ),
             typology="funnel_accounts",
@@ -464,8 +464,8 @@ class FFIREGenerator:
             provenance=Provenance(
                 generator="ffire_gen_v1",
                 narrative_source=narrative_source,
-                human_reviewed=True,
-                reviewer_count=2,
+                human_reviewed=False,
+                reviewer_count=0,
                 seed=self.seed
             ),
             typology="account_takeover",
@@ -557,8 +557,8 @@ class FFIREGenerator:
             provenance=Provenance(
                 generator="ffire_gen_v1",
                 narrative_source=narrative_source,
-                human_reviewed=True,
-                reviewer_count=2,
+                human_reviewed=False,
+                reviewer_count=0,
                 seed=self.seed
             ),
             typology="mule_network",
@@ -652,8 +652,8 @@ class FFIREGenerator:
             provenance=Provenance(
                 generator="ffire_gen_v1",
                 narrative_source=narrative_source,
-                human_reviewed=True,
-                reviewer_count=2,
+                human_reviewed=False,
+                reviewer_count=0,
                 seed=self.seed
             ),
             typology="trade_based_ml",
@@ -748,8 +748,8 @@ class FFIREGenerator:
             provenance=Provenance(
                 generator="ffire_gen_v1",
                 narrative_source=narrative_source,
-                human_reviewed=True,
-                reviewer_count=2,
+                human_reviewed=False,
+                reviewer_count=0,
                 seed=self.seed
             ),
             typology="elder_exploitation",
@@ -847,8 +847,8 @@ class FFIREGenerator:
             provenance=Provenance(
                 generator="ffire_gen_v1",
                 narrative_source=narrative_source,
-                human_reviewed=True,
-                reviewer_count=2,
+                human_reviewed=False,
+                reviewer_count=0,
                 seed=self.seed
             ),
             typology="sanctions_adjacent",

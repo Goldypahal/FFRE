@@ -1,9 +1,11 @@
 # FFIRE-Bench: A Benchmark for Verifying AI-Written Financial Crime Investigations
 
 **Technical Report v0.1.0**  
-**Consortium:** FFIRE-Bench Consortium  
+**Authors:** FFIRE team  
 **Date:** November 2026  
 **Repository:** `github.com/Goldypahal/FFRE`
+
+> **Draft, not for publication.** v0.1 is a 20-case, template-generated dev set with no human annotation. Results in §6 test the pipeline only. Earlier drafts reported a human expert ceiling (94.2%) that was never measured, plus "LLM" and "FFIRE Verifier" baselines that did not call an LLM or FFIRE. Those claims have been removed (see `CHANGELOG.md`).
 
 ---
 
@@ -11,17 +13,17 @@
 
 As global banking institutions deploy Large Language Models (LLMs) to draft alert dispositions and Suspicious Activity Report (SAR) narratives, model risk guidance (e.g., Federal Reserve SR 11-7) and the EU Artificial Intelligence Act demand rigorous, independent verification of these systems. While existing financial NLP benchmarks focus on corporate accounting QA (e.g., FinQA, FinanceBench) and existing AML benchmarks evaluate graph classification (e.g., AMLSim), no benchmark systematically evaluates whether an AI system can detect when an investigation narrative is supported, unsupported, contradicted, or incomplete relative to evidentiary records.
 
-In this report, we introduce **FFIRE-Bench** (Financial Fraud Investigation Reasoning & Evidence Benchmark), the first open, vendor-neutral evaluation framework for verifying AI-written financial crime investigations. FFIRE-Bench introduces:
+In this report, we introduce **FFIRE-Bench** (Financial Fraud Investigation Reasoning & Evidence Benchmark), an open, vendor-neutral evaluation framework for verifying AI-written financial crime investigations. FFIRE-Bench introduces:
 1. A **12-class regulatory error taxonomy (E1–E12)** spanning numerical contradictions, temporal inversions, fabricated entities, ignored exculpatory evidence, and compliance tipping-off violations.
-2. A multi-modal synthetic case generator modeling **8 real-world financial crime typologies**.
+2. A multi-modal synthetic case generator modeling **8 financial crime typologies** (template-based in v0.1).
 3. **Statistical evaluation rigor**, including cluster-aware bootstrap 95% confidence intervals, 15-bin Expected Calibration Error (ECE), and an asymmetric **10:1 cost-weighted scoring model** that penalizes missed money laundering 10× higher than false alarms.
-4. An empirical evaluation of five baseline systems demonstrating that FFIRE-Bench avoids saturation: the trivial majority baseline achieves only 18.75% Macro-F1 (satisfying the $\le 40\%$ difficulty requirement), and top automated verifiers reach less than 20% on initial zero-shot passes, well below the human expert ceiling of 94.2%.
+4. A pipeline check with three offline baselines on a 20-case dev set. The "always SUPPORTED" baseline currently ranks first (Macro-F1 0.375), which shows the dev set is not yet able to separate systems. Real LLM and FFIRE runs, human annotation and a measured human ceiling are future work.
 
 ---
 
 ## 1. Introduction & Motivation
 
-Anti-Money Laundering (AML) and Counter-Terrorist Financing (CTF) compliance operations represent one of the highest-stakes domains in financial services. In the United States alone, financial institutions submit over 3.6 million SARs annually to the Financial Crimes Enforcement Network (FinCEN). To alleviate severe backlogs and alert fatigue, tier-1 institutions have rapidly piloted generative AI copilots to synthesize investigator dossiers and draft regulatory narratives.
+Anti-Money Laundering (AML) and Counter-Terrorist Financing (CTF) compliance operations represent one of the highest-stakes domains in financial services. US financial institutions file millions of SARs with FinCEN each year. To alleviate severe backlogs and alert fatigue, tier-1 institutions have rapidly piloted generative AI copilots to synthesize investigator dossiers and draft regulatory narratives.
 
 However, deploying generative models in regulatory workflows introduces existential compliance risks:
 - **Factual Hallucinations**: Fabricating transaction amounts, intermediary banks, or counterparty accounts violates federal reporting rules.
@@ -58,7 +60,7 @@ FFIRE-Bench formulates the investigative verification workflow into structured t
 
 ## 3. The 12-Class Error Taxonomy (E1–E12)
 
-Developed in collaboration with CAMS-certified AML investigation supervisors, FFIRE-Bench establishes a granular error taxonomy reflecting actual failure modes encountered in Quality Assurance (QA) reviews:
+FFIRE-Bench uses a granular error taxonomy intended to reflect failure modes seen in investigation QA reviews. It has not yet been reviewed by external AML practitioners:
 
 | Code | Category | Description | Regulatory Impact | Severity Tier |
 |:---:|---|---|---|:---:|
@@ -105,31 +107,32 @@ To prevent the rapid benchmark saturation observed in prior datasets (where simp
 
 ---
 
-## 6. Baseline Experiments & Empirical Results
+## 6. Baseline Experiments (pipeline check only)
 
-We evaluated five initial baseline systems on the 20-case Gold Standard corpus:
-1. **Majority Baseline**: Trivial rule predicting `SUPPORTED` and `safe_to_file: true` for all instances.
-2. **Random Baseline**: Uniform random choice over labels and dispositions.
-3. **Heuristic Rules Baseline**: Lexical and numerical regex containment matcher.
-4. **LLM Zero-Shot Baseline**: Prompt-based verifier simulating standard frontier LLM behavior.
-5. **FFIRE Verifier v1.0**: Adapter invoking the FFIRE multi-agent verification pipeline.
+Three offline baselines were run on the 20-case dev set (25 claims; only `SUPPORTED` and `CONTRADICTED` occur):
+1. **Majority baseline:** labels every claim `SUPPORTED` and every case `safe_to_file: true`.
+2. **Random baseline:** uniform random labels and dispositions (seed 42).
+3. **Heuristic rules baseline:** string and number containment checks.
 
-### 6.1 Results Summary
+Two further runners exist but have **not been run yet**, because they need a real model or a running backend:
+- **LLM zero-shot** (`ffire_bench/runners/prompt_runner.py`), via any OpenAI-compatible API or the Anthropic API.
+- **FFIRE Verifier** (`ffire_bench/runners/ffire_adapter.py`), via `POST /api/v1/verifier/evaluate`.
 
-| System | Track | Primary Macro-F1 (95% CI) | Citation F1 | Safe-to-File Acc | Cost-Weighted Acc | Benchmark Status |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| **Baseline-Majority** | `T1` | 0.1875 [0.1515, 0.2128] | 0.7200 | 50.0% | 1.1% | **FAIL** |
-| **Baseline-Random** | `T1` | 0.1375 [0.0667, 0.2114] | 0.7200 | 50.0% | 28.6% | **FAIL** |
-| **Baseline-HeuristicRules** | `T1` | 0.0750 [0.0000, 0.1481] | 0.6486 | 55.0% | 83.5% | **FAIL** |
-| **llm-zero-shot** | `T1` | 0.0536 [0.0000, 0.1071] | 0.7200 | 30.0% | 56.0% | **FAIL** |
-| **FFIRE-Verifier-v1.0** | `T1` | 0.0000 [0.0000, 0.0000] | 0.5405 | 50.0% | 100.0% | **FAIL** |
+### 6.1 Results
 
-### 6.2 Analysis of Calibration Gates
-- **Floor Guard**: Observed trivial majority score = **18.75%** ($\le 40.0\%$, **PASSED**).
-- **Ceiling Guard**: Observed top score = **18.75%** ($\le 80.0\%$, **PASSED**).
-- **Human Ceiling**: Measured expert agreement = **94.2%** ($\ge 90.0\%$, **PASSED**).
+| System | Track | Macro-F1 (95% CI) | Citation F1 | Safe-to-File Acc | Cost-Weighted Acc |
+|---|:---:|:---:|:---:|:---:|:---:|
+| Baseline-Majority | `T1` | 0.3750 [0.3030, 0.4255] | 0.7200 | 50.0% | 1.1% |
+| Baseline-Random | `T1` | 0.1375 [0.0667, 0.2118] | 0.7200 | 50.0% | 28.6% |
+| Baseline-HeuristicRules | `T1` | 0.1000 [0.0000, 0.1975] | 0.6486 | 55.0% | 83.5% |
 
-All calibration gates are satisfied. The benchmark is demonstrably hard, non-trivial, and resistant to shortcut learning.
+Macro-F1 is averaged over the labels that occur in gold or predictions. Earlier drafts averaged over all four labels, which capped every score at 0.5 on this set.
+
+### 6.2 What these numbers mean
+- **The trivial baseline ranks first.** That signals the dev set can't separate systems yet, not that the benchmark is hard.
+- **Heuristic matching fails by construction.** Evidence is structured JSON and claims are prose, so containment checks rarely match.
+- **Human ceiling: not measured.** No human annotation has been done.
+- **Next steps:** hand-written, varied cases; all four labels present; independent human labels with agreement statistics; real LLM and FFIRE runs.
 
 ---
 

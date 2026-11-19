@@ -7,6 +7,12 @@
   "metrics": {
     "t1": {
       "macro_f1": 0.1375,
+      "macro_f1_labels": [
+        "SUPPORTED",
+        "CONTRADICTED",
+        "UNSUPPORTED",
+        "NOT_CHECKABLE"
+      ],
       "micro_accuracy": 0.24,
       "total_claims": 25,
       "citation_metrics": {
@@ -71,7 +77,7 @@
     "confidence_intervals": {
       "t1_macro_f1_95ci": [
         0.0667,
-        0.2114
+        0.2118
       ],
       "t2_safe_to_file_acc_95ci": [
         30.0,
@@ -115,7 +121,7 @@
       "easy": 33.33
     },
     "by_narrative_source": {
-      "llm:synthetic_generator_v1": 50.0
+      "template:ffire_gen_v1": 50.0
     },
     "by_error_code": {
       "E2": 0.0,

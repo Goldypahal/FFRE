@@ -68,7 +68,15 @@ def compute_t1_claim_metrics(
             "support": support[lbl]
         }
 
-    macro_f1 = sum(f1_list) / len(labels) if labels else 0.0
+    # Average only over labels that actually occur in the gold labels or the
+    # predictions (same convention as scikit-learn's f1_score(average="macro")).
+    # Averaging over all four labels when some never occur adds fixed zeros and
+    # caps the score below 1.0 for a perfect system.
+    scored_labels = [lbl for lbl in labels if support[lbl] > 0 or (tp[lbl] + fp[lbl]) > 0]
+    macro_f1 = (
+        sum(f1_list[labels.index(lbl)] for lbl in scored_labels) / len(scored_labels)
+        if scored_labels else 0.0
+    )
 
     cite_prec = correct_citations / total_pred_citations if total_pred_citations > 0 else 0.0
     cite_rec = correct_citations / total_gold_citations if total_gold_citations > 0 else 0.0
@@ -80,6 +88,7 @@ def compute_t1_claim_metrics(
 
     return {
         "macro_f1": round(macro_f1, 4),
+        "macro_f1_labels": scored_labels,
         "micro_accuracy": round(micro_accuracy, 4),
         "total_claims": total_claims,
         "citation_metrics": {

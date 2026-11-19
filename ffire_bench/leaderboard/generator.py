@@ -16,9 +16,11 @@ class LeaderboardGenerator:
         md = []
         md.append("# FFIRE-Bench Public Leaderboard\n")
         md.append("**Benchmark:** Financial Fraud Investigation Reasoning & Evidence Benchmark  \n")
-        md.append("**Version:** v0.1.0 | **Governed by:** FFIRE-Bench Consortium (`GOVERNANCE.md`)\n")
+        md.append("**Version:** v0.1.0 (dev preview) | **Maintained by:** the FFIRE team. No external advisory board yet (see `GOVERNANCE.md`)\n\n")
+        md.append("> [!WARNING]\n")
+        md.append("> **Not a meaningful ranking yet.** The v0.1 dev set is 20 template-generated cases (8 templates) with 25 claims, generated and labelled automatically and **not reviewed by humans**. Use these numbers to test the pipeline, not to compare systems.\n\n")
         md.append("> [!NOTE]\n")
-        md.append("> All scores report point estimates alongside 95% cluster-bootstrap confidence intervals (1,000 resamples). Pass/Fail verdicts are strictly evaluated against thresholds in `configs/targets.yaml`.\n\n")
+        md.append("> All scores report point estimates alongside 95% cluster-bootstrap confidence intervals. Pass/Fail verdicts are strictly evaluated against thresholds in `configs/targets.yaml`.\n\n")
 
         md.append("## 1. Headline Leaderboard\n\n")
         md.append("| Rank | System Name | Track | Primary Metric (95% CI) | Citation F1 | Safe-to-File Acc | Cost-Weighted Acc | Benchmark Status |\n")
@@ -60,12 +62,16 @@ class LeaderboardGenerator:
         top_score = max((e.get("metrics", {}).get("t1", {}).get("macro_f1", 0.0) for e in eval_summaries), default=0.0)
         majority_score = next((e.get("metrics", {}).get("t1", {}).get("macro_f1", 0.0) for e in eval_summaries if "Majority" in e.get("model_name", "")), 0.33)
 
+        top_name = sorted_evals[0].get("model_name", "Unknown") if sorted_evals else "N/A"
+        top_is_trivial = any(k in top_name for k in ("Majority", "Random"))
+
         gate_1_pass = top_score <= 0.80
         gate_2_pass = majority_score <= 0.40
 
         md.append(f"| Ceiling Guard | Top System ≤ 80.0% | {top_score*100:.1f}% | {'✅ PASS' if gate_1_pass else '❌ SATURATED'} |\n")
         md.append(f"| Floor Guard | Trivial Baseline ≤ 40.0% | {majority_score*100:.1f}% | {'✅ PASS' if gate_2_pass else '❌ TRIVIAL'} |\n")
-        md.append(f"| Human Expert Ceiling | Expert Ceiling ≥ 90.0% | 94.2% | ✅ PASS |\n\n")
+        md.append(f"| Trivial Leader Check | Top system is not a trivial baseline | {top_name} | {'✅ PASS' if not top_is_trivial else '❌ INVALID: trivial baseline ranks first'} |\n")
+        md.append(f"| Human Expert Ceiling | Expert Ceiling ≥ 90.0% | Not measured | ⚠️ NOT MEASURED |\n\n")
 
         md.append("## 3. Typology & Slice Breakdown\n\n")
         md.append("| Typology | Structuring | Rapid Movement | Funnel Accounts | Account Takeover | Mule Network | Trade-Based ML | Elder Exploitation | Sanctions Screening |\n")
@@ -140,6 +146,7 @@ class LeaderboardGenerator:
   <div class="container">
     <h1>FFIRE-Bench Public Leaderboard</h1>
     <p class="lead">Evaluating AI Claim Verification & Grounded Decision Quality in Financial Crime Investigations</p>
+    <p class="lead"><strong>Dev preview, not a meaningful ranking yet:</strong> 20 template-generated cases, labelled automatically, not reviewed by humans.</p>
     <table>
       <thead>
         <tr>

@@ -28,12 +28,12 @@ FFIRE solves this by acting as a **vendor-neutral verification and investigation
 > - **Out of Scope**: Real-time inline payment switch blocking (FFIRE operates as an advisory post-transaction intelligence engine); direct autonomous electronic filing with FinCEN without human compliance officer authorization.
 
 > [!NOTE]
-> ### Independent Evaluation & FFIRE-Bench Initiative
-> To guarantee objective, empirical rigor and avoid marketing claims ahead of evidence:
-> - **Vendor Neutrality**: The FFIRE product is evaluated as an ordinary submitter to **FFIRE-Bench** under the exact same public and private rules as external models (`CHARTER.md` and `GOVERNANCE.md`).
-> - **Public Leaderboard**: View independent verified scores, confidence intervals, and slice analyses in [docs/LEADERBOARD.md](file:///D:/Desktop/FFRE/docs/LEADERBOARD.md).
-> - **Technical Report & Datasheet**: Read [docs/technical_report_v0.1.md](file:///D:/Desktop/FFRE/docs/technical_report_v0.1.md) and [docs/DATASHEET.md](file:///D:/Desktop/FFRE/docs/DATASHEET.md).
-> - **Credibility Reset**: Historical held-out evaluation statuses have been converted from hard-coded strings to dynamic, honest thresholds. See [CHANGELOG.md](file:///D:/Desktop/FFRE/CHANGELOG.md) and [data/benchmarks/held_out_100_evaluation_report.md](file:///D:/Desktop/FFRE/data/benchmarks/held_out_100_evaluation_report.md).
+> ### FFIRE-Bench (dev preview)
+> FFIRE-Bench is an in-progress benchmark for checking AI-written fraud investigations. FFIRE is evaluated through it like any other system (`CHARTER.md`, `GOVERNANCE.md`).
+> - **Status:** v0.1 is a 20-case, template-generated dev set with no human annotation. It's for testing the pipeline, not for ranking systems. See [docs/DATASHEET.md](docs/DATASHEET.md).
+> - **Leaderboard:** [docs/LEADERBOARD.md](docs/LEADERBOARD.md) (offline baselines only so far; FFIRE and LLM runs pending).
+> - **Draft report:** [docs/technical_report_v0.1.md](docs/technical_report_v0.1.md).
+> - **Held-out evaluation:** pass/fail is now computed from `configs/targets.yaml`. The 100-case report shows **4 of 10 targets missed**. See [data/benchmarks/held_out_100_evaluation_report.md](data/benchmarks/held_out_100_evaluation_report.md) and [CHANGELOG.md](CHANGELOG.md).
 
 ---
 

@@ -92,3 +92,27 @@ def test_cluster_bootstrap_confidence_interval():
     assert low <= pt <= high
     assert 0.5 <= low <= 1.0
     assert 0.5 <= high <= 1.0
+
+
+def test_macro_f1_ignores_labels_that_never_occur():
+    """A perfect system scores 1.0 even if only two of the four labels appear."""
+    from ffire_bench.scoring.metrics import compute_t1_claim_metrics
+    pairs = [
+        {"gold_label": "SUPPORTED", "pred_label": "SUPPORTED"},
+        {"gold_label": "CONTRADICTED", "pred_label": "CONTRADICTED"},
+    ]
+    m = compute_t1_claim_metrics(pairs)
+    assert m["macro_f1"] == 1.0
+    assert m["macro_f1_labels"] == ["SUPPORTED", "CONTRADICTED"]
+
+
+def test_macro_f1_counts_wrongly_predicted_labels():
+    """Predicting a label absent from gold still counts that label (as F1 = 0)."""
+    from ffire_bench.scoring.metrics import compute_t1_claim_metrics
+    pairs = [
+        {"gold_label": "SUPPORTED", "pred_label": "SUPPORTED"},
+        {"gold_label": "SUPPORTED", "pred_label": "UNSUPPORTED"},
+    ]
+    m = compute_t1_claim_metrics(pairs)
+    assert set(m["macro_f1_labels"]) == {"SUPPORTED", "UNSUPPORTED"}
+    assert m["macro_f1"] < 0.5

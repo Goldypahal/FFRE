@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - November 2026
 
+### ⚠️ Corrections to the initial FFIRE-Bench v0.1 scaffold (verification pass)
+An independent review of the first FFIRE-Bench commit found several claims that weren't true. Fixed:
+- **Removed fabricated human expert ceiling.** The "94.2%" value was hard-coded in the leaderboard generator, the reproduction script and the technical report. No human annotation has been done. It's now reported as *not measured*.
+- **Removed false provenance.** The generator stamped `human_reviewed=True, reviewer_count=2` and `narrative_source="llm:..."` on every case. Cases are now marked `human_reviewed=false`, `reviewer_count=0`, `narrative_source="template:ffire_gen_v1"`.
+- **Rewrote `docs/DATASHEET.md`.** It described CAMS experts, GPT-4o/Claude/Gemini narratives, double expert review and a "FFIRE-Bench Consortium", none of which exist yet. It now describes the dataset as it actually is.
+- **LLM runner now calls a real model.** It previously fell back to string matching while reporting under an LLM name. The offline fallback is removed. New `ffire_bench/runners/llm_clients.py` supports any OpenAI-compatible API and the Anthropic API (`ffire-bench benchmark --runner llm --provider openai --model <name>`).
+- **FFIRE adapter now calls the real verifier.** It previously re-implemented a string-matching rule. It now calls `POST /api/v1/verifier/evaluate` (`FFIRE_VERIFIER_URL`, `FFIRE_API_TOKEN`) and reports how many benchmark claims couldn't be matched to a verifier claim.
+- **Removed the fake "llm-zero-shot" and "FFIRE-Verifier-v1.0" leaderboard rows** and their result files.
+- **Fixed Macro-F1.** It averaged over all four labels even when only two occur, capping every score at 0.5. It now averages over labels present in gold or predictions (scikit-learn convention).
+- **Leaderboard now flags a trivial baseline ranking first as INVALID** and states the dev set isn't a meaningful ranking.
+- **Test coverage was ~59%, not 100%.** Added tests for the scoring fix, provenance, the LLM runner and the FFIRE adapter (28 tests).
+
 ### ⚠️ Credibility & Integrity Corrections
 - **Fixed Hard-Coded Benchmark PASS Verdicts (Issue B1)**:
   - Corrected `scripts/evaluate_held_out_100_cases.py` which previously emitted static `**PASS**` strings across all metric rows regardless of value.
@@ -25,12 +37,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Released core Python package `ffire_bench` (`pip install -e .`):
     - `ffire_bench.schema`: Pydantic v2 case & result schema models supporting tracks T1–T6.
     - `ffire_bench.generators`: Typology generator for 8 distinct typologies with deterministic seeds, provenance tracking, and canary embedding (`FFIRE-BENCH-CANARY-v0.1-4f9e8a7c`).
-    - `ffire_bench.narratives`: Multi-family narrative generators and controlled error injector with character-level span tracking and severity grading.
-    - `ffire_bench.scoring`: Macro-F1, citation F1, cost-weighted scoring (10x penalty for false negative fraud), selective risk-coverage AUC (abstention), 15-bin ECE calibration, and cluster-aware bootstrap 95% confidence intervals.
+    - `ffire_bench.narratives`: Template-based narratives and a controlled error injector with character-level span tracking and severity grading.
+    - `ffire_bench.scoring`: Macro-F1, citation F1, cost-weighted scoring (10x penalty for false negative fraud), abstention recall, 15-bin ECE calibration, and cluster-aware bootstrap 95% confidence intervals.
     - `ffire_bench.runners`: Standardized baseline adapters for trivial baselines, rule-based heuristics, LLM prompt runner, and FFIRE Verifier.
     - `ffire_bench.leaderboard`: Static leaderboard and slice analysis generator.
     - `ffire_bench.cli`: Complete CLI (`ffire-bench eval`, `ffire-bench generate`, `ffire-bench benchmark`, `ffire-bench leaderboard`).
-  - Added 20 gold-standard expert-curated evaluation cases in `data/gold_standard_20_cases.json`.
+  - Added 20 template-generated, automatically labelled dev cases (not human-reviewed) in `data/gold_standard_20_cases.json`.
   - Added technical report draft `docs/technical_report_v0.1.md` and dataset datasheet `docs/DATASHEET.md`.
 
 ### Security & Hygiene

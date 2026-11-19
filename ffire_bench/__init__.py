@@ -8,7 +8,7 @@ financial crime investigations.
 
 __version__ = "0.1.0"
 __benchmark_name__ = "FFIRE-Bench"
-__author__ = "FFIRE-Bench Consortium"
+__author__ = "FFIRE-Bench maintainers"
 
 from ffire_bench.schema.models import (
     Case,
