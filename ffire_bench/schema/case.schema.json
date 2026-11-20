@@ -1,0 +1,400 @@
+{
+  "$defs": {
+    "CaseDisposition": {
+      "enum": [
+        "ALLOW",
+        "CLOSE",
+        "FLAG",
+        "ESCALATE",
+        "NEED_MORE_INFO"
+      ],
+      "title": "CaseDisposition",
+      "type": "string"
+    },
+    "CaseLabel": {
+      "properties": {
+        "safe_to_file": {
+          "description": "Binary determination: whether narrative has zero critical errors and is compliant to submit",
+          "title": "Safe To File",
+          "type": "boolean"
+        },
+        "disposition": {
+          "$ref": "#/$defs/CaseDisposition",
+          "description": "Case disposition decision"
+        },
+        "expected_abstention": {
+          "default": false,
+          "description": "True if evidence is ambiguous/insufficient and system should abstain",
+          "title": "Expected Abstention",
+          "type": "boolean"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notes"
+        }
+      },
+      "required": [
+        "safe_to_file",
+        "disposition"
+      ],
+      "title": "CaseLabel",
+      "type": "object"
+    },
+    "Claim": {
+      "properties": {
+        "claim_id": {
+          "description": "Claim identifier within narrative, e.g. CL-1",
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "span": {
+          "description": "[start_char, end_char] character offset within narrative text",
+          "items": {
+            "type": "integer"
+          },
+          "title": "Span",
+          "type": "array"
+        },
+        "text": {
+          "description": "Exact textual slice of the claim",
+          "title": "Text",
+          "type": "string"
+        },
+        "label": {
+          "$ref": "#/$defs/ClaimLabel",
+          "description": "Ground-truth classification label"
+        },
+        "error_code": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ErrorCode"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "E1-E12 if CONTRADICTED or UNSUPPORTED"
+        },
+        "severity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Severity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Severity tier if error is present"
+        },
+        "gold_evidence_ids": {
+          "description": "Evidence items supporting or contradicting this claim",
+          "items": {
+            "type": "string"
+          },
+          "title": "Gold Evidence Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "claim_id",
+        "span",
+        "text",
+        "label"
+      ],
+      "title": "Claim",
+      "type": "object"
+    },
+    "ClaimLabel": {
+      "enum": [
+        "SUPPORTED",
+        "CONTRADICTED",
+        "UNSUPPORTED",
+        "NOT_CHECKABLE"
+      ],
+      "title": "ClaimLabel",
+      "type": "string"
+    },
+    "Difficulty": {
+      "enum": [
+        "easy",
+        "medium",
+        "hard"
+      ],
+      "title": "Difficulty",
+      "type": "string"
+    },
+    "ErrorCode": {
+      "enum": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8",
+        "E9",
+        "E10",
+        "E11",
+        "E12"
+      ],
+      "title": "ErrorCode",
+      "type": "string"
+    },
+    "EvidenceItem": {
+      "properties": {
+        "evidence_id": {
+          "description": "Unique evidence identifier, e.g. EV-1",
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/EvidenceType",
+          "description": "Format and modality of the evidence item"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "",
+          "description": "Descriptive label",
+          "title": "Title"
+        },
+        "content": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "items": {},
+              "type": "array"
+            }
+          ],
+          "description": "Evidence payload or structured data",
+          "title": "Content"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Metadata"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "type",
+        "content"
+      ],
+      "title": "EvidenceItem",
+      "type": "object"
+    },
+    "EvidenceType": {
+      "enum": [
+        "transaction_table",
+        "kyc_profile",
+        "analyst_note",
+        "device_log",
+        "geolocation_log",
+        "email_correspondence",
+        "sanctions_list"
+      ],
+      "title": "EvidenceType",
+      "type": "string"
+    },
+    "Provenance": {
+      "properties": {
+        "generator": {
+          "description": "Generator origin, e.g. amlsim_v2, ffire_gen, expert_authored",
+          "title": "Generator",
+          "type": "string"
+        },
+        "narrative_source": {
+          "description": "LLM family or human author, e.g. llm:gpt-4o, llm:claude-3-5, human, template",
+          "title": "Narrative Source",
+          "type": "string"
+        },
+        "human_reviewed": {
+          "default": false,
+          "description": "Whether an AML expert reviewed the ground truth",
+          "title": "Human Reviewed",
+          "type": "boolean"
+        },
+        "reviewer_count": {
+          "default": 0,
+          "description": "Number of human annotators/adjudicators",
+          "title": "Reviewer Count",
+          "type": "integer"
+        },
+        "generator_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "1.0.0",
+          "title": "Generator Version"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        }
+      },
+      "required": [
+        "generator",
+        "narrative_source"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "Severity": {
+      "enum": [
+        "critical",
+        "major",
+        "minor"
+      ],
+      "title": "Severity",
+      "type": "string"
+    },
+    "Split": {
+      "enum": [
+        "dev",
+        "public_test",
+        "private_test"
+      ],
+      "title": "Split",
+      "type": "string"
+    },
+    "Track": {
+      "enum": [
+        "T1",
+        "T2",
+        "T3",
+        "T4",
+        "T5",
+        "T6"
+      ],
+      "title": "Track",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "case_id": {
+      "description": "Global unique case identifier, e.g. FB-T1-000123",
+      "title": "Case Id",
+      "type": "string"
+    },
+    "version": {
+      "default": "1.0.0",
+      "description": "Schema specification version",
+      "title": "Version",
+      "type": "string"
+    },
+    "track": {
+      "$ref": "#/$defs/Track",
+      "default": "T1",
+      "description": "Primary evaluation track"
+    },
+    "split": {
+      "$ref": "#/$defs/Split",
+      "default": "dev",
+      "description": "Dataset split: dev, public_test, private_test"
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance"
+    },
+    "typology": {
+      "description": "Financial crime typology, e.g. structuring, ato, funnel_accounts",
+      "title": "Typology",
+      "type": "string"
+    },
+    "cluster_id": {
+      "description": "Cluster identifier for cluster-aware bootstrapping, e.g. C-0042",
+      "title": "Cluster Id",
+      "type": "string"
+    },
+    "evidence": {
+      "items": {
+        "$ref": "#/$defs/EvidenceItem"
+      },
+      "title": "Evidence",
+      "type": "array"
+    },
+    "narrative": {
+      "description": "Candidate investigation narrative under evaluation",
+      "title": "Narrative",
+      "type": "string"
+    },
+    "claims": {
+      "description": "Ground-truth annotated claims",
+      "items": {
+        "$ref": "#/$defs/Claim"
+      },
+      "title": "Claims",
+      "type": "array"
+    },
+    "case_label": {
+      "$ref": "#/$defs/CaseLabel"
+    },
+    "difficulty": {
+      "$ref": "#/$defs/Difficulty",
+      "default": "medium"
+    },
+    "license": {
+      "default": "CC-BY-4.0",
+      "title": "License",
+      "type": "string"
+    },
+    "canary": {
+      "default": "FFIRE-BENCH-CANARY-v0.1-4f9e8a7c",
+      "title": "Canary",
+      "type": "string"
+    }
+  },
+  "required": [
+    "case_id",
+    "provenance",
+    "typology",
+    "cluster_id",
+    "evidence",
+    "narrative",
+    "case_label"
+  ],
+  "title": "Case",
+  "type": "object"
+}

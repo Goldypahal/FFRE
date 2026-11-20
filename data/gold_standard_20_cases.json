@@ -1,0 +1,1562 @@
+[
+  {
+    "case_id": "FB-T1-000001",
+    "version": "1.0.0",
+    "track": "T1",
+    "split": "dev",
+    "provenance": {
+      "generator": "ffire_gen_v1",
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
+      "generator_version": "1.0.0",
+      "seed": 42
+    },
+    "typology": "rapid_movement",
+    "cluster_id": "C-0002",
+    "evidence": [
+      {
+        "evidence_id": "EV-1",
+        "type": "transaction_table",
+        "title": "Wire Activity Log",
+        "content": [
+          {
+            "txn_id": "TXN-RM-01",
+            "timestamp": "2026-09-05 10:00:00",
+            "type": "INCOMING_WIRE",
+            "amount": 150000.0,
+            "originator": "Delta Holdings Ltd",
+            "country": "Panama"
+          },
+          {
+            "txn_id": "TXN-RM-02",
+            "timestamp": "2026-09-05 11:15:00",
+            "type": "OUTGOING_WIRE",
+            "amount": 148500.0,
+            "beneficiary": "Zenith Global LLC",
+            "country": "Cyprus"
+          }
+        ],
+        "metadata": {}
+      },
+      {
+        "evidence_id": "EV-2",
+        "type": "kyc_profile",
+        "title": "Commercial Customer Profile",
+        "content": {
+          "customer_name": "Apex Logistics Corp",
+          "line_of_business": "Domestic Freight Transport",
+          "average_monthly_balance": 2500.0
+        },
+        "metadata": {}
+      }
+    ],
+    "narrative": "SUSPICIOUS ACTIVITY REPORT NARRATIVE\nSUBJECT: Apex Logistics Corp | ACCOUNT: ACCT-00001\nPRIMARY TYPOLOGY: RAPID MOVEMENT / PASS-THROUGH\n\n1. BACKGROUND & SUMMARY OF ACTIVITY:\nThis narrative details suspicious transaction activity identified during periodic review. Immediate depletion of international funds transfer.\n\n2. INVESTIGATIVE FINDINGS:\nSubject account received an inbound international wire of $150,000.00 from Delta Holdings Ltd in Panama. Prior to receiving the covering wire, $148,500.00 was wired out to Zenith Global LLC in Cyprus, leaving a nominal residual balance.\n\n3. DISPOSITION & CONCLUSION:\nBased upon evidentiary review, the recommended disposition is ESCALATE. All supporting documentation remains retained in compliance files.",
+    "claims": [
+      {
+        "claim_id": "CL-1",
+        "span": [
+          450,
+          486
+        ],
+        "text": "Prior to receiving the covering wire",
+        "label": "CONTRADICTED",
+        "error_code": "E2",
+        "severity": "critical",
+        "gold_evidence_ids": [
+          "EV-1"
+        ]
+      },
+      {
+        "claim_id": "CL-2",
+        "span": [
+          403,
+          438
+        ],
+        "text": "$150,000.00 from Delta Holdings Ltd",
+        "label": "SUPPORTED",
+        "error_code": null,
+        "severity": null,
+        "gold_evidence_ids": [
+          "EV-1"
+        ]
+      }
+    ],
+    "case_label": {
+      "safe_to_file": false,
+      "disposition": "ESCALATE",
+      "expected_abstention": false,
+      "notes": null
+    },
+    "difficulty": "medium",
+    "license": "CC-BY-4.0",
+    "canary": "FFIRE-BENCH-CANARY-v0.1-4f9e8a7c"
+  },
+  {
+    "case_id": "FB-T1-000002",
+    "version": "1.0.0",
+    "track": "T1",
+    "split": "dev",
+    "provenance": {
+      "generator": "ffire_gen_v1",
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
+      "generator_version": "1.0.0",
+      "seed": 42
+    },
+    "typology": "funnel_accounts",
+    "cluster_id": "C-0003",
+    "evidence": [
+      {
+        "evidence_id": "EV-1",
+        "type": "transaction_table",
+        "title": "Multi-Location Branch Deposits",
+        "content": [
+          {
+            "txn_id": "TXN-FNL-01",
+            "date": "2026-08-01 10:00:00",
+            "location": "Miami, FL",
+            "amount": 4500.0
+          },
+          {
+            "txn_id": "TXN-FNL-02",
+            "date": "2026-08-01 11:30:00",
+            "location": "Atlanta, GA",
+            "amount": 4800.0
+          },
+          {
+            "txn_id": "TXN-FNL-03",
+            "date": "2026-08-01 13:00:00",
+            "location": "Charlotte, NC",
+            "amount": 4700.0
+          }
+        ],
+        "metadata": {}
+      },
+      {
+        "evidence_id": "EV-2",
+        "type": "analyst_note",
+        "title": "Branch Operations Note",
+        "content": "Deposits executed by multiple unknown third parties with no apparent connection to cardholder home branch.",
+        "metadata": {}
+      }
+    ],
+    "narrative": "INVESTIGATION MEMORANDUM | CASE ID: FB-T1-000002\nINVESTIGATOR ID: INV-9921 | SUBJECT: Coastal Retailers LLC\n\nEVIDENTIARY FACTS:\n- Multi-branch cash deposits across three separate states in 3 hours\n- Deposits totaled $14,000.00 across branches\n\nRISK ANALYSIS & REASONING:\nCash deposits were made in three distinct states (Miami FL, Atlanta GA, Charlotte NC) within a 3-hour window. The customer does not maintain business operations in these geographic zones.\n\nDISPOSITION:\nRecommendation: ESCALATE.",
+    "claims": [
+      {
+        "claim_id": "CL-1",
+        "span": [
+          321,
+          355
+        ],
+        "text": "Miami FL, Atlanta GA, Charlotte NC",
+        "label": "SUPPORTED",
+        "error_code": null,
+        "severity": null,
+        "gold_evidence_ids": [
+          "EV-1"
+        ]
+      }
+    ],
+    "case_label": {
+      "safe_to_file": true,
+      "disposition": "ESCALATE",
+      "expected_abstention": false,
+      "notes": null
+    },
+    "difficulty": "hard",
+    "license": "CC-BY-4.0",
+    "canary": "FFIRE-BENCH-CANARY-v0.1-4f9e8a7c"
+  },
+  {
+    "case_id": "FB-T1-000003",
+    "version": "1.0.0",
+    "track": "T1",
+    "split": "dev",
+    "provenance": {
+      "generator": "ffire_gen_v1",
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
+      "generator_version": "1.0.0",
+      "seed": 42
+    },
+    "typology": "account_takeover",
+    "cluster_id": "C-0004",
+    "evidence": [
+      {
+        "evidence_id": "EV-1",
+        "type": "device_log",
+        "title": "Authentication & Device Telemetry",
+        "content": {
+          "timestamp": "2026-10-20 03:14:22",
+          "ip_address": "185.220.101.5",
+          "country": "Romania",
+          "device_fingerprint": "DEV-UNKNOWN-TOR",
+          "mfa_reset_requested": true
+        },
+        "metadata": {}
+      },
+      {
+        "evidence_id": "EV-2",
+        "type": "kyc_profile",
+        "title": "Customer Baseline Profile",
+        "content": {
+          "customer_name": "Eleanor Rigby",
+          "residence": "Seattle, WA, USA",
+          "primary_device": "iPhone 15 Pro (iOS 17.5)",
+          "typical_login_hours": "08:00 - 20:00 PST"
+        },
+        "metadata": {}
+      }
+    ],
+    "narrative": "ALERT SUMMARY for Eleanor Rigby. Activity involves account credential tampering and $22,000 ACH drain. Risk indicators identified: Account credentials and MFA were reset from an unfamiliar Tor exit node in Romania at 03:14 PST. Customer has resided continuously in Chicago IL with no international travel notice.. Final evaluation: ESCALATE.",
+    "claims": [
+      {
+        "claim_id": "CL-1",
+        "span": [
+          241,
+          275
+        ],
+        "text": "resided continuously in Chicago IL",
+        "label": "CONTRADICTED",
+        "error_code": "E4",
+        "severity": "critical",
+        "gold_evidence_ids": [
+          "EV-2"
+        ]
+      }
+    ],
+    "case_label": {
+      "safe_to_file": false,
+      "disposition": "ESCALATE",
+      "expected_abstention": false,
+      "notes": null
+    },
+    "difficulty": "easy",
+    "license": "CC-BY-4.0",
+    "canary": "FFIRE-BENCH-CANARY-v0.1-4f9e8a7c"
+  },
+  {
+    "case_id": "FB-T1-000004",
+    "version": "1.0.0",
+    "track": "T1",
+    "split": "dev",
+    "provenance": {
+      "generator": "ffire_gen_v1",
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
+      "generator_version": "1.0.0",
+      "seed": 42
+    },
+    "typology": "mule_network",
+    "cluster_id": "C-0005",
+    "evidence": [
+      {
+        "evidence_id": "EV-1",
+        "type": "transaction_table",
+        "title": "Peer-to-Peer Micro-Transfers",
+        "content": [
+          {
+            "from_account": "MULE-01",
+            "amount": 490.0,
+            "timestamp": "2026-09-01 10:00:00"
+          },
+          {
+            "from_account": "MULE-02",
+            "amount": 495.0,
+            "timestamp": "2026-09-01 10:05:00"
+          },
+          {
+            "from_account": "MULE-03",
+            "amount": 485.0,
+            "timestamp": "2026-09-01 10:10:00"
+          },
+          {
+            "from_account": "MULE-04",
+            "amount": 500.0,
+            "timestamp": "2026-09-01 10:15:00"
+          }
+        ],
+        "metadata": {}
+      },
+      {
+        "evidence_id": "EV-2",
+        "type": "analyst_note",
+        "title": "Consolidated Cash-out Pattern",
+        "content": "Micro-transfers collected from student checking accounts immediately withdrawn via ATM in crypto voucher purchases.",
+        "metadata": {}
+      }
+    ],
+    "narrative": "SUSPICIOUS ACTIVITY REPORT NARRATIVE\nSUBJECT: Kiran Patel | ACCOUNT: ACCT-00004\nPRIMARY TYPOLOGY: MULE NETWORK\n\n1. BACKGROUND & SUMMARY OF ACTIVITY:\nThis narrative details suspicious transaction activity identified during periodic review. Aggregated micro-transfers and immediate crypto conversion.\n\n2. INVESTIGATIVE FINDINGS:\nFour distinct student accounts remitted micro-transfers totaling $1,970.00 to a central account within 15 minutes. Funds were liquidated via crypto ATM vouchers.\n\n3. DISPOSITION & CONCLUSION:\nBased upon evidentiary review, the recommended disposition is ESCALATE. All supporting documentation remains retained in compliance files.",
+    "claims": [
+      {
+        "claim_id": "CL-1",
+        "span": [
+          383,
+          401
+        ],
+        "text": "totaling $1,970.00",
+        "label": "SUPPORTED",
+        "error_code": null,
+        "severity": null,
+        "gold_evidence_ids": [
+          "EV-1"
+        ]
+      }
+    ],
+    "case_label": {
+      "safe_to_file": true,
+      "disposition": "ESCALATE",
+      "expected_abstention": false,
+      "notes": null
+    },
+    "difficulty": "medium",
+    "license": "CC-BY-4.0",
+    "canary": "FFIRE-BENCH-CANARY-v0.1-4f9e8a7c"
+  },
+  {
+    "case_id": "FB-T1-000005",
+    "version": "1.0.0",
+    "track": "T1",
+    "split": "dev",
+    "provenance": {
+      "generator": "ffire_gen_v1",
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
+      "generator_version": "1.0.0",
+      "seed": 42
+    },
+    "typology": "trade_based_ml",
+    "cluster_id": "C-0006",
+    "evidence": [
+      {
+        "evidence_id": "EV-1",
+        "type": "transaction_table",
+        "title": "Commercial Invoices vs Customs Manifests",
+        "content": {
+          "invoice_number": "INV-7890",
+          "declared_commodity": "Industrial Grade Steel Tubing",
+          "declared_quantity_tons": 50,
+          "invoiced_unit_price_usd": 12000.0,
+          "total_wire_amount_usd": 600000.0,
+          "customs_market_benchmark_unit_price": 850.0
+        },
+        "metadata": {}
+      },
+      {
+        "evidence_id": "EV-2",
+        "type": "analyst_note",
+        "title": "Customs Verification Check",
+        "content": "Unit price over-invoiced by more than 14x relative to London Metal Exchange standard spot pricing.",
+        "metadata": {}
+      }
+    ],
+    "narrative": "SUSPICIOUS ACTIVITY REPORT NARRATIVE\nSUBJECT: Trans-Global Commodities | ACCOUNT: ACCT-00005\nPRIMARY TYPOLOGY: TRADE-BASED MONEY LAUNDERING\n\n1. BACKGROUND & SUMMARY OF ACTIVITY:\nThis narrative details suspicious transaction activity identified during periodic review. Extreme commercial invoice over-valuation.\n\n2. INVESTIGATIVE FINDINGS:\nInvoice INV-7890 billed steel tubing at $12,000.00 per ton, whereas prevailing fair market price was $850.00 per ton. This substantial 14x over-invoicing provides clear indicia of account takeover and credential stuffing.\n\n3. DISPOSITION & CONCLUSION:\nBased upon evidentiary review, the recommended disposition is ESCALATE. All supporting documentation remains retained in compliance files.",
+    "claims": [
+      {
+        "claim_id": "CL-1",
+        "span": [
+          508,
+          559
+        ],
+        "text": "indicia of account takeover and credential stuffing",
+        "label": "CONTRADICTED",
+        "error_code": "E8",
+        "severity": "major",
+        "gold_evidence_ids": [
+          "EV-1"
+        ]
+      }
+    ],
+    "case_label": {
+      "safe_to_file": false,
+      "disposition": "ESCALATE",
+      "expected_abstention": false,
+      "notes": null
+    },
+    "difficulty": "hard",
+    "license": "CC-BY-4.0",
+    "canary": "FFIRE-BENCH-CANARY-v0.1-4f9e8a7c"
+  },
+  {
+    "case_id": "FB-T1-000006",
+    "version": "1.0.0",
+    "track": "T1",
+    "split": "dev",
+    "provenance": {
+      "generator": "ffire_gen_v1",
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
+      "generator_version": "1.0.0",
+      "seed": 42
+    },
+    "typology": "elder_exploitation",
+    "cluster_id": "C-0007",
+    "evidence": [
+      {
+        "evidence_id": "EV-1",
+        "type": "kyc_profile",
+        "title": "Senior Customer Record",
+        "content": {
+          "customer_name": "Mildred Gable",
+          "age": 82,
+          "account_age_years": 34,
+          "historical_monthly_spend": 1200.0
+        },
+        "metadata": {}
+      },
+      {
+        "evidence_id": "EV-2",
+        "type": "analyst_note",
+        "title": "Branch Manager Escalation Note",
+        "content": "Customer visited branch accompanied by aggressive third party claiming to be contractor demanding immediate $45,000 cashier check.",
+        "metadata": {}
+      }
+    ],
+    "narrative": "INVESTIGATION MEMORANDUM | CASE ID: FB-T1-000006\nINVESTIGATOR ID: INV-4410 | SUBJECT: Mildred Gable\n\nEVIDENTIARY FACTS:\n- 82-year-old long-standing customer accompanied by unfamiliar contractor\n- Requested $45,000 cashier check deviating from $1,200 monthly historical spend\n\nRISK ANALYSIS & REASONING:\n82-year-old customer Mildred Gable attempted to withdraw $45,000.00 via cashier's check accompanied by an unrelated contractor. Customer appeared visibly distressed and unable to explain the contractual invoice details.\n\nDISPOSITION:\nRecommendation: FLAG.",
+    "claims": [
+      {
+        "claim_id": "CL-1",
+        "span": [
+          338,
+          390
+        ],
+        "text": "attempted to withdraw $45,000.00 via cashier's check",
+        "label": "SUPPORTED",
+        "error_code": null,
+        "severity": null,
+        "gold_evidence_ids": [
+          "EV-2"
+        ]
+      }
+    ],
+    "case_label": {
+      "safe_to_file": true,
+      "disposition": "FLAG",
+      "expected_abstention": false,
+      "notes": null
+    },
+    "difficulty": "medium",
+    "license": "CC-BY-4.0",
+    "canary": "FFIRE-BENCH-CANARY-v0.1-4f9e8a7c"
+  },
+  {
+    "case_id": "FB-T1-000007",
+    "version": "1.0.0",
+    "track": "T1",
+    "split": "dev",
+    "provenance": {
+      "generator": "ffire_gen_v1",
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
+      "generator_version": "1.0.0",
+      "seed": 42
+    },
+    "typology": "sanctions_adjacent",
+    "cluster_id": "C-0008",
+    "evidence": [
+      {
+        "evidence_id": "EV-1",
+        "type": "sanctions_list",
+        "title": "OFAC Specially Designated Nationals (SDN) Record",
+        "content": {
+          "sdn_name": "Dmitri Alexeyevich Volkov",
+          "alias": "D. Volkov",
+          "listed_jurisdiction": "High Risk Border Zone",
+          "program": "UKRAINE-EO14024"
+        },
+        "metadata": {}
+      },
+      {
+        "evidence_id": "EV-2",
+        "type": "kyc_profile",
+        "title": "Customer Identity Document",
+        "content": {
+          "customer_name": "Dmitry Volkov",
+          "dob": "1988-11-04",
+          "passport_country": "Estonia",
+          "beneficial_owner_verified": false,
+          "missing_documents": [
+            "Ultimate Beneficial Ownership (UBO) Registry Declaration"
+          ]
+        },
+        "metadata": {}
+      }
+    ],
+    "narrative": "SUSPICIOUS ACTIVITY REPORT NARRATIVE\nSUBJECT: Dmitry Volkov | ACCOUNT: ACCT-00007\nPRIMARY TYPOLOGY: SANCTIONS-ADJACENT SCREENING\n\n1. BACKGROUND & SUMMARY OF ACTIVITY:\nThis narrative details suspicious transaction activity identified during periodic review. Fuzzy name match against sanctions list with incomplete beneficial ownership records.\n\n2. INVESTIGATIVE FINDINGS:\nWire counterparty Dmitry Volkov closely matches OFAC SDN listed entity Dmitri Alexeyevich Volkov. Critical UBO documentation is missing from the customer file, precluding definitive resolution.\n\n3. DISPOSITION & CONCLUSION:\nBased upon evidentiary review, the recommended disposition is CLOSE as a confirmed false positive without requiring further documentation. All supporting documentation remains retained in compliance files.",
+    "claims": [
+      {
+        "claim_id": "CL-1",
+        "span": [
+          626,
+          733
+        ],
+        "text": "the recommended disposition is CLOSE as a confirmed false positive without requiring further documentation.",
+        "label": "CONTRADICTED",
+        "error_code": "E9",
+        "severity": "critical",
+        "gold_evidence_ids": [
+          "EV-2"
+        ]
+      }
+    ],
+    "case_label": {
+      "safe_to_file": false,
+      "disposition": "NEED_MORE_INFO",
+      "expected_abstention": true,
+      "notes": null
+    },
+    "difficulty": "hard",
+    "license": "CC-BY-4.0",
+    "canary": "FFIRE-BENCH-CANARY-v0.1-4f9e8a7c"
+  },
+  {
+    "case_id": "FB-T1-000008",
+    "version": "1.0.0",
+    "track": "T1",
+    "split": "dev",
+    "provenance": {
+      "generator": "ffire_gen_v1",
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
+      "generator_version": "1.0.0",
+      "seed": 42
+    },
+    "typology": "structuring",
+    "cluster_id": "C-0009",
+    "evidence": [
+      {
+        "evidence_id": "EV-1",
+        "type": "transaction_table",
+        "title": "Branch Cash Deposit Log",
+        "content": [
+          {
+            "txn_id": "TXN-STRUC-01",
+            "date": "2026-10-12 09:14:00",
+            "type": "CASH_DEPOSIT",
+            "amount": 9400.0,
+            "branch": "North Branch #14",
+            "currency": "USD"
+          },
+          {
+            "txn_id": "TXN-STRUC-02",
+            "date": "2026-10-13 11:22:00",
+            "type": "CASH_DEPOSIT",
+            "amount": 9600.0,
+            "branch": "Metro Branch #02",
+            "currency": "USD"
+          },
+          {
+            "txn_id": "TXN-STRUC-03",
+            "date": "2026-10-14 15:45:00",
+            "type": "CASH_DEPOSIT",
+            "amount": 9850.0,
+            "branch": "Southwest Branch #08",
+            "currency": "USD"
+          }
+        ],
+        "metadata": {}
+      },
+      {
+        "evidence_id": "EV-2",
+        "type": "kyc_profile",
+        "title": "Customer Profile & Occupation",
+        "content": {
+          "customer_name": "Marcus Vance",
+          "customer_id": "CUST-STRUC-0008",
+          "stated_occupation": "Independent Consultant",
+          "stated_monthly_income": 4500.0,
+          "account_opened": "2024-03-10",
+          "kyc_risk_tier": "MEDIUM"
+        },
+        "metadata": {}
+      }
+    ],
+    "narrative": "SUSPICIOUS ACTIVITY REPORT NARRATIVE\nSUBJECT: Marcus Vance | ACCOUNT: ACCT-00008\nPRIMARY TYPOLOGY: STRUCTURING\n\n1. BACKGROUND & SUMMARY OF ACTIVITY:\nThis narrative details suspicious transaction activity identified during periodic review. Alert triggered by CTR threshold avoidance rules.\n\n2. INVESTIGATIVE FINDINGS:\nThe subject Marcus Vance conducted three consecutive cash deposits totaling $28,850.00 across three distinct bank branches between October 12 and October 14, 2026. Each individual deposit remained intentionally beneath the $10,000 Currency Transaction Report (CTR) threshold. The aggregate cash volume significantly exceeds the subject's stated monthly income of $4,500.00.\n\n3. DISPOSITION & CONCLUSION:\nBased upon evidentiary review, the recommended disposition is ESCALATE. All supporting documentation remains retained in compliance files.",
+    "claims": [
+      {
+        "claim_id": "CL-1",
+        "span": [
+          393,
+          403
+        ],
+        "text": "$28,850.00",
+        "label": "SUPPORTED",
+        "error_code": null,
+        "severity": null,
+        "gold_evidence_ids": [
+          "EV-1"
+        ]
+      },
+      {
+        "claim_id": "CL-2",
+        "span": [
+          528,
+          591
+        ],
+        "text": "beneath the $10,000 Currency Transaction Report (CTR) threshold",
+        "label": "SUPPORTED",
+        "error_code": null,
+        "severity": null,
+        "gold_evidence_ids": [
+          "EV-1"
+        ]
+      }
+    ],
+    "case_label": {
+      "safe_to_file": true,
+      "disposition": "ESCALATE",
+      "expected_abstention": false,
+      "notes": null
+    },
+    "difficulty": "medium",
+    "license": "CC-BY-4.0",
+    "canary": "FFIRE-BENCH-CANARY-v0.1-4f9e8a7c"
+  },
+  {
+    "case_id": "FB-T1-000009",
+    "version": "1.0.0",
+    "track": "T1",
+    "split": "dev",
+    "provenance": {
+      "generator": "ffire_gen_v1",
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
+      "generator_version": "1.0.0",
+      "seed": 42
+    },
+    "typology": "rapid_movement",
+    "cluster_id": "C-0010",
+    "evidence": [
+      {
+        "evidence_id": "EV-1",
+        "type": "transaction_table",
+        "title": "Wire Activity Log",
+        "content": [
+          {
+            "txn_id": "TXN-RM-01",
+            "timestamp": "2026-09-05 10:00:00",
+            "type": "INCOMING_WIRE",
+            "amount": 150000.0,
+            "originator": "Delta Holdings Ltd",
+            "country": "Panama"
+          },
+          {
+            "txn_id": "TXN-RM-02",
+            "timestamp": "2026-09-05 11:15:00",
+            "type": "OUTGOING_WIRE",
+            "amount": 148500.0,
+            "beneficiary": "Zenith Global LLC",
+            "country": "Cyprus"
+          }
+        ],
+        "metadata": {}
+      },
+      {
+        "evidence_id": "EV-2",
+        "type": "kyc_profile",
+        "title": "Commercial Customer Profile",
+        "content": {
+          "customer_name": "Apex Logistics Corp",
+          "line_of_business": "Domestic Freight Transport",
+          "average_monthly_balance": 2500.0
+        },
+        "metadata": {}
+      }
+    ],
+    "narrative": "SUSPICIOUS ACTIVITY REPORT NARRATIVE\nSUBJECT: Apex Logistics Corp | ACCOUNT: ACCT-00009\nPRIMARY TYPOLOGY: RAPID MOVEMENT / PASS-THROUGH\n\n1. BACKGROUND & SUMMARY OF ACTIVITY:\nThis narrative details suspicious transaction activity identified during periodic review. Immediate depletion of international funds transfer.\n\n2. INVESTIGATIVE FINDINGS:\nSubject account received an inbound international wire of $150,000.00 from Delta Holdings Ltd in Panama. Prior to receiving the covering wire, $148,500.00 was wired out to Zenith Global LLC in Cyprus, leaving a nominal residual balance.\n\n3. DISPOSITION & CONCLUSION:\nBased upon evidentiary review, the recommended disposition is ESCALATE. All supporting documentation remains retained in compliance files.",
+    "claims": [
+      {
+        "claim_id": "CL-1",
+        "span": [
+          450,
+          486
+        ],
+        "text": "Prior to receiving the covering wire",
+        "label": "CONTRADICTED",
+        "error_code": "E2",
+        "severity": "critical",
+        "gold_evidence_ids": [
+          "EV-1"
+        ]
+      },
+      {
+        "claim_id": "CL-2",
+        "span": [
+          403,
+          438
+        ],
+        "text": "$150,000.00 from Delta Holdings Ltd",
+        "label": "SUPPORTED",
+        "error_code": null,
+        "severity": null,
+        "gold_evidence_ids": [
+          "EV-1"
+        ]
+      }
+    ],
+    "case_label": {
+      "safe_to_file": false,
+      "disposition": "ESCALATE",
+      "expected_abstention": false,
+      "notes": null
+    },
+    "difficulty": "medium",
+    "license": "CC-BY-4.0",
+    "canary": "FFIRE-BENCH-CANARY-v0.1-4f9e8a7c"
+  },
+  {
+    "case_id": "FB-T1-000010",
+    "version": "1.0.0",
+    "track": "T1",
+    "split": "dev",
+    "provenance": {
+      "generator": "ffire_gen_v1",
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
+      "generator_version": "1.0.0",
+      "seed": 42
+    },
+    "typology": "funnel_accounts",
+    "cluster_id": "C-0011",
+    "evidence": [
+      {
+        "evidence_id": "EV-1",
+        "type": "transaction_table",
+        "title": "Multi-Location Branch Deposits",
+        "content": [
+          {
+            "txn_id": "TXN-FNL-01",
+            "date": "2026-08-01 10:00:00",
+            "location": "Miami, FL",
+            "amount": 4500.0
+          },
+          {
+            "txn_id": "TXN-FNL-02",
+            "date": "2026-08-01 11:30:00",
+            "location": "Atlanta, GA",
+            "amount": 4800.0
+          },
+          {
+            "txn_id": "TXN-FNL-03",
+            "date": "2026-08-01 13:00:00",
+            "location": "Charlotte, NC",
+            "amount": 4700.0
+          }
+        ],
+        "metadata": {}
+      },
+      {
+        "evidence_id": "EV-2",
+        "type": "analyst_note",
+        "title": "Branch Operations Note",
+        "content": "Deposits executed by multiple unknown third parties with no apparent connection to cardholder home branch.",
+        "metadata": {}
+      }
+    ],
+    "narrative": "INVESTIGATION MEMORANDUM | CASE ID: FB-T1-000010\nINVESTIGATOR ID: INV-9921 | SUBJECT: Coastal Retailers LLC\n\nEVIDENTIARY FACTS:\n- Multi-branch cash deposits across three separate states in 3 hours\n- Deposits totaled $14,000.00 across branches\n\nRISK ANALYSIS & REASONING:\nCash deposits were made in three distinct states (Miami FL, Atlanta GA, Charlotte NC) within a 3-hour window. The customer does not maintain business operations in these geographic zones.\n\nDISPOSITION:\nRecommendation: ESCALATE.",
+    "claims": [
+      {
+        "claim_id": "CL-1",
+        "span": [
+          321,
+          355
+        ],
+        "text": "Miami FL, Atlanta GA, Charlotte NC",
+        "label": "SUPPORTED",
+        "error_code": null,
+        "severity": null,
+        "gold_evidence_ids": [
+          "EV-1"
+        ]
+      }
+    ],
+    "case_label": {
+      "safe_to_file": true,
+      "disposition": "ESCALATE",
+      "expected_abstention": false,
+      "notes": null
+    },
+    "difficulty": "hard",
+    "license": "CC-BY-4.0",
+    "canary": "FFIRE-BENCH-CANARY-v0.1-4f9e8a7c"
+  },
+  {
+    "case_id": "FB-T1-000011",
+    "version": "1.0.0",
+    "track": "T1",
+    "split": "dev",
+    "provenance": {
+      "generator": "ffire_gen_v1",
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
+      "generator_version": "1.0.0",
+      "seed": 42
+    },
+    "typology": "account_takeover",
+    "cluster_id": "C-0012",
+    "evidence": [
+      {
+        "evidence_id": "EV-1",
+        "type": "device_log",
+        "title": "Authentication & Device Telemetry",
+        "content": {
+          "timestamp": "2026-10-20 03:14:22",
+          "ip_address": "185.220.101.5",
+          "country": "Romania",
+          "device_fingerprint": "DEV-UNKNOWN-TOR",
+          "mfa_reset_requested": true
+        },
+        "metadata": {}
+      },
+      {
+        "evidence_id": "EV-2",
+        "type": "kyc_profile",
+        "title": "Customer Baseline Profile",
+        "content": {
+          "customer_name": "Eleanor Rigby",
+          "residence": "Seattle, WA, USA",
+          "primary_device": "iPhone 15 Pro (iOS 17.5)",
+          "typical_login_hours": "08:00 - 20:00 PST"
+        },
+        "metadata": {}
+      }
+    ],
+    "narrative": "ALERT SUMMARY for Eleanor Rigby. Activity involves account credential tampering and $22,000 ACH drain. Risk indicators identified: Account credentials and MFA were reset from an unfamiliar Tor exit node in Romania at 03:14 PST. Customer has resided continuously in Chicago IL with no international travel notice.. Final evaluation: ESCALATE.",
+    "claims": [
+      {
+        "claim_id": "CL-1",
+        "span": [
+          241,
+          275
+        ],
+        "text": "resided continuously in Chicago IL",
+        "label": "CONTRADICTED",
+        "error_code": "E4",
+        "severity": "critical",
+        "gold_evidence_ids": [
+          "EV-2"
+        ]
+      }
+    ],
+    "case_label": {
+      "safe_to_file": false,
+      "disposition": "ESCALATE",
+      "expected_abstention": false,
+      "notes": null
+    },
+    "difficulty": "easy",
+    "license": "CC-BY-4.0",
+    "canary": "FFIRE-BENCH-CANARY-v0.1-4f9e8a7c"
+  },
+  {
+    "case_id": "FB-T1-000012",
+    "version": "1.0.0",
+    "track": "T1",
+    "split": "dev",
+    "provenance": {
+      "generator": "ffire_gen_v1",
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
+      "generator_version": "1.0.0",
+      "seed": 42
+    },
+    "typology": "mule_network",
+    "cluster_id": "C-0013",
+    "evidence": [
+      {
+        "evidence_id": "EV-1",
+        "type": "transaction_table",
+        "title": "Peer-to-Peer Micro-Transfers",
+        "content": [
+          {
+            "from_account": "MULE-01",
+            "amount": 490.0,
+            "timestamp": "2026-09-01 10:00:00"
+          },
+          {
+            "from_account": "MULE-02",
+            "amount": 495.0,
+            "timestamp": "2026-09-01 10:05:00"
+          },
+          {
+            "from_account": "MULE-03",
+            "amount": 485.0,
+            "timestamp": "2026-09-01 10:10:00"
+          },
+          {
+            "from_account": "MULE-04",
+            "amount": 500.0,
+            "timestamp": "2026-09-01 10:15:00"
+          }
+        ],
+        "metadata": {}
+      },
+      {
+        "evidence_id": "EV-2",
+        "type": "analyst_note",
+        "title": "Consolidated Cash-out Pattern",
+        "content": "Micro-transfers collected from student checking accounts immediately withdrawn via ATM in crypto voucher purchases.",
+        "metadata": {}
+      }
+    ],
+    "narrative": "SUSPICIOUS ACTIVITY REPORT NARRATIVE\nSUBJECT: Kiran Patel | ACCOUNT: ACCT-00012\nPRIMARY TYPOLOGY: MULE NETWORK\n\n1. BACKGROUND & SUMMARY OF ACTIVITY:\nThis narrative details suspicious transaction activity identified during periodic review. Aggregated micro-transfers and immediate crypto conversion.\n\n2. INVESTIGATIVE FINDINGS:\nFour distinct student accounts remitted micro-transfers totaling $1,970.00 to a central account within 15 minutes. Funds were liquidated via crypto ATM vouchers.\n\n3. DISPOSITION & CONCLUSION:\nBased upon evidentiary review, the recommended disposition is ESCALATE. All supporting documentation remains retained in compliance files.",
+    "claims": [
+      {
+        "claim_id": "CL-1",
+        "span": [
+          383,
+          401
+        ],
+        "text": "totaling $1,970.00",
+        "label": "SUPPORTED",
+        "error_code": null,
+        "severity": null,
+        "gold_evidence_ids": [
+          "EV-1"
+        ]
+      }
+    ],
+    "case_label": {
+      "safe_to_file": true,
+      "disposition": "ESCALATE",
+      "expected_abstention": false,
+      "notes": null
+    },
+    "difficulty": "medium",
+    "license": "CC-BY-4.0",
+    "canary": "FFIRE-BENCH-CANARY-v0.1-4f9e8a7c"
+  },
+  {
+    "case_id": "FB-T1-000013",
+    "version": "1.0.0",
+    "track": "T1",
+    "split": "dev",
+    "provenance": {
+      "generator": "ffire_gen_v1",
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
+      "generator_version": "1.0.0",
+      "seed": 42
+    },
+    "typology": "trade_based_ml",
+    "cluster_id": "C-0014",
+    "evidence": [
+      {
+        "evidence_id": "EV-1",
+        "type": "transaction_table",
+        "title": "Commercial Invoices vs Customs Manifests",
+        "content": {
+          "invoice_number": "INV-7890",
+          "declared_commodity": "Industrial Grade Steel Tubing",
+          "declared_quantity_tons": 50,
+          "invoiced_unit_price_usd": 12000.0,
+          "total_wire_amount_usd": 600000.0,
+          "customs_market_benchmark_unit_price": 850.0
+        },
+        "metadata": {}
+      },
+      {
+        "evidence_id": "EV-2",
+        "type": "analyst_note",
+        "title": "Customs Verification Check",
+        "content": "Unit price over-invoiced by more than 14x relative to London Metal Exchange standard spot pricing.",
+        "metadata": {}
+      }
+    ],
+    "narrative": "SUSPICIOUS ACTIVITY REPORT NARRATIVE\nSUBJECT: Trans-Global Commodities | ACCOUNT: ACCT-00013\nPRIMARY TYPOLOGY: TRADE-BASED MONEY LAUNDERING\n\n1. BACKGROUND & SUMMARY OF ACTIVITY:\nThis narrative details suspicious transaction activity identified during periodic review. Extreme commercial invoice over-valuation.\n\n2. INVESTIGATIVE FINDINGS:\nInvoice INV-7890 billed steel tubing at $12,000.00 per ton, whereas prevailing fair market price was $850.00 per ton. This substantial 14x over-invoicing provides clear indicia of account takeover and credential stuffing.\n\n3. DISPOSITION & CONCLUSION:\nBased upon evidentiary review, the recommended disposition is ESCALATE. All supporting documentation remains retained in compliance files.",
+    "claims": [
+      {
+        "claim_id": "CL-1",
+        "span": [
+          508,
+          559
+        ],
+        "text": "indicia of account takeover and credential stuffing",
+        "label": "CONTRADICTED",
+        "error_code": "E8",
+        "severity": "major",
+        "gold_evidence_ids": [
+          "EV-1"
+        ]
+      }
+    ],
+    "case_label": {
+      "safe_to_file": false,
+      "disposition": "ESCALATE",
+      "expected_abstention": false,
+      "notes": null
+    },
+    "difficulty": "hard",
+    "license": "CC-BY-4.0",
+    "canary": "FFIRE-BENCH-CANARY-v0.1-4f9e8a7c"
+  },
+  {
+    "case_id": "FB-T1-000014",
+    "version": "1.0.0",
+    "track": "T1",
+    "split": "dev",
+    "provenance": {
+      "generator": "ffire_gen_v1",
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
+      "generator_version": "1.0.0",
+      "seed": 42
+    },
+    "typology": "elder_exploitation",
+    "cluster_id": "C-0015",
+    "evidence": [
+      {
+        "evidence_id": "EV-1",
+        "type": "kyc_profile",
+        "title": "Senior Customer Record",
+        "content": {
+          "customer_name": "Mildred Gable",
+          "age": 82,
+          "account_age_years": 34,
+          "historical_monthly_spend": 1200.0
+        },
+        "metadata": {}
+      },
+      {
+        "evidence_id": "EV-2",
+        "type": "analyst_note",
+        "title": "Branch Manager Escalation Note",
+        "content": "Customer visited branch accompanied by aggressive third party claiming to be contractor demanding immediate $45,000 cashier check.",
+        "metadata": {}
+      }
+    ],
+    "narrative": "INVESTIGATION MEMORANDUM | CASE ID: FB-T1-000014\nINVESTIGATOR ID: INV-4410 | SUBJECT: Mildred Gable\n\nEVIDENTIARY FACTS:\n- 82-year-old long-standing customer accompanied by unfamiliar contractor\n- Requested $45,000 cashier check deviating from $1,200 monthly historical spend\n\nRISK ANALYSIS & REASONING:\n82-year-old customer Mildred Gable attempted to withdraw $45,000.00 via cashier's check accompanied by an unrelated contractor. Customer appeared visibly distressed and unable to explain the contractual invoice details.\n\nDISPOSITION:\nRecommendation: FLAG.",
+    "claims": [
+      {
+        "claim_id": "CL-1",
+        "span": [
+          338,
+          390
+        ],
+        "text": "attempted to withdraw $45,000.00 via cashier's check",
+        "label": "SUPPORTED",
+        "error_code": null,
+        "severity": null,
+        "gold_evidence_ids": [
+          "EV-2"
+        ]
+      }
+    ],
+    "case_label": {
+      "safe_to_file": true,
+      "disposition": "FLAG",
+      "expected_abstention": false,
+      "notes": null
+    },
+    "difficulty": "medium",
+    "license": "CC-BY-4.0",
+    "canary": "FFIRE-BENCH-CANARY-v0.1-4f9e8a7c"
+  },
+  {
+    "case_id": "FB-T1-000015",
+    "version": "1.0.0",
+    "track": "T1",
+    "split": "dev",
+    "provenance": {
+      "generator": "ffire_gen_v1",
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
+      "generator_version": "1.0.0",
+      "seed": 42
+    },
+    "typology": "sanctions_adjacent",
+    "cluster_id": "C-0001",
+    "evidence": [
+      {
+        "evidence_id": "EV-1",
+        "type": "sanctions_list",
+        "title": "OFAC Specially Designated Nationals (SDN) Record",
+        "content": {
+          "sdn_name": "Dmitri Alexeyevich Volkov",
+          "alias": "D. Volkov",
+          "listed_jurisdiction": "High Risk Border Zone",
+          "program": "UKRAINE-EO14024"
+        },
+        "metadata": {}
+      },
+      {
+        "evidence_id": "EV-2",
+        "type": "kyc_profile",
+        "title": "Customer Identity Document",
+        "content": {
+          "customer_name": "Dmitry Volkov",
+          "dob": "1988-11-04",
+          "passport_country": "Estonia",
+          "beneficial_owner_verified": false,
+          "missing_documents": [
+            "Ultimate Beneficial Ownership (UBO) Registry Declaration"
+          ]
+        },
+        "metadata": {}
+      }
+    ],
+    "narrative": "SUSPICIOUS ACTIVITY REPORT NARRATIVE\nSUBJECT: Dmitry Volkov | ACCOUNT: ACCT-00015\nPRIMARY TYPOLOGY: SANCTIONS-ADJACENT SCREENING\n\n1. BACKGROUND & SUMMARY OF ACTIVITY:\nThis narrative details suspicious transaction activity identified during periodic review. Fuzzy name match against sanctions list with incomplete beneficial ownership records.\n\n2. INVESTIGATIVE FINDINGS:\nWire counterparty Dmitry Volkov closely matches OFAC SDN listed entity Dmitri Alexeyevich Volkov. Critical UBO documentation is missing from the customer file, precluding definitive resolution.\n\n3. DISPOSITION & CONCLUSION:\nBased upon evidentiary review, the recommended disposition is CLOSE as a confirmed false positive without requiring further documentation. All supporting documentation remains retained in compliance files.",
+    "claims": [
+      {
+        "claim_id": "CL-1",
+        "span": [
+          626,
+          733
+        ],
+        "text": "the recommended disposition is CLOSE as a confirmed false positive without requiring further documentation.",
+        "label": "CONTRADICTED",
+        "error_code": "E9",
+        "severity": "critical",
+        "gold_evidence_ids": [
+          "EV-2"
+        ]
+      }
+    ],
+    "case_label": {
+      "safe_to_file": false,
+      "disposition": "NEED_MORE_INFO",
+      "expected_abstention": true,
+      "notes": null
+    },
+    "difficulty": "hard",
+    "license": "CC-BY-4.0",
+    "canary": "FFIRE-BENCH-CANARY-v0.1-4f9e8a7c"
+  },
+  {
+    "case_id": "FB-T1-000016",
+    "version": "1.0.0",
+    "track": "T1",
+    "split": "dev",
+    "provenance": {
+      "generator": "ffire_gen_v1",
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
+      "generator_version": "1.0.0",
+      "seed": 42
+    },
+    "typology": "structuring",
+    "cluster_id": "C-0002",
+    "evidence": [
+      {
+        "evidence_id": "EV-1",
+        "type": "transaction_table",
+        "title": "Branch Cash Deposit Log",
+        "content": [
+          {
+            "txn_id": "TXN-STRUC-01",
+            "date": "2026-10-12 09:14:00",
+            "type": "CASH_DEPOSIT",
+            "amount": 9400.0,
+            "branch": "North Branch #14",
+            "currency": "USD"
+          },
+          {
+            "txn_id": "TXN-STRUC-02",
+            "date": "2026-10-13 11:22:00",
+            "type": "CASH_DEPOSIT",
+            "amount": 9600.0,
+            "branch": "Metro Branch #02",
+            "currency": "USD"
+          },
+          {
+            "txn_id": "TXN-STRUC-03",
+            "date": "2026-10-14 15:45:00",
+            "type": "CASH_DEPOSIT",
+            "amount": 9850.0,
+            "branch": "Southwest Branch #08",
+            "currency": "USD"
+          }
+        ],
+        "metadata": {}
+      },
+      {
+        "evidence_id": "EV-2",
+        "type": "kyc_profile",
+        "title": "Customer Profile & Occupation",
+        "content": {
+          "customer_name": "Marcus Vance",
+          "customer_id": "CUST-STRUC-0016",
+          "stated_occupation": "Independent Consultant",
+          "stated_monthly_income": 4500.0,
+          "account_opened": "2024-03-10",
+          "kyc_risk_tier": "MEDIUM"
+        },
+        "metadata": {}
+      }
+    ],
+    "narrative": "SUSPICIOUS ACTIVITY REPORT NARRATIVE\nSUBJECT: Marcus Vance | ACCOUNT: ACCT-00016\nPRIMARY TYPOLOGY: STRUCTURING\n\n1. BACKGROUND & SUMMARY OF ACTIVITY:\nThis narrative details suspicious transaction activity identified during periodic review. Alert triggered by CTR threshold avoidance rules.\n\n2. INVESTIGATIVE FINDINGS:\nThe subject Marcus Vance conducted three consecutive cash deposits totaling $28,850.00 across three distinct bank branches between October 12 and October 14, 2026. Each individual deposit remained intentionally beneath the $10,000 Currency Transaction Report (CTR) threshold. The aggregate cash volume significantly exceeds the subject's stated monthly income of $4,500.00.\n\n3. DISPOSITION & CONCLUSION:\nBased upon evidentiary review, the recommended disposition is ESCALATE. All supporting documentation remains retained in compliance files.",
+    "claims": [
+      {
+        "claim_id": "CL-1",
+        "span": [
+          393,
+          403
+        ],
+        "text": "$28,850.00",
+        "label": "SUPPORTED",
+        "error_code": null,
+        "severity": null,
+        "gold_evidence_ids": [
+          "EV-1"
+        ]
+      },
+      {
+        "claim_id": "CL-2",
+        "span": [
+          528,
+          591
+        ],
+        "text": "beneath the $10,000 Currency Transaction Report (CTR) threshold",
+        "label": "SUPPORTED",
+        "error_code": null,
+        "severity": null,
+        "gold_evidence_ids": [
+          "EV-1"
+        ]
+      }
+    ],
+    "case_label": {
+      "safe_to_file": true,
+      "disposition": "ESCALATE",
+      "expected_abstention": false,
+      "notes": null
+    },
+    "difficulty": "medium",
+    "license": "CC-BY-4.0",
+    "canary": "FFIRE-BENCH-CANARY-v0.1-4f9e8a7c"
+  },
+  {
+    "case_id": "FB-T1-000017",
+    "version": "1.0.0",
+    "track": "T1",
+    "split": "dev",
+    "provenance": {
+      "generator": "ffire_gen_v1",
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
+      "generator_version": "1.0.0",
+      "seed": 42
+    },
+    "typology": "rapid_movement",
+    "cluster_id": "C-0003",
+    "evidence": [
+      {
+        "evidence_id": "EV-1",
+        "type": "transaction_table",
+        "title": "Wire Activity Log",
+        "content": [
+          {
+            "txn_id": "TXN-RM-01",
+            "timestamp": "2026-09-05 10:00:00",
+            "type": "INCOMING_WIRE",
+            "amount": 150000.0,
+            "originator": "Delta Holdings Ltd",
+            "country": "Panama"
+          },
+          {
+            "txn_id": "TXN-RM-02",
+            "timestamp": "2026-09-05 11:15:00",
+            "type": "OUTGOING_WIRE",
+            "amount": 148500.0,
+            "beneficiary": "Zenith Global LLC",
+            "country": "Cyprus"
+          }
+        ],
+        "metadata": {}
+      },
+      {
+        "evidence_id": "EV-2",
+        "type": "kyc_profile",
+        "title": "Commercial Customer Profile",
+        "content": {
+          "customer_name": "Apex Logistics Corp",
+          "line_of_business": "Domestic Freight Transport",
+          "average_monthly_balance": 2500.0
+        },
+        "metadata": {}
+      }
+    ],
+    "narrative": "SUSPICIOUS ACTIVITY REPORT NARRATIVE\nSUBJECT: Apex Logistics Corp | ACCOUNT: ACCT-00017\nPRIMARY TYPOLOGY: RAPID MOVEMENT / PASS-THROUGH\n\n1. BACKGROUND & SUMMARY OF ACTIVITY:\nThis narrative details suspicious transaction activity identified during periodic review. Immediate depletion of international funds transfer.\n\n2. INVESTIGATIVE FINDINGS:\nSubject account received an inbound international wire of $150,000.00 from Delta Holdings Ltd in Panama. Prior to receiving the covering wire, $148,500.00 was wired out to Zenith Global LLC in Cyprus, leaving a nominal residual balance.\n\n3. DISPOSITION & CONCLUSION:\nBased upon evidentiary review, the recommended disposition is ESCALATE. All supporting documentation remains retained in compliance files.",
+    "claims": [
+      {
+        "claim_id": "CL-1",
+        "span": [
+          450,
+          486
+        ],
+        "text": "Prior to receiving the covering wire",
+        "label": "CONTRADICTED",
+        "error_code": "E2",
+        "severity": "critical",
+        "gold_evidence_ids": [
+          "EV-1"
+        ]
+      },
+      {
+        "claim_id": "CL-2",
+        "span": [
+          403,
+          438
+        ],
+        "text": "$150,000.00 from Delta Holdings Ltd",
+        "label": "SUPPORTED",
+        "error_code": null,
+        "severity": null,
+        "gold_evidence_ids": [
+          "EV-1"
+        ]
+      }
+    ],
+    "case_label": {
+      "safe_to_file": false,
+      "disposition": "ESCALATE",
+      "expected_abstention": false,
+      "notes": null
+    },
+    "difficulty": "medium",
+    "license": "CC-BY-4.0",
+    "canary": "FFIRE-BENCH-CANARY-v0.1-4f9e8a7c"
+  },
+  {
+    "case_id": "FB-T1-000018",
+    "version": "1.0.0",
+    "track": "T1",
+    "split": "dev",
+    "provenance": {
+      "generator": "ffire_gen_v1",
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
+      "generator_version": "1.0.0",
+      "seed": 42
+    },
+    "typology": "funnel_accounts",
+    "cluster_id": "C-0004",
+    "evidence": [
+      {
+        "evidence_id": "EV-1",
+        "type": "transaction_table",
+        "title": "Multi-Location Branch Deposits",
+        "content": [
+          {
+            "txn_id": "TXN-FNL-01",
+            "date": "2026-08-01 10:00:00",
+            "location": "Miami, FL",
+            "amount": 4500.0
+          },
+          {
+            "txn_id": "TXN-FNL-02",
+            "date": "2026-08-01 11:30:00",
+            "location": "Atlanta, GA",
+            "amount": 4800.0
+          },
+          {
+            "txn_id": "TXN-FNL-03",
+            "date": "2026-08-01 13:00:00",
+            "location": "Charlotte, NC",
+            "amount": 4700.0
+          }
+        ],
+        "metadata": {}
+      },
+      {
+        "evidence_id": "EV-2",
+        "type": "analyst_note",
+        "title": "Branch Operations Note",
+        "content": "Deposits executed by multiple unknown third parties with no apparent connection to cardholder home branch.",
+        "metadata": {}
+      }
+    ],
+    "narrative": "INVESTIGATION MEMORANDUM | CASE ID: FB-T1-000018\nINVESTIGATOR ID: INV-9921 | SUBJECT: Coastal Retailers LLC\n\nEVIDENTIARY FACTS:\n- Multi-branch cash deposits across three separate states in 3 hours\n- Deposits totaled $14,000.00 across branches\n\nRISK ANALYSIS & REASONING:\nCash deposits were made in three distinct states (Miami FL, Atlanta GA, Charlotte NC) within a 3-hour window. The customer does not maintain business operations in these geographic zones.\n\nDISPOSITION:\nRecommendation: ESCALATE.",
+    "claims": [
+      {
+        "claim_id": "CL-1",
+        "span": [
+          321,
+          355
+        ],
+        "text": "Miami FL, Atlanta GA, Charlotte NC",
+        "label": "SUPPORTED",
+        "error_code": null,
+        "severity": null,
+        "gold_evidence_ids": [
+          "EV-1"
+        ]
+      }
+    ],
+    "case_label": {
+      "safe_to_file": true,
+      "disposition": "ESCALATE",
+      "expected_abstention": false,
+      "notes": null
+    },
+    "difficulty": "hard",
+    "license": "CC-BY-4.0",
+    "canary": "FFIRE-BENCH-CANARY-v0.1-4f9e8a7c"
+  },
+  {
+    "case_id": "FB-T1-000019",
+    "version": "1.0.0",
+    "track": "T1",
+    "split": "dev",
+    "provenance": {
+      "generator": "ffire_gen_v1",
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
+      "generator_version": "1.0.0",
+      "seed": 42
+    },
+    "typology": "account_takeover",
+    "cluster_id": "C-0005",
+    "evidence": [
+      {
+        "evidence_id": "EV-1",
+        "type": "device_log",
+        "title": "Authentication & Device Telemetry",
+        "content": {
+          "timestamp": "2026-10-20 03:14:22",
+          "ip_address": "185.220.101.5",
+          "country": "Romania",
+          "device_fingerprint": "DEV-UNKNOWN-TOR",
+          "mfa_reset_requested": true
+        },
+        "metadata": {}
+      },
+      {
+        "evidence_id": "EV-2",
+        "type": "kyc_profile",
+        "title": "Customer Baseline Profile",
+        "content": {
+          "customer_name": "Eleanor Rigby",
+          "residence": "Seattle, WA, USA",
+          "primary_device": "iPhone 15 Pro (iOS 17.5)",
+          "typical_login_hours": "08:00 - 20:00 PST"
+        },
+        "metadata": {}
+      }
+    ],
+    "narrative": "ALERT SUMMARY for Eleanor Rigby. Activity involves account credential tampering and $22,000 ACH drain. Risk indicators identified: Account credentials and MFA were reset from an unfamiliar Tor exit node in Romania at 03:14 PST. Customer has resided continuously in Chicago IL with no international travel notice.. Final evaluation: ESCALATE.",
+    "claims": [
+      {
+        "claim_id": "CL-1",
+        "span": [
+          241,
+          275
+        ],
+        "text": "resided continuously in Chicago IL",
+        "label": "CONTRADICTED",
+        "error_code": "E4",
+        "severity": "critical",
+        "gold_evidence_ids": [
+          "EV-2"
+        ]
+      }
+    ],
+    "case_label": {
+      "safe_to_file": false,
+      "disposition": "ESCALATE",
+      "expected_abstention": false,
+      "notes": null
+    },
+    "difficulty": "easy",
+    "license": "CC-BY-4.0",
+    "canary": "FFIRE-BENCH-CANARY-v0.1-4f9e8a7c"
+  },
+  {
+    "case_id": "FB-T1-000020",
+    "version": "1.0.0",
+    "track": "T1",
+    "split": "dev",
+    "provenance": {
+      "generator": "ffire_gen_v1",
+      "narrative_source": "template:ffire_gen_v1",
+      "human_reviewed": false,
+      "reviewer_count": 0,
+      "generator_version": "1.0.0",
+      "seed": 42
+    },
+    "typology": "mule_network",
+    "cluster_id": "C-0006",
+    "evidence": [
+      {
+        "evidence_id": "EV-1",
+        "type": "transaction_table",
+        "title": "Peer-to-Peer Micro-Transfers",
+        "content": [
+          {
+            "from_account": "MULE-01",
+            "amount": 490.0,
+            "timestamp": "2026-09-01 10:00:00"
+          },
+          {
+            "from_account": "MULE-02",
+            "amount": 495.0,
+            "timestamp": "2026-09-01 10:05:00"
+          },
+          {
+            "from_account": "MULE-03",
+            "amount": 485.0,
+            "timestamp": "2026-09-01 10:10:00"
+          },
+          {
+            "from_account": "MULE-04",
+            "amount": 500.0,
+            "timestamp": "2026-09-01 10:15:00"
+          }
+        ],
+        "metadata": {}
+      },
+      {
+        "evidence_id": "EV-2",
+        "type": "analyst_note",
+        "title": "Consolidated Cash-out Pattern",
+        "content": "Micro-transfers collected from student checking accounts immediately withdrawn via ATM in crypto voucher purchases.",
+        "metadata": {}
+      }
+    ],
+    "narrative": "SUSPICIOUS ACTIVITY REPORT NARRATIVE\nSUBJECT: Kiran Patel | ACCOUNT: ACCT-00020\nPRIMARY TYPOLOGY: MULE NETWORK\n\n1. BACKGROUND & SUMMARY OF ACTIVITY:\nThis narrative details suspicious transaction activity identified during periodic review. Aggregated micro-transfers and immediate crypto conversion.\n\n2. INVESTIGATIVE FINDINGS:\nFour distinct student accounts remitted micro-transfers totaling $1,970.00 to a central account within 15 minutes. Funds were liquidated via crypto ATM vouchers.\n\n3. DISPOSITION & CONCLUSION:\nBased upon evidentiary review, the recommended disposition is ESCALATE. All supporting documentation remains retained in compliance files.",
+    "claims": [
+      {
+        "claim_id": "CL-1",
+        "span": [
+          383,
+          401
+        ],
+        "text": "totaling $1,970.00",
+        "label": "SUPPORTED",
+        "error_code": null,
+        "severity": null,
+        "gold_evidence_ids": [
+          "EV-1"
+        ]
+      }
+    ],
+    "case_label": {
+      "safe_to_file": true,
+      "disposition": "ESCALATE",
+      "expected_abstention": false,
+      "notes": null
+    },
+    "difficulty": "medium",
+    "license": "CC-BY-4.0",
+    "canary": "FFIRE-BENCH-CANARY-v0.1-4f9e8a7c"
+  }
+]

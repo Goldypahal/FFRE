@@ -27,6 +27,14 @@ FFIRE solves this by acting as a **vendor-neutral verification and investigation
 > - **In Scope**: Post-transaction fraud reasoning, multi-agent LangGraph analysis, universal claim-grounding verification sidecar, SHA-256 audit chaining, offline replay verification CLI, and FinCEN SAR audit dossier preparation with human review.
 > - **Out of Scope**: Real-time inline payment switch blocking (FFIRE operates as an advisory post-transaction intelligence engine); direct autonomous electronic filing with FinCEN without human compliance officer authorization.
 
+> [!NOTE]
+> ### FFIRE-Bench (dev preview)
+> FFIRE-Bench is an in-progress benchmark for checking AI-written fraud investigations. FFIRE is evaluated through it like any other system (`CHARTER.md`, `GOVERNANCE.md`).
+> - **Status:** v0.1 is a 20-case, template-generated dev set with no human annotation. It's for testing the pipeline, not for ranking systems. See [docs/DATASHEET.md](docs/DATASHEET.md).
+> - **Leaderboard:** [docs/LEADERBOARD.md](docs/LEADERBOARD.md) (offline baselines only so far; FFIRE and LLM runs pending).
+> - **Draft report:** [docs/technical_report_v0.1.md](docs/technical_report_v0.1.md).
+> - **Held-out evaluation:** pass/fail is now computed from `configs/targets.yaml`. The 100-case report shows **4 of 10 targets missed**. See [data/benchmarks/held_out_100_evaluation_report.md](data/benchmarks/held_out_100_evaluation_report.md) and [CHANGELOG.md](CHANGELOG.md).
+
 ---
 
 ## Table of Contents

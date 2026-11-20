@@ -22,16 +22,13 @@ from typing import Dict, Any, List, Tuple
 from pathlib import Path
 from decimal import Decimal
 from datetime import datetime, timezone
+import yaml
 
 # Add backend directory to sys.path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BACKEND_DIR = REPO_ROOT / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
-
-import models
-from database import SessionLocal
-from graph import build_graph
 
 
 def wilson_score_interval(successes: int, total: int, confidence: float = 0.95) -> Tuple[float, float]:
@@ -467,7 +464,83 @@ def evaluate_held_out_case(graph, case: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def load_evaluation_targets() -> Dict[str, Any]:
+    """Load evaluation thresholds from targets.yaml or fall back to verified defaults."""
+    for path in [
+        REPO_ROOT / "configs" / "targets.yaml",
+        REPO_ROOT / "benchmarks" / "config" / "targets.yaml",
+    ]:
+        if path.exists():
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = yaml.safe_load(f)
+                    if data and "held_out_100" in data:
+                        return data["held_out_100"]
+            except Exception:
+                pass
+    return {
+        "accuracy": {"threshold": 85.0, "operator": ">=", "label": ">= 85.0% target"},
+        "precision": {"threshold": 85.0, "operator": ">=", "label": ">= 85.0% target"},
+        "recall": {"threshold": 90.0, "operator": ">=", "label": ">= 90.0% target"},
+        "specificity": {"threshold": 80.0, "operator": ">=", "label": ">= 80.0% target"},
+        "f1_score": {"threshold": 0.8500, "operator": ">=", "label": ">= 0.85 target"},
+        "false_positive_rate": {"threshold": 5.0, "operator": "<=", "label": "< 5.0% target"},
+        "false_negative_rate": {"threshold": 2.0, "operator": "<=", "label": "< 2.0% target"},
+        "brier_score": {"threshold": 0.1000, "operator": "<=", "label": "< 0.10 target"},
+        "evidence_grounding": {"threshold": 100.0, "operator": ">=", "label": "100% target"},
+        "kyc_escalation_rate": {"threshold": 100.0, "operator": ">=", "label": "100% target"},
+    }
+
+
+def evaluate_metric_status(val: float, rule: Dict[str, Any]) -> Tuple[str, str]:
+    """Compute whether a metric value passes or fails against its configured target."""
+    thresh = float(rule["threshold"])
+    op = rule.get("operator", ">=")
+    passed = False
+    if op == ">=":
+        passed = (val >= thresh)
+    elif op == "<=":
+        passed = (val <= thresh)
+    elif op == ">":
+        passed = (val > thresh)
+    elif op == "<":
+        passed = (val < thresh)
+    elif op == "==":
+        passed = (abs(val - thresh) < 1e-6)
+    return ("PASS" if passed else "FAIL", rule.get("label", f"{op} {thresh}"))
+
+
+def evaluate_all_metrics(metrics_dict: Dict[str, Any], targets: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    """Evaluate all metrics against target thresholds, returning status and metadata."""
+    evaluations = {}
+    mapping = {
+        "accuracy": metrics_dict.get("accuracy_pct", 0.0),
+        "precision": metrics_dict.get("precision_pct", 0.0),
+        "recall": metrics_dict.get("recall_pct", 0.0),
+        "specificity": metrics_dict.get("specificity_pct", 0.0),
+        "f1_score": metrics_dict.get("f1_score", 0.0),
+        "false_positive_rate": metrics_dict.get("false_positive_rate_pct", 0.0),
+        "false_negative_rate": metrics_dict.get("false_negative_rate_pct", 0.0),
+        "brier_score": metrics_dict.get("brier_score", 1.0),
+        "evidence_grounding": metrics_dict.get("evidence_grounding_accuracy_pct", 0.0),
+        "kyc_escalation_rate": metrics_dict.get("insufficient_kyc_escalation_pct", 0.0),
+    }
+
+    for key, val in mapping.items():
+        rule = targets.get(key, {"threshold": 0.0, "operator": ">=", "label": "N/A"})
+        status, label = evaluate_metric_status(val, rule)
+        evaluations[key] = {
+            "value": val,
+            "target_label": label,
+            "status": status,
+            "threshold": rule.get("threshold"),
+            "operator": rule.get("operator")
+        }
+    return evaluations
+
+
 def run_held_out_100_evaluation():
+    from graph import build_graph
     print("=" * 85)
     print("FFRE HELD-OUT 100-CASE STATISTICAL DECISION EVALUATION & CALIBRATION")
     print("=" * 85)
@@ -543,9 +616,36 @@ def run_held_out_100_evaluation():
     print(f"KYC Escalation Rate:   {kyc_escalation_rate:.1f}% (Fail-closed)")
     print("=" * 85)
 
+    raw_metrics = {
+        "accuracy_pct": round(accuracy * 100, 2),
+        "accuracy_95_ci": list(acc_ci),
+        "precision_pct": round(precision * 100, 2),
+        "precision_95_ci": list(prec_ci),
+        "recall_pct": round(recall * 100, 2),
+        "recall_95_ci": list(recall_ci),
+        "specificity_pct": round(specificity * 100, 2),
+        "f1_score": round(f1_score, 4),
+        "false_positive_rate_pct": round(fpr * 100, 2),
+        "false_negative_rate_pct": round(fnr * 100, 2),
+        "brier_score": brier_score,
+        "evidence_grounding_accuracy_pct": round(grounding_rate, 2),
+        "insufficient_kyc_escalation_pct": round(kyc_escalation_rate, 2)
+    }
+
+    # Load targets and compute dynamic pass/fail evaluations
+    targets = load_evaluation_targets()
+    evaluations = evaluate_all_metrics(raw_metrics, targets)
+
+    passed_count = sum(1 for e in evaluations.values() if e["status"] == "PASS")
+    total_evals = len(evaluations)
+    overall_status = "PASS" if passed_count == total_evals else "FAIL"
+
     report_payload = {
         "evaluation_name": "Held-Out 100-Case Statistical Decision Quality Evaluation",
         "sample_size": total,
+        "overall_status": overall_status,
+        "targets_passed": passed_count,
+        "targets_total": total_evals,
         "class_distribution": {
             "legitimate_allow": actual_negatives,
             "fraudulent_flag_or_escalate": actual_positives
@@ -556,21 +656,8 @@ def run_held_out_100_evaluation():
             "true_negatives": tn,
             "false_negatives": fn
         },
-        "metrics": {
-            "accuracy_pct": round(accuracy * 100, 2),
-            "accuracy_95_ci": list(acc_ci),
-            "precision_pct": round(precision * 100, 2),
-            "precision_95_ci": list(prec_ci),
-            "recall_pct": round(recall * 100, 2),
-            "recall_95_ci": list(recall_ci),
-            "specificity_pct": round(specificity * 100, 2),
-            "f1_score": round(f1_score, 4),
-            "false_positive_rate_pct": round(fpr * 100, 2),
-            "false_negative_rate_pct": round(fnr * 100, 2),
-            "brier_score": brier_score,
-            "evidence_grounding_accuracy_pct": round(grounding_rate, 2),
-            "insufficient_kyc_escalation_pct": round(kyc_escalation_rate, 2)
-        },
+        "metrics": raw_metrics,
+        "evaluations": evaluations,
         "cases": eval_results
     }
 
@@ -585,25 +672,29 @@ def run_held_out_100_evaluation():
         f.write("# FFRE Held-Out 100-Case Statistical Decision Evaluation Report\n\n")
         f.write("**Evaluation Type**: Independent Held-Out Corpus\n")
         f.write(f"**Sample Size**: {total} cases across 6 archetypes\n")
-        f.write(f"**Date**: October 26, 2026\n\n")
+        f.write(f"**Date**: November 2026 (Updated with dynamic threshold evaluation)\n\n")
+        f.write(f"### Overall Benchmark Status: **{overall_status}** ({passed_count}/{total_evals} Targets Met)\n\n")
+        if overall_status == "FAIL":
+            f.write("> [!WARNING]\n")
+            f.write(f"> **Credibility Notice**: Earlier iterations hard-coded 'PASS' across all rows. Dynamic evaluation confirms {total_evals - passed_count} target violations requiring optimization.\n\n")
         f.write("## 1. Confusion Matrix\n\n")
         f.write("| | Predicted Fraud | Predicted Legitimate |\n")
         f.write("|---|:---:|:---:|\n")
         f.write(f"| **Actual Fraud** | **TP = {tp}** | **FN = {fn}** |\n")
         f.write(f"| **Actual Legitimate** | **FP = {fp}** | **TN = {tn}** |\n\n")
         f.write("## 2. Statistical Metrics & 95% Confidence Intervals\n\n")
-        f.write("| Metric | Point Estimate | 95% Confidence Interval (Wilson Score) | Benchmark Status |\n")
-        f.write("|---|:---:|:---:|:---:|\n")
-        f.write(f"| **Accuracy** | {accuracy * 100:.2f}% | [{acc_ci[0]}%, {acc_ci[1]}%] | **PASS** |\n")
-        f.write(f"| **Precision** | {precision * 100:.2f}% | [{prec_ci[0]}%, {prec_ci[1]}%] | **PASS** |\n")
-        f.write(f"| **Recall (Sensitivity)** | {recall * 100:.2f}% | [{recall_ci[0]}%, {recall_ci[1]}%] | **PASS** |\n")
-        f.write(f"| **Specificity** | {specificity * 100:.2f}% | N/A | **PASS** |\n")
-        f.write(f"| **F1 Score** | {f1_score:.4f} | N/A | **PASS** |\n")
-        f.write(f"| **False-Positive Rate** | {fpr * 100:.2f}% | < 5.0% target | **PASS** |\n")
-        f.write(f"| **False-Negative Rate** | {fnr * 100:.2f}% | < 2.0% target | **PASS** |\n")
-        f.write(f"| **Brier Calibration Score** | {brier_score} | < 0.10 target | **PASS** |\n")
-        f.write(f"| **Evidence Grounding** | {grounding_rate:.1f}% | 100% target | **PASS** |\n")
-        f.write(f"| **KYC Escalation Rate** | {kyc_escalation_rate:.1f}% | 100% target | **PASS** |\n\n")
+        f.write("| Metric | Point Estimate | 95% Confidence Interval (Wilson Score) | Configured Target | Benchmark Status |\n")
+        f.write("|---|:---:|:---:|:---:|:---:|\n")
+        f.write(f"| **Accuracy** | {accuracy * 100:.2f}% | [{acc_ci[0]}%, {acc_ci[1]}%] | {evaluations['accuracy']['target_label']} | **{evaluations['accuracy']['status']}** |\n")
+        f.write(f"| **Precision** | {precision * 100:.2f}% | [{prec_ci[0]}%, {prec_ci[1]}%] | {evaluations['precision']['target_label']} | **{evaluations['precision']['status']}** |\n")
+        f.write(f"| **Recall (Sensitivity)** | {recall * 100:.2f}% | [{recall_ci[0]}%, {recall_ci[1]}%] | {evaluations['recall']['target_label']} | **{evaluations['recall']['status']}** |\n")
+        f.write(f"| **Specificity** | {specificity * 100:.2f}% | N/A | {evaluations['specificity']['target_label']} | **{evaluations['specificity']['status']}** |\n")
+        f.write(f"| **F1 Score** | {f1_score:.4f} | N/A | {evaluations['f1_score']['target_label']} | **{evaluations['f1_score']['status']}** |\n")
+        f.write(f"| **False-Positive Rate** | {fpr * 100:.2f}% | N/A | {evaluations['false_positive_rate']['target_label']} | **{evaluations['false_positive_rate']['status']}** |\n")
+        f.write(f"| **False-Negative Rate** | {fnr * 100:.2f}% | N/A | {evaluations['false_negative_rate']['target_label']} | **{evaluations['false_negative_rate']['status']}** |\n")
+        f.write(f"| **Brier Calibration Score** | {brier_score} | N/A | {evaluations['brier_score']['target_label']} | **{evaluations['brier_score']['status']}** |\n")
+        f.write(f"| **Evidence Grounding** | {grounding_rate:.1f}% | N/A | {evaluations['evidence_grounding']['target_label']} | **{evaluations['evidence_grounding']['status']}** |\n")
+        f.write(f"| **KYC Escalation Rate** | {kyc_escalation_rate:.1f}% | N/A | {evaluations['kyc_escalation_rate']['target_label']} | **{evaluations['kyc_escalation_rate']['status']}** |\n\n")
         f.write("## 3. Archetype Distribution\n\n")
         f.write("- **Legitimate Retail & Corporate**: 40 cases (40%)\n")
         f.write("- **Velocity Burst Attacks**: 20 cases (20%)\n")
